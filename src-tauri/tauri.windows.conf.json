@@ -1,0 +1,15 @@
+{
+  "app": {
+    "windows": [
+      {
+        "title": "FocusPomodoro",
+        "width": 1200,
+        "height": 820,
+        "minWidth": 960,
+        "minHeight": 640,
+        "decorations": false,
+        "titleBarStyle": "Visible"
+      }
+    ]
+  }
+}

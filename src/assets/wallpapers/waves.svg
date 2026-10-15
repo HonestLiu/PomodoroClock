@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5FB6DC"/>
+      <stop offset="45%" stop-color="#9FD8EC"/>
+      <stop offset="78%" stop-color="#D8EFF6"/>
+      <stop offset="100%" stop-color="#EFF8FA"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="0.72" cy="0.30" r="0.42">
+      <stop offset="0%" stop-color="#FFF6DC" stop-opacity="0.95"/>
+      <stop offset="55%" stop-color="#FFEFC8" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#FFEFC8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3E93B8"/>
+      <stop offset="30%" stop-color="#2A7FA6"/>
+      <stop offset="70%" stop-color="#1E6B90"/>
+      <stop offset="100%" stop-color="#2C86A8"/>
+    </linearGradient>
+    <linearGradient id="sand" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#EFE0C0"/>
+      <stop offset="100%" stop-color="#DCC9A2"/>
+    </linearGradient>
+    <linearGradient id="foam" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.92"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.35"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1600" height="1000" fill="url(#sky)"/>
+  <rect width="1600" height="1000" fill="url(#sun)"/>
+
+  <!-- 远山/云层 -->
+  <path d="M0 430 Q 180 392 340 424 T 700 418 T 1080 430 T 1600 412 L1600 470 L0 470 Z" fill="#CFE9F2" opacity="0.55"/>
+
+  <!-- 海面 -->
+  <rect x="0" y="462" width="1600" height="330" fill="url(#sea)"/>
+
+  <!-- 海面反光带 -->
+  <path d="M1180 470 L1330 470 L1180 792 L1010 792 Z" fill="#FFFFFF" opacity="0.10"/>
+
+  <!-- 波浪层 -->
+  <path d="M0 520 Q 200 505 400 520 T 800 520 T 1200 520 T 1600 520 L1600 560 L0 560 Z" fill="#FFFFFF" opacity="0.07"/>
+  <path d="M0 592 Q 220 572 440 592 T 880 592 T 1320 592 T 1600 588 L1600 626 L0 626 Z" fill="#FFFFFF" opacity="0.09"/>
+  <path d="M0 668 Q 240 644 480 668 T 960 668 T 1440 664 L1600 660 L1600 704 L0 704 Z" fill="#FFFFFF" opacity="0.11"/>
+
+  <!-- 碎浪白沫 -->
+  <path d="M0 716 Q 160 700 320 716 T 640 716 T 960 712 T 1280 716 T 1600 710 L1600 742 L0 742 Z" fill="#FFFFFF" opacity="0.22"/>
+  <path d="M0 748 Q 180 730 360 748 T 720 748 T 1080 744 T 1440 748 L1600 744 L1600 770 L0 770 Z" fill="#FFFFFF" opacity="0.3"/>
+
+  <!-- 沙滩 -->
+  <path d="M0 772 Q 400 752 800 772 T 1600 764 L1600 1000 L0 1000 Z" fill="url(#sand)"/>
+
+  <!-- 上岸泡沫边缘 -->
+  <path d="M0 774 Q 400 754 800 774 T 1600 766 L1600 796 Q 1200 812 800 800 T 0 806 Z" fill="url(#foam)" opacity="0.85"/>
+  <path d="M0 812 Q 400 828 800 816 T 1600 812 L1600 826 Q 1200 844 800 832 T 0 830 Z" fill="#FFFFFF" opacity="0.4"/>
+
+  <!-- 湿沙反光 -->
+  <path d="M0 836 Q 400 850 800 840 T 1600 838 L1600 872 Q 1200 884 800 872 T 0 866 Z" fill="#C9B48C" opacity="0.35"/>
+
+  <!-- 天光散射 -->
+  <ellipse cx="1160" cy="300" rx="380" ry="200" fill="#FFF8E2" opacity="0.18"/>
+</svg>

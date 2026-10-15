@@ -1,0 +1,221 @@
+// 派生查询（纯函数）—— 数据由调用方传入。
+//
+// 为什么需要它：`db/queries.ts` 直接读取 IndexedDB（`getDB()`），那是**浏览器适配器**的存储。
+// 在 Tauri 运行时数据在 SQLite，IndexedDB 从未初始化，若 UI 仍调用 db/queries 会永远得到空结果
+// （历史缺陷：桌面版任务列表恒为空）。因此 UI 一律使用本文件的纯函数，
+// 数据来源为 store（经 src/api 从「当前运行时」加载），两种运行时行为一致。
+
+import type {
+  FocusRecord, SmartKey, Stats, Task, TaskList,
+} from '@/types';
+import {
+  addDays, endOfWeek, startOfDay, toDateKey, todayKey,
+} from './date';
+
+/** 一次派生所需的全部数据 */
+export interface Dataset {
+  tasks: Task[];
+  lists: TaskList[];
+  records: FocusRecord[];
+}
+
+export const emptyDataset: Dataset = { tasks: [], lists: [], records: [] };
+
+const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
+
+const dueTs = (t: Task) => (t.due_date ? startOfDay(new Date(t.due_date)).getTime() : null);
+
+// ── 分类筛选（PRD §5.2） ────────────────────────────────────────────────
+
+export function tasksForCategory(ds: Dataset, key: SmartKey): Task[] {
+  const today = startOfDay(new Date()).getTime();
+  const tomorrow = startOfDay(addDays(new Date(), 1)).getTime();
+  const weekEnd = endOfWeek(new Date()).getTime();
+
+  const filtered = ds.tasks.filter((t) => {
+    const due = dueTs(t);
+    switch (key) {
+      case 'today': return t.completed === 0 && due === today;
+      case 'tomorrow': return t.completed === 0 && due === tomorrow;
+      case 'week': return t.completed === 0 && due !== null && due >= today && due <= weekEnd;
+      case 'scheduled': return t.completed === 0 && due !== null;
+      case 'completed': return t.completed === 1;
+      case 'tasks':
+      default: return t.completed === 0;
+    }
+  });
+  return filtered.sort((a, b) => a.sort_order - b.sort_order || a.created_at - b.created_at);
+}
+
+export function tasksInList(ds: Dataset, listId: string, includeCompleted = false): Task[] {
+  return ds.tasks
+    .filter((t) => t.list_id === listId && (includeCompleted || t.completed === 0))
+    .sort((a, b) => a.sort_order - b.sort_order || a.created_at - b.created_at);
+}
+
+/** 今日到期的未完成任务（番茄钟任务选择框用） */
+export function todayDueTasks(ds: Dataset): Task[] {
+  const today = todayKey();
+  return ds.tasks
+    .filter((t) => t.completed === 0 && t.due_date === today)
+    .sort((a, b) => a.sort_order - b.sort_order || a.created_at - b.created_at);
+}
+
+export function searchTasks(ds: Dataset, q: string): Task[] {
+  const n = q.trim().toLowerCase();
+  if (!n) return [];
+  return ds.tasks.filter((t) => t.title.toLowerCase().includes(n));
+}
+
+export function searchLists(ds: Dataset, q: string) {
+  const n = q.trim().toLowerCase();
+  if (!n) return [];
+  return ds.lists.filter((l) => l.name.toLowerCase().includes(n));
+}
+
+export function taskTitle(ds: Dataset, taskId: string | null): string {
+  if (!taskId) return '未指定任务';
+  return ds.tasks.find((t) => t.id === taskId)?.title ?? '未指定任务';
+}
+
+// ── 专注记录 ────────────────────────────────────────────────────────────
+
+export function todayRecords(ds: Dataset): FocusRecord[] {
+  const s = startOfDay(new Date()).getTime();
+  const e = s + 86_400_000 - 1;
+  return ds.records
+    .filter((r) => r.start_at >= s && r.start_at <= e)
+    .sort((a, b) => a.start_at - b.start_at);
+}
+
+/** 已完成视图分组：按记录 end_at 的日期归档（PRD §7.3 / FR-C1） */
+export function completedGroups(ds: Dataset): Array<{ dateKey: string; records: FocusRecord[] }> {
+  const map = new Map<string, FocusRecord[]>();
+  for (const r of ds.records) {
+    const k = toDateKey(r.end_at);
+    const arr = map.get(k);
+    if (arr) arr.push(r); else map.set(k, [r]);
+  }
+  return [...map.entries()]
+    .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+    .map(([dateKey, records]) => ({ dateKey, records: records.sort((a, b) => a.start_at - b.start_at) }));
+}
+
+/** 今日已完成番茄数（悬浮小窗，PRD FR-G4） */
+export function todayPomodoroCount(ds: Dataset, taskId?: string | null): number {
+  const recs = todayRecords(ds);
+  if (taskId === undefined) return recs.length;
+  return recs.filter((r) => r.task_id === taskId).length;
+}
+
+/** 每日专注时长映射（报表日历，PRD FR-R6） */
+export function dailyFocusMap(ds: Dataset): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const r of ds.records) {
+    const k = toDateKey(r.start_at);
+    map.set(k, (map.get(k) ?? 0) + r.duration_min);
+  }
+  return map;
+}
+
+/** 近 N 天每日专注时长（含 0 值日，右边为最新）—— report.md ★1 趋势图 */
+export function focusTrend(ds: Dataset, days: number): Array<{ dateKey: string; minutes: number }> {
+  const today = startOfDay(new Date());
+  const map = new Map<string, number>();
+  for (const r of ds.records) {
+    const k = toDateKey(r.start_at);
+    if (k > toDateKey(today)) continue;
+    map.set(k, (map.get(k) ?? 0) + r.duration_min);
+  }
+  const out: Array<{ dateKey: string; minutes: number }> = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const dkKey = toDateKey(addDays(today, -i));
+    out.push({ dateKey: dkKey, minutes: map.get(dkKey) ?? 0 });
+  }
+  return out;
+}
+
+// ── 侧边栏（PRD §7.2 分类已专注时长 / 角标） ────────────────────────────
+
+export function categoryTaskCount(ds: Dataset, key: SmartKey): number {
+  return tasksForCategory(ds, key).length;
+}
+
+/**
+ * 分类已专注时长：今天 = 今日记录时长（PRD 明确）；
+ * 其他分类 = 该分类任务关联记录的总时长。
+ */
+export function categoryFocusMinutes(ds: Dataset, key: SmartKey, todayFocusMin: number): number {
+  if (key === 'today') return todayFocusMin;
+  if (key === 'completed') {
+    const ids = new Set(ds.tasks.filter((t) => t.completed === 1).map((t) => t.id));
+    return sum(ds.records.filter((r) => r.task_id && ids.has(r.task_id)).map((r) => r.duration_min));
+  }
+  const ids = new Set(tasksForCategory(ds, key).map((t) => t.id));
+  return sum(ds.records.filter((r) => r.task_id && ids.has(r.task_id)).map((r) => r.duration_min));
+}
+
+// ── 统计卡片（PRD FR-T2） ───────────────────────────────────────────────
+
+export function computeTaskCards(
+  ds: Dataset, key: SmartKey, focusLenMin: number, stats: Stats | null,
+) {
+  const today = startOfDay(new Date()).getTime();
+  const tomorrow = startOfDay(addDays(new Date(), 1)).getTime();
+  const weekEnd = endOfWeek(new Date()).getTime();
+  const dueTs = (t: Task): number | null => (t.due_date ? startOfDay(new Date(t.due_date)).getTime() : null);
+
+  const pendingTasks = tasksForCategory(ds, key);
+  const pendingIds = new Set(pendingTasks.map((t) => t.id));
+
+  // 预计时间：该分类待办任务的预估番茄数 × 专注时长（任务视图按 PRD FR-T2 取今日到期）
+  const estMin = key === 'tasks'
+    ? sum(ds.tasks.filter((t) => t.completed === 0 && dueTs(t) === today).map((t) => t.est_pomodoros * focusLenMin))
+    : sum(pendingTasks.map((t) => t.est_pomodoros * focusLenMin));
+
+  const completedTasks = ds.tasks.filter((t) => t.completed === 1);
+  const completedIds = new Set(completedTasks.map((t) => t.id));
+
+  // 已专注时间：今日=今日记录；本周=本周记录；任务视图=全部；已完成=已完成任务相关；其余=该分类任务相关记录
+  let focusMin: number;
+  if (key === 'today') focusMin = stats?.today_focus_min ?? 0;
+  else if (key === 'week') focusMin = stats?.week_focus_min ?? 0;
+  else if (key === 'tasks') focusMin = stats?.total_focus_min ?? 0;
+  else if (key === 'completed') focusMin = sum(ds.records.filter((r) => r.task_id && completedIds.has(r.task_id)).map((r) => r.duration_min));
+  else focusMin = sum(ds.records.filter((r) => r.task_id && pendingIds.has(r.task_id)).map((r) => r.duration_min));
+
+  // 已完成任务：按分类口径
+  let done: number;
+  switch (key) {
+    case 'today': done = completedTasks.filter((t) => dueTs(t) === today).length; break;
+    case 'tomorrow': done = completedTasks.filter((t) => dueTs(t) === tomorrow).length; break;
+    case 'week': done = completedTasks.filter((t) => { const d = dueTs(t); return d !== null && d >= today && d <= weekEnd; }).length; break;
+    case 'scheduled': done = completedTasks.filter((t) => dueTs(t) !== null).length; break;
+    case 'tasks': done = stats?.today_done_tasks ?? 0; break;
+    case 'completed': done = completedTasks.length; break;
+    default: done = 0;
+  }
+
+  return {
+    est_min: estMin,
+    pending: pendingTasks.length,
+    focus_min: focusMin,
+    done,
+  };
+}
+
+// ── 今日面板（PRD FR-P2 右侧「今天」） ──────────────────────────────────
+
+export function todayPendingTasks(ds: Dataset): Task[] {
+  const today = startOfDay(new Date()).getTime();
+  const weekEnd = endOfWeek(new Date()).getTime();
+  const due = (t: Task) => (t.due_date ? startOfDay(new Date(t.due_date)).getTime() : null);
+  const todayDue = ds.tasks.filter((t) => t.completed === 0 && due(t) === today);
+  if (todayDue.length) return todayDue;
+  const weekDue = ds.tasks.filter((t) => {
+    const d = due(t);
+    return t.completed === 0 && d !== null && d >= today && d <= weekEnd;
+  });
+  if (weekDue.length) return weekDue;
+  return ds.tasks.filter((t) => t.completed === 0);
+}

@@ -1,0 +1,108 @@
+// 应用外壳 —— 组装全局框架（PRD §4）与页面路由（PRD §2.3）
+
+import { useEffect, useState } from 'react';
+import { TitleBar } from '@/components/TitleBar';
+import { Sidebar } from '@/components/Sidebar';
+import { FloatWindow } from '@/components/FloatWindow';
+import { NotificationPanel } from '@/components/NotificationPanel';
+import { SearchOverlay } from '@/components/SearchOverlay';
+import { TaskView } from '@/pages/TaskView';
+import { CompletedView } from '@/pages/CompletedView';
+import { ReportModal } from '@/modals/ReportModal';
+import { SettingsModal } from '@/modals/SettingsModal';
+import { TimerScreen } from '@/modals/TimerScreen';
+import { TaskEditModal } from '@/modals/TaskEditModal';
+import { PlaceholderModal } from '@/modals/PlaceholderModal';
+import { ConfirmDialog, type ConfirmSpec } from '@/modals/ConfirmDialog';
+import { useDataStore } from '@/stores/dataStore';
+import { useStatsStore } from '@/stores/statsStore';
+import { useTimerStore } from '@/stores/timerStore';
+import { useUiStore } from '@/stores/uiStore';
+import { api } from '@/api';
+import { useI18nStore } from '@/i18n';
+
+export default function App() {
+  const [booted, setBooted] = useState(false);
+  const [confirm, setConfirm] = useState<ConfirmSpec | null>(null);
+  const route = useUiStore((s) => s.route);
+  const globalConfirm = useUiStore((s) => s.confirm);
+  const clearConfirm = useUiStore((s) => s.clearConfirm);
+  const theme = useTimerStore((s) => s.settings.theme);
+
+  const bootstrap = useDataStore((s) => s.bootstrap);
+  const refreshStats = useStatsStore((s) => s.refresh);
+  const initTimer = useTimerStore((s) => s.init);
+
+  useEffect(() => {
+    (async () => {
+      await api.get_user();      // 确保本地库初始化（首次运行写入 §6.3 数据）
+      await bootstrap();
+      await refreshStats();
+      await initTimer();
+      // 应用已存语言（settings.language）
+      useI18nStore.getState().setLang(useTimerStore.getState().settings.language as 'zh' | 'en');
+      setBooted(true);
+    })();
+  }, [bootstrap, refreshStats, initTimer]);
+
+  // 主题应用（PRD FR-S3 通用设置）
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
+
+  // 全局快捷键：空格开始/暂停（PRD §9 可访问性）
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      if (e.code === 'Space') {
+        e.preventDefault();
+        useTimerStore.getState().toggleRun();
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        useUiStore.getState().openSearch(!useUiStore.getState().searchOpen);
+      } else if (e.key === '/' && useUiStore.getState().searchOpen === false) {
+        e.preventDefault();
+        useUiStore.getState().openSearch(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  if (!booted) {
+    return (
+      <div className="app">
+        <div style={{ display: 'grid', placeItems: 'center', height: '100%', color: 'var(--text-2)' }}>
+          正在加载…
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="app">
+      <TitleBar />
+      <div className="shell">
+        <Sidebar />
+        <main className="main">
+          {route.name === 'completed' ? <CompletedView /> : <TaskView />}
+        </main>
+      </div>
+
+      <FloatWindow />
+      <NotificationPanel />
+      <SearchOverlay />
+
+      <ReportModal />
+      <SettingsModal onConfirm={setConfirm} />
+      <TaskEditModal onConfirm={setConfirm} />
+      <PlaceholderModal />
+      <TimerScreen />
+
+      {confirm && <ConfirmDialog spec={confirm} onClose={() => setConfirm(null)} />}
+      {globalConfirm && <ConfirmDialog spec={globalConfirm} onClose={clearConfirm} />}
+    </div>
+  );
+}

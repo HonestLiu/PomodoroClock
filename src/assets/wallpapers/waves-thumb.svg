@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="tsky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#6FBEE0"/>
+      <stop offset="70%" stop-color="#C9E9F3"/>
+      <stop offset="100%" stop-color="#EFF8FA"/>
+    </linearGradient>
+    <linearGradient id="tsea" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3E93B8"/>
+      <stop offset="60%" stop-color="#1E6B90"/>
+      <stop offset="100%" stop-color="#2C86A8"/>
+    </linearGradient>
+    <linearGradient id="tsand" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#EFE0C0"/>
+      <stop offset="100%" stop-color="#D9C49C"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="240" fill="url(#tsky)"/>
+  <rect y="112" width="400" height="86" fill="url(#tsea)"/>
+  <path d="M0 130 Q 60 124 120 130 T 240 130 T 360 128 L400 127 L400 140 L0 140 Z" fill="#fff" opacity="0.10"/>
+  <path d="M0 156 Q 70 148 140 156 T 280 154 L400 150 L400 166 L0 166 Z" fill="#fff" opacity="0.14"/>
+  <path d="M0 178 Q 50 170 100 178 T 200 178 T 300 174 L400 176 L400 190 L0 190 Z" fill="#fff" opacity="0.26"/>
+  <path d="M0 196 Q 100 186 200 196 T 400 192 L400 240 L0 240 Z" fill="url(#tsand)"/>
+  <path d="M0 197 Q 100 187 200 197 T 400 193 L400 206 Q 300 214 200 206 T 0 208 Z" fill="#fff" opacity="0.8"/>
+</svg>
