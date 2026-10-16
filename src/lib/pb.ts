@@ -48,6 +48,24 @@ export function pbLogout(): void {
   pb.authStore.clear();
 }
 
+/**
+ * 更新 PB 账号资料（email / password / name）。
+ * email 改动 PB 可能触发确认邮件；password 必须同时带 passwordConfirm。
+ */
+export async function pbUpdateProfile(patch: {
+  email?: string;
+  password?: string;
+  passwordConfirm?: string;
+  name?: string;
+}): Promise<PbUser> {
+  const me = currentUser();
+  if (!me) throw new Error('尚未登录');
+  await pb.collection(USERS).update(me.id, patch);
+  // 更新后刷新 authStore 里的记录，保证显示的 email 是最新值
+  await pb.collection(USERS).authRefresh().catch(() => undefined);
+  return pb.authStore.record as unknown as PbUser;
+}
+
 /** 启动时校验登录态；token 过期则清理并返回 null */
 export async function pbRefreshAuth(): Promise<PbUser | null> {
   if (!pb.authStore.isValid) return null;
@@ -70,4 +88,14 @@ export function pbErrorMessage(e: unknown): string {
   }
   if (e instanceof Error) return e.message;
   return String(e);
+}
+
+/** 检查某个集合是否已在服务端创建（用于提示用户补齐后端配置） */
+export async function collectionExists(name: string): Promise<boolean> {
+  try {
+    await pb.collection(name).getFullList({ limit: 1 });
+    return true;
+  } catch {
+    return false;
+  }
 }

@@ -47,6 +47,38 @@ export function tasksForCategory(ds: Dataset, key: SmartKey): Task[] {
   return filtered.sort((a, b) => a.sort_order - b.sort_order || a.created_at - b.created_at);
 }
 
+const DAY_MS = 86_400_000;
+
+/**
+ * 分类视图「显示已完成任务」的已完成列表 —— 只包含**属于当前分类窗口**的已完成任务
+ * （PRD 用户需求：例如「今天」下只显示今天勾选完成的任务，而非全局已完成）。
+ * 按任务的完成时间 completed_at 归属分类：
+ *   今天/明天/本周 -> completed_at 落在该时间窗；已计划 -> 有到期日；任务 -> 全部已完成；清单 -> 清单内。
+ */
+export function completedForCategory(ds: Dataset, key: SmartKey): Task[] {
+  const now = new Date();
+  const todayStart = startOfDay(now).getTime();
+  const todayEnd = todayStart + DAY_MS - 1;
+  const tomorrowStart = startOfDay(addDays(now, 1)).getTime();
+  const weekStart = startOfWeek(now).getTime();
+  const weekEnd = endOfWeek(now).getTime();
+
+  return ds.tasks
+    .filter((t) => {
+      if (t.completed !== 1) return false;
+      const c = t.completed_at ?? 0;
+      switch (key) {
+        case 'today':     return c >= todayStart && c <= todayEnd;
+        case 'tomorrow':  return c >= tomorrowStart && c <= tomorrowStart + DAY_MS - 1;
+        case 'week':      return c >= weekStart && c <= weekEnd;
+        case 'scheduled': return t.due_date != null;
+        case 'tasks':
+        default:          return true;
+      }
+    })
+    .sort((a, b) => (b.completed_at ?? 0) - (a.completed_at ?? 0));
+}
+
 export function tasksInList(ds: Dataset, listId: string, includeCompleted = false): Task[] {
   return ds.tasks
     .filter((t) => t.list_id === listId && (includeCompleted || t.completed === 0))

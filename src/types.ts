@@ -87,6 +87,8 @@ export interface Settings {
   noise_on_focus: boolean;
   noise_on_break: boolean;
   wallpaper: string;
+  /** 座右铭（个人资料，随配置同步到云端） */
+  motto: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -106,6 +108,7 @@ export const DEFAULT_SETTINGS: Settings = {
   noise_on_focus: false,
   noise_on_break: false,
   wallpaper: 'waves',
+  motto: '',
 };
 
 /** 侧边栏 / 路由使用的分类键 */

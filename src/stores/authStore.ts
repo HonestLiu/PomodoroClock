@@ -3,8 +3,8 @@
 
 import { create } from 'zustand';
 import {
-  currentUser, pbLogin, pbLogout, pbRefreshAuth, pbRegister, pbErrorMessage,
-  type PbUser,
+  currentUser, pbLogin, pbLogout, pbRefreshAuth, pbRegister, pbErrorMessage, collectionExists,
+  CONFIGS, type PbUser,
 } from '@/lib/pb';
 import {
   applyRemote, pushConfig, pullConfig, readMeta, subscribeConfig,
@@ -41,6 +41,17 @@ interface AuthState {
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
 let unsubRealtime: (() => void) | null = null;
 
+/** 检查后端是否齐备；configs 集合缺失时返回引导文案（用于提示用户补配 PB） */
+async function backendHint(): Promise<string> {
+  try {
+    const ok = await collectionExists(CONFIGS);
+    if (!ok) return '云端缺少 configs 集合，配置同步暂不可用；请按指引在 PocketBase 后台创建（见说明）。';
+    return '';
+  } catch {
+    return '云端不可用；登录与本地功能正常，配置同步暂不可用。';
+  }
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   status: 'unknown',
   user: null,
@@ -60,6 +71,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // 登录后：先拉取，再订阅实时
       await get().pullNow();
+      // 后端缺集合时给出明确提示（configs 未建 -> 配置同步暂不可用）
+      const hint = await backendHint();
+      if (hint) set({ syncMessage: hint });
       unsubRealtime?.();
       unsubRealtime = subscribeConfig(
         (rec) => { void get().acceptRemote(rec); },
@@ -77,6 +91,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const u = await pbLogin(email, password);
       set({ status: 'signedIn', user: u, meta: readMeta(u.id), syncState: 'idle' });
       await get().pullNow();
+      const hint = await backendHint();
+      if (hint) set({ syncMessage: hint });
       unsubRealtime?.();
       unsubRealtime = subscribeConfig(
         (rec) => { void get().acceptRemote(rec); },

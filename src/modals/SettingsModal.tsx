@@ -3,12 +3,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 import {
-  Crown, Info, ListChecks, Palette, Settings as SettingsIcon, Sliders, User as UserIcon, X,
+  Camera, Crown, Info, ListChecks, Lock, Mail, Palette,
+  Settings as SettingsIcon, Sliders, Timer, User as UserIcon, X,
 } from 'lucide-react';
 import { useUiStore, type SettingsTab } from '@/stores/uiStore';
 import { useDataStore } from '@/stores/dataStore';
 import { useTimerStore } from '@/stores/timerStore';
 import { useAuthStore } from '@/stores/authStore';
+import { pbUpdateProfile, pbErrorMessage } from '@/lib/pb';
 import { api } from '@/api';
 import { NOISE_LABELS, type NoiseKind } from '@/lib/noise';
 import type { Settings } from '@/types';
@@ -35,7 +37,8 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
   const [settings, setSettings] = useState<Settings>(timer.settings);
   const [username, setUsername] = useState(user?.username ?? '');
   const [email, setEmail] = useState(user?.email ?? '');
-  const [editingEmail, setEditingEmail] = useState(false);
+  const [motto, setMotto] = useState(timer.settings.motto ?? '');
+  const [editingProfile, setEditingProfile] = useState(false);
   const [editingPwd, setEditingPwd] = useState(false);
   const [newListName, setNewListName] = useState('');
   const [defaultListId, setDefaultListId] = useState<string | null>(null);
@@ -55,12 +58,55 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
     if (ok) setSyncPwd('');
   }
 
+  // 资料变更的提示（PB 账号字段报错时展示，不影响本地）
+  const [profileMsg, setProfileMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  /** 保存资料：用户名写本地 users、邮箱写 PB 账号、座右铭写 settings（自动随配置同步云端） */
+  async function saveProfile() {
+    setProfileMsg(null);
+    try {
+      const name = username.trim();
+      const addr = email.trim();
+      if (name && name !== user?.username) await updateUser({ username: name });
+      if (addr && addr !== (user?.email ?? '')) {
+        await pbUpdateProfile({ email: addr });
+        await updateUser({ email: addr });
+        await cloud.init();               // 刷新 authStore 中的账号信息
+      }
+      const m = motto.trim();
+      if (m !== timer.settings.motto) {
+        const saved = await api.set_setting('motto', m);
+        timer.setSettings(saved);
+        setMotto(m);
+      }
+      setProfileMsg({ ok: true, text: t('account.saved') });
+      setEditingProfile(false);
+    } catch (e) {
+      setProfileMsg({ ok: false, text: pbErrorMessage(e) });
+    }
+  }
+
+  /** 密码修改：写入 PB 账号 */
+  async function changePassword(pwd: string) {
+    try {
+      await pbUpdateProfile({ password: pwd, passwordConfirm: pwd });
+      setProfileMsg({ ok: true, text: '密码已更新' });
+      setEditingPwd(false);
+    } catch (e) {
+      setProfileMsg({ ok: false, text: pbErrorMessage(e) });
+    }
+  }
+
   useEffect(() => {
     void api.get_default_list().then(setDefaultListId);
   }, [ui.settingsTab]);
 
   useEffect(() => { setSettings(timer.settings); }, [timer.settings]);
   useEffect(() => { setUsername(user?.username ?? ''); setEmail(user?.email ?? ''); }, [user]);
+  // 座右铭跟随配置（含云端拉取），但编辑中不覆盖用户正在输入的值
+  useEffect(() => {
+    if (!editingProfile) setMotto(timer.settings.motto ?? '');
+  }, [timer.settings.motto, editingProfile]);
 
   if (!ui.settingsOpen) return null;
 
@@ -98,58 +144,70 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
           </nav>
 
           <div className="settings-pane">
-            {/* ── 账号（S5） ── */}
-            {ui.settingsTab === 'account' && (
+            {/* ── 账号（S5）—— PocketBase 为唯一账号体系 ── */}
+            {ui.settingsTab === 'account' && (cloud.status === 'signedIn' ? (
               <>
-                <div className="field">
-                  <span className="field-label">{t('account.avatar')}</span>
-                  <div className="field-body">
-                    <span className="avatar-lg">
-                      {user?.avatar_path
-                        ? <img src={user.avatar_path} alt="" />
-                        : (user?.username?.[0]?.toUpperCase() ?? 'U')}
-                    </span>
-                    <button className="btn" onClick={() => void pickAvatar()}>{t('account.upload')}</button>
-                  </div>
-                </div>
+                {/* ── 个人资料卡 ── */}
+                <div className="section-title">{t('account.secProfile')}</div>
+                <div className="profile-card">
+                  <button className="profile-avatar" title={t('account.upload')} onClick={() => void pickAvatar()}>
+                    {user?.avatar_path
+                      ? <img src={user.avatar_path} alt="" />
+                      : <span>{(user?.username || 'U')[0].toUpperCase()}</span>}
+                    <span className="profile-avatar-edit"><Camera size={15} /></span>
+                  </button>
 
-                <div className="field">
-                  <span className="field-label">{t('account.username')}</span>
-                  <div className="field-body">
-                    <input
-                      className="text-input" value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      onBlur={() => { if (username !== user?.username) void updateUser({ username }); }}
-                    />
-                  </div>
-                </div>
-
-                <div className="field">
-                  <span className="field-label">{t('account.email')}</span>
-                  <div className="field-body">
-                    {editingEmail ? (
-                      <>
-                        <input className="text-input" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus />
-                        <button
-                          className="btn primary"
-                          onClick={() => { void updateUser({ email }); setEditingEmail(false); }}
-                        >
-                          保存
-                        </button>
-                      </>
+                  <div className="profile-info">
+                    {editingProfile ? (
+                      <div className="profile-form">
+                        <input
+                          className="text-input" value={username} autoFocus
+                          placeholder={t('account.username')} onChange={(e) => setUsername(e.target.value)}
+                        />
+                        <input
+                          className="text-input" type="email" value={email}
+                          placeholder={t('account.email')} onChange={(e) => setEmail(e.target.value)}
+                        />
+                        <input
+                          className="text-input" value={motto} maxLength={60}
+                          placeholder={t('account.motto')} onChange={(e) => setMotto(e.target.value)}
+                        />
+                        <div className="profile-actions">
+                          <button
+                            className="btn primary"
+                            disabled={!username.trim() && !email.trim() && !motto.trim()}
+                            onClick={() => void saveProfile()}
+                          >
+                            {t('common.save')}
+                          </button>
+                          <button className="btn" onClick={() => { setEditingProfile(false); setMotto(timer.settings.motto ?? ''); }}>
+                            {t('common.cancel')}
+                          </button>
+                        </div>
+                      </div>
                     ) : (
-                      <>
-                        <span style={{ flex: 1, color: 'var(--text-2)' }}>{user?.email || '未绑定'}</span>
-                        <button className="btn" onClick={() => setEditingEmail(true)}>{t('account.changeAccount')}</button>
-                      </>
+                      <div className="profile-head">
+                        <div className="profile-name">{user?.username || t('account.untitled')}</div>
+                        <div className="profile-email">{user?.email || t('account.noEmail')}</div>
+                        <div className={motto ? 'profile-motto' : 'profile-motto empty'}>
+                          {motto || t('account.mottoEmpty')}
+                        </div>
+                        <button className="profile-edit" onClick={() => {
+                          setUsername(user?.username ?? ''); setEmail(user?.email ?? '');
+                          setMotto(timer.settings.motto ?? ''); setEditingProfile(true);
+                        }}>
+                          {t('account.editProfile')}
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
 
+                <div className="section-title">{t('account.secSecurity')}</div>
                 <div className="field">
                   <span className="field-label">{t('account.password')}</span>
                   <div className="field-body">
-                    {editingPwd ? <PasswordForm onDone={() => setEditingPwd(false)} /> : (
+                    {editingPwd ? <PasswordForm onDone={() => setEditingPwd(false)} onSubmit={changePassword} /> : (
                       <>
                         <span style={{ flex: 1, color: 'var(--text-2)' }}>••••••••</span>
                         <button className="btn" onClick={() => setEditingPwd(true)}>{t('account.changePassword')}</button>
@@ -158,9 +216,26 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
                   </div>
                 </div>
 
+                {profileMsg && (
+                  <div className="field">
+                    <span className="field-label" aria-hidden />
+                    <div className="field-body">
+                      <span className="field-hint" style={{ color: profileMsg.ok ? 'var(--accent-blue)' : 'var(--accent-focus)' }}>
+                        {profileMsg.text}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 <div className="field" style={{ alignItems: 'flex-start' }}>
                   <span className="field-label">{t('account.accountMgmt')}</span>
                   <div className="field-body" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 10 }}>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button className="btn" onClick={() => { cloud.logout(); setSyncPwd(''); }}>
+                        {t('account.signOut')}
+                      </button>
+                      <button className="btn" onClick={() => void cloud.pushNow()}>{t('sync.push')}</button>
+                    </div>
                     <button
                       className="btn danger"
                       onClick={() => onConfirm({
@@ -180,7 +255,12 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
                         message: '注销将退出当前账号并清理本地数据。确定继续吗？',
                         confirmText: '注销账号',
                         danger: true,
-                        onConfirm: async () => { await api.logout(); await useDataStore.getState().reload(); ui.closeAllOverlays(); },
+                        onConfirm: async () => {
+                          cloud.logout();
+                          await api.logout();
+                          await useDataStore.getState().reload();
+                          ui.closeAllOverlays();
+                        },
                       })}
                     >
                       注销账号
@@ -188,64 +268,78 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
                   </div>
                 </div>
 
-                {/* ── 云同步（PocketBase） ── */}
-                <div className="field" style={{ alignItems: 'flex-start' }}>
+                {/* 自动同步状态（登录后配置自动备份到云端） */}
+                <div className="field">
                   <span className="field-label">{t('sync.title')}</span>
-                  <div className="field-body" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
-                    <span className="field-hint">{t('sync.desc')}</span>
-
-                    {cloud.status === 'signedIn' && cloud.user ? (
-                      <>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--text-2)' }}>
-                          <span>✓ {cloud.user.email}</span>
-                          {cloud.lastSyncAt && (
-                            <span>· {t('sync.lastSync', { v: new Date(cloud.lastSyncAt).toLocaleTimeString() })}</span>
-                          )}
-                        </div>
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                          <button className="btn" disabled={cloud.syncState === 'busy'} onClick={() => void cloud.pushNow()}>
-                            {t('sync.push')}
-                          </button>
-                          <button className="btn" disabled={cloud.syncState === 'busy'} onClick={() => void cloud.pullNow()}>
-                            {t('sync.pull')}
-                          </button>
-                          <button className="btn" onClick={() => cloud.logout()}>{t('sync.logout')}</button>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <input
-                          className="text-input" type="email" placeholder={t('sync.email')}
-                          value={syncEmail} onChange={(e) => setSyncEmail(e.target.value)}
-                        />
-                        <input
-                          className="text-input" type="password" placeholder={t('sync.password')}
-                          value={syncPwd} onChange={(e) => setSyncPwd(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') void doCloudAuth(); }}
-                        />
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                          <button className="btn primary" disabled={cloud.syncState === 'busy' || !syncEmail || !syncPwd} onClick={() => void doCloudAuth()}>
-                            {syncMode === 'login' ? t('sync.login') : t('sync.register')}
-                          </button>
-                          <button className="btn" onClick={() => setSyncMode(syncMode === 'login' ? 'register' : 'login')}>
-                            {syncMode === 'login' ? t('sync.toRegister') : t('sync.toLogin')}
-                          </button>
-                        </div>
-                      </>
-                    )}
-
+                  <div className="field-body" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 6 }}>
+                    <span className="field-hint">{t('sync.auto')}</span>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <span className="field-hint" style={{ color: cloud.syncState === 'error' ? 'var(--accent-focus)' : 'var(--text-3)' }}>
+                        {cloud.syncState === 'busy' ? t('sync.syncing')
+                          : cloud.lastSyncAt ? t('sync.lastSync', { v: new Date(cloud.lastSyncAt).toLocaleTimeString() })
+                          : t('sync.ready')}
+                      </span>
+                      <button className="btn" disabled={cloud.syncState === 'busy'} onClick={() => void cloud.pushNow()}>{t('sync.push')}</button>
+                      <button className="btn" disabled={cloud.syncState === 'busy'} onClick={() => void cloud.pullNow()}>{t('sync.pull')}</button>
+                    </div>
                     {cloud.syncMessage && (
-                      <span
-                        className="field-hint"
-                        style={{ color: cloud.syncState === 'error' ? 'var(--accent-focus)' : 'var(--text-3)' }}
-                      >
+                      <span className="field-hint" style={{ color: cloud.syncState === 'error' ? 'var(--accent-focus)' : 'var(--text-3)' }}>
                         {cloud.syncMessage}
                       </span>
                     )}
                   </div>
                 </div>
               </>
-            )}
+            ) : (
+              /* 未登录：唯一登录入口（PocketBase） */
+              <>
+                <div className="login-wrap">
+                  <div className="login-card">
+                    <div className="login-logo"><Timer size={24} /></div>
+                    <h3 className="login-title">
+                      {syncMode === 'login' ? t('sync.greeting') : t('sync.joinGreeting')}
+                    </h3>
+                    <p className="login-sub">
+                      {syncMode === 'login' ? t('account.signInHint') : t('sync.joinHint')}
+                    </p>
+
+                    <label className="login-field">
+                      <Mail size={15} />
+                      <input
+                        type="email" placeholder={t('sync.email')} autoFocus
+                        value={syncEmail} onChange={(e) => setSyncEmail(e.target.value)}
+                      />
+                    </label>
+                    <label className="login-field">
+                      <Lock size={15} />
+                      <input
+                        type="password" placeholder={t('sync.password')}
+                        value={syncPwd} onChange={(e) => setSyncPwd(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') void doCloudAuth(); }}
+                      />
+                    </label>
+
+                    <button
+                      className="btn primary login-submit"
+                      disabled={cloud.syncState === 'busy' || !syncEmail.trim() || !syncPwd}
+                      onClick={() => void doCloudAuth()}
+                    >
+                      {cloud.syncState === 'busy' ? '…' : syncMode === 'login' ? t('sync.login') : t('sync.register')}
+                    </button>
+
+                    <button className="login-switch" onClick={() => setSyncMode(syncMode === 'login' ? 'register' : 'login')}>
+                      {syncMode === 'login' ? t('sync.toRegister') : t('sync.toLogin')}
+                    </button>
+
+                    {cloud.syncMessage && (
+                      <div className={cloud.syncState === 'error' ? 'login-msg error' : 'login-msg ok'}>
+                        {cloud.syncMessage}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            ))}
 
             {/* ── 高级版（占位，规格定义） ── */}
             {ui.settingsTab === 'premium' && (
@@ -531,7 +625,7 @@ function NumField({
   );
 }
 
-function PasswordForm({ onDone }: { onDone(): void }) {
+function PasswordForm({ onDone, onSubmit }: { onDone(): void; onSubmit(pwd: string): void }) {
   const [a, setA] = useState('');
   const [b, setB] = useState('');
   const mismatch = a.length > 0 && b.length > 0 && a !== b;
@@ -539,7 +633,7 @@ function PasswordForm({ onDone }: { onDone(): void }) {
     <>
       <input className="text-input" type="password" placeholder="新密码" value={a} onChange={(e) => setA(e.target.value)} autoFocus />
       <input className="text-input" type="password" placeholder="确认密码" value={b} onChange={(e) => setB(e.target.value)} />
-      <button className="btn primary" disabled={!a || mismatch} onClick={onDone}>保存</button>
+      <button className="btn primary" disabled={!a || mismatch} onClick={() => { if (a) onSubmit(a); }}>保存</button>
       <button className="btn" onClick={onDone}>取消</button>
     </>
   );

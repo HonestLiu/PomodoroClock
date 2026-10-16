@@ -10,7 +10,7 @@ import { useDataStore } from '@/stores/dataStore';
 import { useStatsStore } from '@/stores/statsStore';
 import { useTimerStore } from '@/stores/timerStore';
 import { useUiStore } from '@/stores/uiStore';
-import { computeTaskCards, tasksForCategory, tasksInList, type Dataset } from '@/lib/derive';
+import { completedForCategory, computeTaskCards, tasksForCategory, tasksInList, type Dataset } from '@/lib/derive';
 import { todayKey, tomorrowKey } from '@/lib/date';
 import { useI18n } from '@/i18n';
 import type { SmartKey } from '@/types';
@@ -39,7 +39,10 @@ export function TaskView() {
 
   const view = useMemo(() => {
     const pending = listId ? tasksInList(ds, listId) : tasksForCategory(ds, key);
-    const done = tasks.filter((t) => t.completed === 1 && (listId ? t.list_id === listId : true));
+    // 已完成任务只显示**当前分类窗口**的，而非全局（修复：分类下误显示全局已完成）
+    const done = listId
+      ? tasks.filter((t) => t.completed === 1 && t.list_id === listId)
+      : completedForCategory(ds, key);
     return { pending, done };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ds, listId, key, statsRevision]);

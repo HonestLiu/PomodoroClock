@@ -459,6 +459,19 @@ input:focus, textarea:focus, button:focus-visible {
 .settings-nav button:hover { background: var(--hover); }
 .settings-nav button.active { background: var(--bg-card); font-weight: 600; box-shadow: var(--shadow-sm); }
 .settings-pane { flex: 1; overflow-y: auto; padding: 20px 24px; min-width: 0; }
+.settings-pane > .section-title:first-child { margin-top: 0; }
+.section-title {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; font-weight: 600; color: var(--text-2);
+  margin: 26px 0 4px;
+}
+.section-title::before {
+  content: ''; width: 3px; height: 13px; border-radius: 2px;
+  background: var(--accent-blue);
+}
+.section-title:first-child { margin-top: 4px; }
+.settings-pane .field:hover { background: linear-gradient(90deg, transparent, rgba(0,0,0,.015), transparent); }
+:root[data-theme='dark'] .settings-pane .field:hover { background: linear-gradient(90deg, transparent, rgba(255,255,255,.02), transparent); }
 
 .field { display: flex; align-items: center; gap: 14px; padding: 11px 0; border-bottom: 1px solid var(--border); }
 .field:last-child { border-bottom: none; }
@@ -500,6 +513,104 @@ input:focus, textarea:focus, button:focus-visible {
 
 .avatar-lg { width: 64px; height: 64px; border-radius: 50%; background: var(--accent-blue); color: #fff; display: grid; place-items: center; font-size: 24px; font-weight: 600; overflow: hidden; }
 .avatar-lg img { width: 100%; height: 100%; object-fit: cover; }
+
+/* ── 账号资料卡 ─────────────────────────────────────── */
+.profile-card {
+  display: flex; align-items: flex-start; gap: 20px;
+  background: linear-gradient(135deg, var(--bg-sidebar) 0%, var(--bg-card) 82%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px 24px;
+  margin-bottom: 6px;
+}
+.profile-avatar {
+  position: relative; flex: 0 0 auto;
+  width: 84px; height: 84px; border-radius: 50%;
+  background: var(--accent-blue); color: #fff;
+  display: grid; place-items: center;
+  font-size: 32px; font-weight: 600; overflow: hidden;
+  border: 3px solid var(--bg-card);
+  box-shadow: var(--shadow-md);
+}
+.profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.profile-avatar-edit {
+  position: absolute; inset: auto 0 0 0; height: 30px;
+  background: rgba(0,0,0,.5); color: #fff;
+  display: grid; place-items: center;
+  opacity: 0; transition: opacity .15s;
+}
+.profile-avatar:hover .profile-avatar-edit { opacity: 1; }
+.profile-avatar:hover { box-shadow: 0 0 0 3px var(--accent-blue), var(--shadow-md); }
+.profile-info { flex: 1; min-width: 0; display: flex; }
+.profile-head { position: relative; display: flex; flex-direction: column; gap: 4px; width: 100%; }
+.profile-name { font-size: 18px; font-weight: 700; letter-spacing: -.02em; color: var(--text-1); }
+.profile-email { font-size: 13px; color: var(--text-2); }
+.profile-motto {
+  font-size: 13px; color: var(--text-2); font-style: italic;
+  margin-top: 6px; padding-top: 8px; border-top: 1px dashed var(--border);
+  line-height: 1.6;
+}
+.profile-motto.empty { color: var(--text-3); font-style: normal; }
+.profile-edit {
+  position: absolute; top: 2px; right: 0;
+  font-size: 12px; color: var(--accent-blue);
+  padding: 3px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  transition: background .12s, border-color .12s;
+}
+.profile-edit:hover { background: var(--hover); border-color: var(--accent-blue); }
+.profile-form { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.profile-actions { display: flex; gap: 8px; margin-top: 2px; }
+
+/* ── 登录卡（未登录态） ─────────────────────────────── */
+.login-wrap { display: flex; justify-content: center; padding: 28px 0 12px; }
+.login-card {
+  width: min(340px, 100%);
+  background: linear-gradient(180deg, var(--bg-card), var(--bg-sidebar) 130%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 30px 28px 22px;
+  box-shadow: var(--shadow-md);
+  display: flex; flex-direction: column; align-items: center;
+}
+.login-logo {
+  width: 54px; height: 54px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-focus), var(--accent-blue));
+  color: #fff; display: grid; place-items: center;
+  box-shadow: 0 6px 18px rgba(232, 93, 63, .35);
+  margin-bottom: 14px;
+}
+.login-title { font-size: 18px; font-weight: 700; margin: 0 0 4px; letter-spacing: -.02em; }
+.login-sub { font-size: 12.5px; color: var(--text-2); margin: 0 0 18px; text-align: center; line-height: 1.6; }
+.login-field {
+  display: flex; align-items: center; gap: 9px;
+  width: 100%; margin-bottom: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 0 12px; height: 40px;
+  transition: border-color .14s, box-shadow .14s;
+}
+.login-field:focus-within { border-color: var(--accent-blue); box-shadow: 0 0 0 3px rgba(74, 125, 224, 0.18); }
+.login-field svg { flex: 0 0 auto; color: var(--text-3); }
+.login-field input {
+  flex: 1; min-width: 0; border: none; outline: none; background: none;
+  font: inherit; font-size: 13.5px; color: var(--text-1);
+}
+.login-field input::placeholder { color: var(--text-3); }
+.login-submit {
+  width: 100%; height: 40px; margin-top: 4px; font-size: 14px; font-weight: 600;
+  border-radius: var(--radius);
+}
+.login-switch {
+  margin-top: 14px; font-size: 12.5px; color: var(--accent-blue); padding: 4px 8px;
+}
+.login-switch:hover { text-decoration: underline; }
+.login-msg {
+  width: 100%; margin-top: 12px; padding: 8px 12px; border-radius: var(--radius-sm);
+  font-size: 12px; line-height: 1.5; text-align: center;
+}
+.login-msg.error { background: rgba(232, 93, 63, 0.10); color: var(--accent-focus); }
+.login-msg.ok { background: rgba(74, 125, 224, 0.12); color: var(--accent-blue); }
 
 /* 确认弹窗 */
 .confirm-modal { width: min(400px, 92vw); }
