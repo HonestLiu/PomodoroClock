@@ -9,7 +9,7 @@ import type {
   FocusRecord, SmartKey, Stats, Task, TaskList,
 } from '@/types';
 import {
-  addDays, endOfWeek, startOfDay, toDateKey, todayKey,
+  addDays, endOfWeek, startOfDay, startOfWeek, toDateKey, todayKey,
 } from './date';
 
 /** 一次派生所需的全部数据 */
@@ -142,11 +142,14 @@ export function categoryTaskCount(ds: Dataset, key: SmartKey): number {
 }
 
 /**
- * 分类已专注时长：今天 = 今日记录时长（PRD 明确）；
- * 其他分类 = 该分类任务关联记录的总时长。
+ * 分类已专注时长（PRD §7.2）：今天=今日记录；本周=本周记录；任务=全部记录；
+ * 已完成=已完成任务相关记录；明天/已计划=该分类待办任务相关记录。
  */
 export function categoryFocusMinutes(ds: Dataset, key: SmartKey, todayFocusMin: number): number {
-  if (key === 'today') return todayFocusMin;
+  const weekStart = startOfWeek(new Date()).getTime();
+  if (key === 'today') return todayFocusMin; // PRD 明确：今天 = 今日记录时长
+  if (key === 'week') return sum(ds.records.filter((r) => r.start_at >= weekStart).map((r) => r.duration_min));
+  if (key === 'tasks') return sum(ds.records.map((r) => r.duration_min));
   if (key === 'completed') {
     const ids = new Set(ds.tasks.filter((t) => t.completed === 1).map((t) => t.id));
     return sum(ds.records.filter((r) => r.task_id && ids.has(r.task_id)).map((r) => r.duration_min));

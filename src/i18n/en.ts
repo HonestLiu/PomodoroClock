@@ -44,6 +44,7 @@ export const en = {
   'timer.recover.break': 'your last break ended',
   'timer.recover.continue': 'Continue', 'timer.recover.ok': 'Got it',
   'timer.untitled': 'Untitled task',
+  'float.focusing': 'Focusing', 'float.breaking': 'On break', 'float.todayCount': 'today',
 
   'report.title': 'Report', 'report.pomodoroGrid': 'Pomodoro Log', 'report.gridSub': 'Last 14 days · time × date',
   'report.trend': 'Focus Trend', 'report.trendSub': 'Last 30 days · vs. daily goal',

@@ -30,7 +30,7 @@ export function TaskView() {
   const setDraggingTask = useUiStore((s) => s.setDraggingTask);
   const statsRevision = useStatsStore((s) => s.revision);
   const focusLenMin = useTimerStore((s) => s.settings.focus_len_min);
-  const { t } = useI18n();
+  const { t, dict } = useI18n();
 
   const key: SmartKey = route.name === 'list' ? 'tasks' : route.name;
   const listId = route.name === 'list' ? route.id : null;
@@ -53,7 +53,7 @@ export function TaskView() {
       countCard(t('stat.completed'), c.done),
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ds, key, focusLenMin, stats, statsRevision, view.pending.length, listId]);
+  }, [dict, ds, key, focusLenMin, stats, statsRevision, view.pending.length, listId]);
 
   const title = listId ? (lists.find((l) => l.id === listId)?.name ?? t('nav.tasks')) : t(TITLE_KEYS[key]);
   const expanded = !!showCompleted[key];

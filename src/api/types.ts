@@ -75,6 +75,9 @@ export interface Api {
 
   get_timer_state(): Promise<TimerState>;
   set_timer_state(state: TimerState): Promise<TimerState>;
+  update_tray_title(text: string): Promise<void>;
+  update_tray_toggle(text: string): Promise<void>;
+  set_tray_phase(phase: string): Promise<void>;
 
   get_settings(): Promise<Settings>;
   set_setting(key: string, value: string): Promise<Settings>;
@@ -89,4 +92,4 @@ export interface Api {
 }
 
 /** Rust→前端事件（PRD §8.5）；浏览器运行时下由本地 emitter 承担 */
-export type AppEvent = 'timer://tick' | 'timer://state-changed' | 'timer://finished' | 'data://changed';
+export type AppEvent = 'timer://tick' | 'timer://state-changed' | 'timer://finished' | 'data://changed' | 'tray://menu';

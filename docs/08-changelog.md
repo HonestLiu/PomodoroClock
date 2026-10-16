@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-10-15 · P2 首批
+
+- **#13 目标达成环**：报表「每日专注目标」面板加 SVG 达成度环（今日专注/目标百分比），复用主题令牌。
+- **#12 近 30 天专注趋势**：`src/charts/TrendChart.tsx` 面积图（按日聚合 + 与目标对比），数据来自 store（`derive.focusTrend`）。
+- **#11 计时结束反馈**：专注/休息完成时在计时界面弹 2.5s 提示（`.timer-feedback`），由 `timerStore` 驱动。
+- **#9 深色主题全屏核对**：Playwright 校验 `data-theme=dark` 后各令牌（--bg-card #2a2a2e / 侧边栏 / 正文 / 报表面板）正确生效。
+- **#8 i18n（中/英）**：新 `src/i18n/`（`zh.ts`/`en.ts` 词表 + `store.ts` + `useI18n/t` hook）；`settings.language` 持久化并即时切换；已覆盖框架/任务/计时/设置导航/报表 chrome/通知/搜索/编辑弹层。首次运行跟随 `navigator.language`。
+  - **钩子顺序教训**：`const { t } = useI18n()` 必须位于任何使用 `t` 的 `useMemo` **之前**（TDZ 崩溃）；设计 i18n 的 `useMemo` 需把 `dict` 加入依赖，否则语言切换后卡片等不重算。
+- **修复：IndexedDB 旧库破坏初始化（0 任务显示）**：起因早期版本变更存储结构但 `DB_VERSION` 未升（保持 1），旧库缺 `kv` store → `transaction('kv')` 抛 "object store not found"，初始化中断。修复：`DB_VERSION→2` + `onupgradeneeded` 删除旧 store 重建 `kv`（不兼容即重建，演示数据可重播种）。
+
+---
+
 ## 2026-10-14 · 修复：桌面版任务列表恒为空（回车不出现列表项）
 
 **现象（用户报告）**

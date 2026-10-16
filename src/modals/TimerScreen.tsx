@@ -92,7 +92,7 @@ export function TimerScreen() {
   const est = currentTask?.est_pomodoros ?? 0;
 
   const ctaLabel = state.phase === 'break'
-    ? t('timer.cta.start')
+    ? (state.running ? t('timer.cta.pause') : t('timer.cta.startBreak'))
     : state.phase === 'focus'
       ? (state.running ? t('timer.cta.pause') : t('timer.cta.resume'))
       : t('timer.cta.start');
@@ -112,11 +112,6 @@ export function TimerScreen() {
   }
 
   function onCta() {
-    if (state.phase === 'break') {
-      // 休息 → 专注（对称语义）
-      skip();
-      return;
-    }
     toggleRun();
   }
 

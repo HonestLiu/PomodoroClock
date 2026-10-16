@@ -6,6 +6,7 @@ pub mod records;
 pub mod settings;
 pub mod stats;
 pub mod tasks;
+pub mod tray;
 pub mod user;
 
 use crate::error::AppError;

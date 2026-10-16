@@ -8,6 +8,7 @@ import thumb from '@/assets/wallpapers/waves-thumb.svg';
 import { useTimerStore } from '@/stores/timerStore';
 import { useDataStore } from '@/stores/dataStore';
 import { useUiStore } from '@/stores/uiStore';
+import { useI18n } from '@/i18n';
 import { todayPomodoroCount } from '@/lib/derive';
 import { formatClock } from '@/lib/date';
 
@@ -24,6 +25,7 @@ export function FloatWindow() {
   const { tasks, lists, records } = useDataStore();
   const visible = useUiStore((s) => s.floatVisible);
   const setVisible = useUiStore((s) => s.setFloatVisible);
+  const { t } = useI18n();
 
   const ref = useRef<HTMLDivElement>(null);
   const drag = useRef<{ dx: number; dy: number } | null>(null);
@@ -86,7 +88,7 @@ export function FloatWindow() {
         <div className="float-bottom">
           <span className="float-count">
             {showClock ? formatClock(ms) : count}
-            <small>{showClock ? (state.phase === 'focus' ? '专注中' : '休息中') : '今日番茄'}</small>
+            <small>{showClock ? (state.phase === 'focus' ? t('float.focusing') : t('float.breaking')) : t('float.todayCount')}</small>
           </span>
           <button
             className="float-play"

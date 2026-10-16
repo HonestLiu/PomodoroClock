@@ -6,6 +6,7 @@ import { api, isTauri, subscribe } from '@/api';
 import { useUiStore } from '@/stores/uiStore';
 import { emit } from '@/api/events';
 import { ensureSystemPermission, systemNotify } from '@/lib/systemNotify';
+import { primeBell, playBell } from '@/lib/bell';
 import { tStatic } from '@/i18n';
 import type { Settings, TimerMode, TimerPhase, TimerState } from '@/types';
 import { DEFAULT_SETTINGS } from '@/types';
@@ -77,6 +78,7 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
           await finalizeFocus(saved, settings);
           restored = idlePhase(saved, 'break', phaseDurationMs('break', saved.mode, settings.focus_len_min, settings.break_len_min, settings.long_break_len_min, 1, settings.long_break_every));
           emit('timer://finished', { phase: 'focus', taskId: saved.task_id });
+          playBell(); // 应用启动时若已到期则补播铃声（被自动播放策略拦阻则静默跳过）
         } else {
           restored = idlePhase(saved, 'focus', phaseDurationMs('focus', saved.mode, settings.focus_len_min, settings.break_len_min, settings.long_break_len_min, 0, settings.long_break_every));
         }
@@ -103,17 +105,35 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
     // 浏览器下使用本地 250ms 脉冲。两者都只提供"当前时间"，阶段切换仍由前端
     // 状态机单属主执行，避免重复归档。
     if (!tickHandle) {
+      let trayCounter = 0;
+      const updateTray = () => {
+        // 节流：每 4 次 tick（约 1 秒）更新一次菜单栏倒计时
+        if (trayCounter++ % 4 !== 0) return;
+        const { state } = get();
+        const s = get().settings;
+        const ms = displayMs(state, Date.now(), s.focus_len_min * 60_000);
+        const running = state.running && state.phase !== 'idle';
+        // 固定宽度 MM:SS 格式（零填充），避免菜单栏宽度跳动
+        const mins = String(Math.floor(ms / 60000)).padStart(2, '0');
+        const secs = String(Math.floor((ms % 60000) / 1000)).padStart(2, '0');
+        const label = running ? `${mins}:${secs}` : '';
+        void api.update_tray_title(label);
+        // 图标颜色：红=专注 蓝=休息
+        void api.set_tray_phase(state.phase === 'break' ? 'break' : 'focus');
+      };
       if (isTauri()) {
         tickHandle = subscribe('timer://tick', (payload) => {
           const p = payload as { phase?: string; running?: boolean; remaining_ms?: number } | null;
           if (!p) return;
           set({ now: Date.now(), rustRemaining: p.remaining_ms ?? null });
           void get().checkExpiry();
+          updateTray();
         }) as unknown as ReturnType<typeof setInterval>;
       } else {
         tickHandle = setInterval(() => {
           set({ now: Date.now(), rustRemaining: null });
           void get().checkExpiry();
+          updateTray();
         }, 250);
       }
     }
@@ -134,6 +154,7 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
     set({ state: next, now: Date.now(), screenOpen: true });
     void api.set_timer_state(next);
     emit('timer://state-changed', next);
+    primeBell();  // 在用户手势内解锁铃声，确保结束后可播放
     useUiStore.getState().setFloatVisible(true);
   },
 
@@ -151,6 +172,7 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
     set({ state: next, now: Date.now() });
     void api.set_timer_state(next);
     emit('timer://state-changed', next);
+    primeBell();
     useUiStore.getState().setFloatVisible(true);
   },
 
@@ -216,6 +238,7 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
       await api.set_timer_state(next);
       emit('timer://finished', { phase: 'focus', taskId: state.task_id });
       void notify('focus_done', tStatic('notif.focusDoneTitle'), tStatic('notif.focusDoneBody'), settings);
+      playBell();
       useUiStore.getState().setFloatVisible(true);
     } else if (state.phase === 'break') {
       set({ feedback: tStatic('timer.feedback.breakDone') });
@@ -227,6 +250,7 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
       await api.set_timer_state(next);
       emit('timer://finished', { phase: 'break', taskId: state.task_id });
       void notify('break_done', tStatic('notif.breakDoneTitle'), tStatic('notif.breakDoneBody'), settings);
+      playBell();
       useUiStore.getState().setFloatVisible(true);
     }
   },

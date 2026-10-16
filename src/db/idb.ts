@@ -23,7 +23,7 @@ export interface DBShape {
 }
 
 const DB_NAME = 'focus_pomodoro';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE = 'kv';
 const KEY = 'db';
 
@@ -62,7 +62,11 @@ function openIDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
+      // 迁移/重建：删除旧 schema 的所有 store，统一重建 kv。
+      // 历史原因：早期版本曾使用不同（或缺失）的 store，若保留旧库会触发
+      // "object store not found"；此处以"不兼容即重建"处理（数据为演示种子，可重播种）。
       const db = req.result;
+      for (const name of Array.from(db.objectStoreNames)) db.deleteObjectStore(name);
       if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
     };
     req.onsuccess = () => resolve(req.result);

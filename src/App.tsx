@@ -18,7 +18,7 @@ import { useDataStore } from '@/stores/dataStore';
 import { useStatsStore } from '@/stores/statsStore';
 import { useTimerStore } from '@/stores/timerStore';
 import { useUiStore } from '@/stores/uiStore';
-import { api } from '@/api';
+import { api, on, isTauri } from '@/api';
 import { useI18nStore } from '@/i18n';
 
 export default function App() {
@@ -49,6 +49,37 @@ export default function App() {
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
+
+  // 菜单栏托盘菜单事件（PRD §5.4 FR-P3）
+  useEffect(() => {
+    if (!isTauri()) return;
+    const unsub = on('tray://menu', (action) => {
+      switch (action) {
+        case 'tray-toggle': useTimerStore.getState().toggleRun(); break;
+        case 'tray-skip': useTimerStore.getState().skip(); break;
+        case 'tray-report': useUiStore.getState().openReport(true); break;
+        case 'tray-settings': useUiStore.getState().openSettings(); break;
+      }
+    });
+    return () => { unsub?.(); };
+  }, []);
+
+  // 更新托盘「开始/暂停」菜单项文字
+  useEffect(() => {
+    if (!isTauri()) return;
+    const updateToggle = () => {
+      const s = useTimerStore.getState();
+      const text = s.state.phase === 'break'
+        ? (s.state.running ? '暂停' : '开始休息')
+        : s.state.phase === 'focus'
+          ? (s.state.running ? '暂停' : '继续专注')
+          : '开始专注';
+      void api.update_tray_toggle(text);
+    };
+    updateToggle();
+    const unsub = on('timer://state-changed', updateToggle);
+    return () => { unsub?.(); };
+  }, []);
 
   // 全局快捷键：空格开始/暂停（PRD §9 可访问性）
   useEffect(() => {

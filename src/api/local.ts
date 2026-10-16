@@ -322,6 +322,18 @@ export const localApi: Api = {
     });
   },
 
+  async update_tray_title(_text: string) {
+    // 浏览器运行时无菜单栏托盘，静默忽略
+  },
+
+  async update_tray_toggle(_text: string) {
+    // 浏览器运行时无菜单栏托盘，静默忽略
+  },
+
+  async set_tray_phase(_phase: string) {
+    // 浏览器运行时无菜单栏托盘，静默忽略
+  },
+
   async get_settings() {
     await ready();
     return getSettings();

@@ -18,7 +18,7 @@ export function CompletedView() {
 
   const ds: Dataset = useMemo(() => ({ tasks, lists, records }), [tasks, lists, records]);
 
-  const { t } = useI18n();
+  const { t, dict } = useI18n();
   const groups = useMemo(() => completedGroups(ds), [ds, revision]);
   const cards = useMemo(() => {
     const pending = tasks.filter((t) => t.completed === 0).length;
@@ -33,11 +33,11 @@ export function CompletedView() {
       countCard(t('stat.completed'), stats?.today_done_tasks ?? 0),
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [revision, tasks, stats, focusLenMin]);
+  }, [dict, revision, tasks, stats, focusLenMin]);
 
   return (
     <div className="content">
-      <h1 className="page-title">已完成</h1>
+      <h1 className="page-title">{t('nav.completed')}</h1>
       <StatCards cards={cards} />
 
       {groups.length === 0 && <div className="empty">{t('report.noneThisPeriod')}</div>}

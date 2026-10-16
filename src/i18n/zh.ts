@@ -49,6 +49,7 @@ export const zh = {
   'timer.recover.break': '上一段休息已结束',
   'timer.recover.continue': '继续下一阶段', 'timer.recover.ok': '知道了',
   'timer.untitled': '未指定任务',
+  'float.focusing': '专注中', 'float.breaking': '休息中', 'float.todayCount': '今日番茄',
 
   // 报表
   'report.title': '报表', 'report.pomodoroGrid': '番茄记录', 'report.gridSub': '近 14 天 · 时间 × 日期',

@@ -7,7 +7,9 @@ pub mod error;
 pub mod models;
 pub mod timer_engine;
 
-use tauri::Manager;
+use tauri::{Emitter, Manager};
+use tauri::menu::{MenuBuilder, MenuItemBuilder};
+use tauri::tray::TrayIconBuilder;
 
 /// 当前本地时间戳（毫秒）
 pub fn db_now() -> i64 {
@@ -42,6 +44,47 @@ pub fn run() {
                     let _ = w.set_decorations(false);
                 }
             }
+
+            // macOS 菜单栏番茄钟：图标 + 倒计时文字 + 简化功能菜单（PRD §5.4 FR-P3）
+            let toggle_item = MenuItemBuilder::with_id("tray-toggle", "开始专注")
+                .build(app)?;
+
+            let tray_menu = MenuBuilder::new(app)
+                .text("tray-open", "打开主窗口")
+                .separator()
+                .item(&toggle_item)
+                .text("tray-skip", "跳过当前阶段")
+                .separator()
+                .text("tray-report", "报表")
+                .text("tray-settings", "设置")
+                .separator()
+                .quit_with_text("退出")
+                .build()?;
+
+            app.manage(commands::tray::TrayState { toggle: toggle_item });
+
+            let _tray = TrayIconBuilder::with_id("main")
+                .icon(tauri::include_image!("icons/tray-focus.png"))
+                .icon_as_template(false) // 彩色图标：红=专注 蓝=休息
+                .tooltip("FocusPomodoro")
+                .menu(&tray_menu)
+                .show_menu_on_left_click(true) // 单击弹出菜单
+                .on_menu_event(|app, event| {
+                    match event.id().0.as_str() {
+                        "tray-open" => {
+                            if let Some(win) = app.get_webview_window("main") {
+                                let _ = win.show();
+                                let _ = win.set_focus();
+                            }
+                        }
+                        "tray-quit" => app.exit(0),
+                        // 其余动作转交前端处理（toggle / skip / report / settings）
+                        other => {
+                            let _ = app.emit("tray://menu", other.to_string());
+                        }
+                    }
+                })
+                .build(app)?;
 
             // 计时时钟源（PRD §8.5）
             timer_engine::spawn_ticker(app.handle().clone());
@@ -89,6 +132,10 @@ pub fn run() {
             commands::notify::create_notification,
             commands::notify::mark_notif_read,
             commands::notify::mark_all_notifs_read,
+            // 菜单栏番茄钟
+            commands::tray::update_tray_title,
+            commands::tray::update_tray_toggle,
+            commands::tray::set_tray_phase,
         ])
         .run(tauri::generate_context!())
         .expect("error while running FocusPomodoro");

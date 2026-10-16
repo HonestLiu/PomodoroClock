@@ -353,7 +353,7 @@ input:focus, textarea:focus, button:focus-visible {
 /* 报表（FR-R1） */
 .report-modal { width: min(1080px, 94vw); height: min(760px, 90vh); }
 
-.report-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.report-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
 .panel {
   background: var(--bg-card);
   border: 1px solid var(--border);
