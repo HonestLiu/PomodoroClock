@@ -3,10 +3,11 @@
 // P1：行尾「⋯」更多菜单 + 右键菜单（标记完成/移到清单/复制/删除）
 
 import { useEffect, useState } from 'react';
-import { Check, MoreHorizontal, Copy, Trash2, FolderPlus, ListTodo } from 'lucide-react';
+import { Check, MoreHorizontal, Copy, Trash2, FolderPlus, ListTodo, Play } from 'lucide-react';
 import type { Task } from '@/types';
 import { formatDueDate } from '@/lib/date';
 import { useDataStore } from '@/stores/dataStore';
+import { useTimerStore } from '@/stores/timerStore';
 import { useUiStore } from '@/stores/uiStore';
 import { Menu, type MenuItem } from './Menu';
 
@@ -142,6 +143,14 @@ export function TaskItem({ task, onReorder }: {
     setMenu({ x, y });
   }
 
+  /** 直接进入绑定该任务的番茄钟 */
+  function startPomodoro(e: React.MouseEvent) {
+    e.stopPropagation();
+    const timer = useTimerStore.getState();
+    timer.setTask(task.id);
+    timer.openScreen(true);
+  }
+
   return (
     <div
       className={`task-item${task.completed ? ' done' : ''}${menu ? ' menu-open' : ''}${flash ? ' highlight' : ''}${dragOver ? ' drag-target' : ''}${onReorder ? ' draggable-row' : ''}`}
@@ -156,6 +165,16 @@ export function TaskItem({ task, onReorder }: {
         openAt(e.clientX, e.clientY);
       }}
     >
+      <button
+        className="task-play"
+        title="开始专注"
+        aria-label="开始专注"
+        onClick={startPomodoro}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <Play size={11} strokeWidth={2.5} />
+      </button>
+
       <button
         className={`check${task.completed ? ' checked' : ''}`}
         aria-label={task.completed ? '标记未完成' : '标记完成'}

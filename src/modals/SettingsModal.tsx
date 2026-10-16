@@ -8,6 +8,7 @@ import {
 import { useUiStore, type SettingsTab } from '@/stores/uiStore';
 import { useDataStore } from '@/stores/dataStore';
 import { useTimerStore } from '@/stores/timerStore';
+import { useAuthStore } from '@/stores/authStore';
 import { api } from '@/api';
 import { NOISE_LABELS, type NoiseKind } from '@/lib/noise';
 import type { Settings } from '@/types';
@@ -39,6 +40,20 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
   const [newListName, setNewListName] = useState('');
   const [defaultListId, setDefaultListId] = useState<string | null>(null);
   const bgInputRef = useRef<HTMLInputElement>(null);
+
+  // 云同步（PocketBase）
+  const cloud = useAuthStore();
+  const [syncMode, setSyncMode] = useState<'login' | 'register'>('login');
+  const [syncEmail, setSyncEmail] = useState('');
+  const [syncPwd, setSyncPwd] = useState('');
+
+  async function doCloudAuth() {
+    if (!syncEmail.trim() || !syncPwd) return;
+    const ok = syncMode === 'login'
+      ? await cloud.login(syncEmail.trim(), syncPwd)
+      : await cloud.register(syncEmail.trim(), syncPwd);
+    if (ok) setSyncPwd('');
+  }
 
   useEffect(() => {
     void api.get_default_list().then(setDefaultListId);
@@ -170,6 +185,63 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
                     >
                       注销账号
                     </button>
+                  </div>
+                </div>
+
+                {/* ── 云同步（PocketBase） ── */}
+                <div className="field" style={{ alignItems: 'flex-start' }}>
+                  <span className="field-label">{t('sync.title')}</span>
+                  <div className="field-body" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
+                    <span className="field-hint">{t('sync.desc')}</span>
+
+                    {cloud.status === 'signedIn' && cloud.user ? (
+                      <>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--text-2)' }}>
+                          <span>✓ {cloud.user.email}</span>
+                          {cloud.lastSyncAt && (
+                            <span>· {t('sync.lastSync', { v: new Date(cloud.lastSyncAt).toLocaleTimeString() })}</span>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          <button className="btn" disabled={cloud.syncState === 'busy'} onClick={() => void cloud.pushNow()}>
+                            {t('sync.push')}
+                          </button>
+                          <button className="btn" disabled={cloud.syncState === 'busy'} onClick={() => void cloud.pullNow()}>
+                            {t('sync.pull')}
+                          </button>
+                          <button className="btn" onClick={() => cloud.logout()}>{t('sync.logout')}</button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <input
+                          className="text-input" type="email" placeholder={t('sync.email')}
+                          value={syncEmail} onChange={(e) => setSyncEmail(e.target.value)}
+                        />
+                        <input
+                          className="text-input" type="password" placeholder={t('sync.password')}
+                          value={syncPwd} onChange={(e) => setSyncPwd(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') void doCloudAuth(); }}
+                        />
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          <button className="btn primary" disabled={cloud.syncState === 'busy' || !syncEmail || !syncPwd} onClick={() => void doCloudAuth()}>
+                            {syncMode === 'login' ? t('sync.login') : t('sync.register')}
+                          </button>
+                          <button className="btn" onClick={() => setSyncMode(syncMode === 'login' ? 'register' : 'login')}>
+                            {syncMode === 'login' ? t('sync.toRegister') : t('sync.toLogin')}
+                          </button>
+                        </div>
+                      </>
+                    )}
+
+                    {cloud.syncMessage && (
+                      <span
+                        className="field-hint"
+                        style={{ color: cloud.syncState === 'error' ? 'var(--accent-focus)' : 'var(--text-3)' }}
+                      >
+                        {cloud.syncMessage}
+                      </span>
+                    )}
                   </div>
                 </div>
               </>

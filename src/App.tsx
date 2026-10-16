@@ -18,6 +18,7 @@ import { useDataStore } from '@/stores/dataStore';
 import { useStatsStore } from '@/stores/statsStore';
 import { useTimerStore } from '@/stores/timerStore';
 import { useUiStore } from '@/stores/uiStore';
+import { useAuthStore, scheduleSyncPush } from '@/stores/authStore';
 import { api, on, isTauri } from '@/api';
 import { useI18nStore } from '@/i18n';
 
@@ -28,6 +29,7 @@ export default function App() {
   const globalConfirm = useUiStore((s) => s.confirm);
   const clearConfirm = useUiStore((s) => s.clearConfirm);
   const theme = useTimerStore((s) => s.settings.theme);
+  const settings = useTimerStore((s) => s.settings);
 
   const bootstrap = useDataStore((s) => s.bootstrap);
   const refreshStats = useStatsStore((s) => s.refresh);
@@ -42,6 +44,8 @@ export default function App() {
       // 应用已存语言（settings.language）
       useI18nStore.getState().setLang(useTimerStore.getState().settings.language as 'zh' | 'en');
       setBooted(true);
+      // 云同步：不阻塞启动（PB 不可达时静默降级，本地照常可用）
+      void useAuthStore.getState().init();
     })();
   }, [bootstrap, refreshStats, initTimer]);
 
@@ -49,6 +53,13 @@ export default function App() {
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
+
+  // 本地配置变化 -> 防抖推送云端（已登录才推；失败静默降级）
+  const settingsSig = JSON.stringify(settings);
+  useEffect(() => {
+    if (!booted) return;   // 启动期的 settings 初始化不触发推送
+    scheduleSyncPush();
+  }, [settingsSig, booted]);
 
   // 菜单栏托盘菜单事件（PRD §5.4 FR-P3）
   useEffect(() => {

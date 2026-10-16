@@ -123,7 +123,7 @@ export function Sidebar() {
             >
               <Icon size={15} style={{ color: DOT_COLORS[n.key], flex: '0 0 auto' }} />
               <span className="nav-label">{t(n.labelKey)}</span>
-              <span className="nav-time">{formatMinutesShort(n.minutes)}</span>
+              {n.key !== 'completed' && <span className="nav-time">{formatMinutesShort(n.minutes)}</span>}
               <span className="nav-count">{n.count}</span>
             </button>
           );

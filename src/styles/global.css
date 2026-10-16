@@ -278,6 +278,17 @@ input:focus, textarea:focus, button:focus-visible {
 }
 .check:hover { border-color: var(--accent-blue); }
 .check.checked { background: var(--accent-blue); border-color: var(--accent-blue); color: #fff; }
+.task-play {
+  visibility: hidden;
+  width: 22px; height: 22px; border-radius: 50%;
+  flex: 0 0 auto;
+  display: grid; place-items: center;
+  color: var(--accent-focus);
+  border: 1px solid var(--border);
+  transition: opacity .12s;
+}
+.task-item:hover .task-play { visibility: visible; }
+.task-play:hover { background: var(--accent-focus); border-color: var(--accent-focus); color: #fff; }
 
 .task-title { flex: 1; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .task-item.done .task-title { color: var(--text-2); text-decoration: line-through; }

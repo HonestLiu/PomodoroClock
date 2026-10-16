@@ -82,6 +82,14 @@ export const zh = {
   'account.changeAccount': '修改账号', 'account.changePassword': '修改密码',
   'account.deleteData': '删除数据', 'account.logout': '注销账号', 'account.save': '保存',
   'account.pwdPlaceholder': '新密码', 'account.pwdConfirm': '确认密码',
+
+  // 云同步（PocketBase）
+  'sync.title': '云同步', 'sync.desc': '登录后可把配置备份到云端，并在多台设备间同步；断网时仍使用本地数据。',
+  'sync.email': '邮箱', 'sync.password': '密码',
+  'sync.login': '登录', 'sync.register': '注册',
+  'sync.toRegister': '没有账号？去注册', 'sync.toLogin': '已有账号？去登录',
+  'sync.push': '推送本地配置', 'sync.pull': '拉取云端配置', 'sync.logout': '退出登录',
+  'sync.lastSync': '上次同步 {v}',
   'common.save': '保存', 'common.cancel': '取消', 'common.confirm': '确定',
   'common.delete': '删除', 'common.yes': '知道了',
   'confirm.deleteDataTitle': '删除数据',

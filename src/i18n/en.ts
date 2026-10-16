@@ -75,6 +75,15 @@ export const en = {
   'account.changeAccount': 'Change account', 'account.changePassword': 'Change password',
   'account.deleteData': 'Delete data', 'account.logout': 'Sign out', 'account.save': 'Save',
   'account.pwdPlaceholder': 'New password', 'account.pwdConfirm': 'Confirm password',
+
+  // Cloud sync (PocketBase)
+  'sync.title': 'Cloud sync',
+  'sync.desc': 'Sign in to back up your config to the cloud and sync across devices. Local data is used when offline.',
+  'sync.email': 'Email', 'sync.password': 'Password',
+  'sync.login': 'Sign in', 'sync.register': 'Create account',
+  'sync.toRegister': 'No account? Register', 'sync.toLogin': 'Have an account? Sign in',
+  'sync.push': 'Push local config', 'sync.pull': 'Pull from cloud', 'sync.logout': 'Sign out',
+  'sync.lastSync': 'Last synced {v}',
   'common.save': 'Save', 'common.cancel': 'Cancel', 'common.confirm': 'Confirm',
   'common.delete': 'Delete', 'common.yes': 'Got it',
   'confirm.deleteDataTitle': 'Delete data',
