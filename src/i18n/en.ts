@@ -73,6 +73,7 @@ export const en = {
   'appearance.now': 'Waves', 'appearance.yesNo': 'Yes',
   // Account page (S5): the software account IS the PocketBase account
   'account.untitled': 'Unnamed',
+  'account.guest': 'Not signed in',
   'account.title': 'Sign in to FocusPomodoro',
   'account.subtitle': 'Your account syncs tasks and settings across devices. Every local feature works without signing in.',
   'account.signedIn': 'Signed in',

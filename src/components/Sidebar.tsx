@@ -4,7 +4,7 @@
 import { useMemo, useState } from 'react';
 import {
   CalendarDays, CalendarClock, CheckCircle2, GripVertical, ListTodo, Plus, Search,
-  Sun, Sunrise,
+  Sun, Sunrise, User as UserIcon,
 } from 'lucide-react';
 import { useUiStore } from '@/stores/uiStore';
 import { useDataStore } from '@/stores/dataStore';
@@ -38,8 +38,11 @@ export function Sidebar() {
   const statsRevision = useStatsStore((s) => s.revision);
   // 身份跟随云端账号：登录后侧边栏显示的就是云端那个账号，避免「设置里 foo@bar.com、侧边栏 honestliu」的割裂
   const cloudUser = useAuthStore((s) => s.user);
+  const authStatus = useAuthStore((s) => s.status);
+  // 仅已登录才走「云端资料 → 本地兜底」；未登录一律显示预设占位（不暴露本地种子里的写死昵称）
+  const signedIn = authStatus === 'signedIn';
   // 云端头像优先（PB users.avatar），否则回退本地头像文件，最后首字母
-  const cloudAvatarUrl = cloudUser && typeof cloudUser.avatar === 'string' && cloudUser.avatar
+  const cloudAvatarUrl = signedIn && cloudUser && typeof cloudUser.avatar === 'string' && cloudUser.avatar
     ? pbAvatarFileUrl(cloudUser, 72)
     : '';
   const todayFocusMin = useStatsStore((s) => s.stats?.today_focus_min ?? 0);
@@ -47,8 +50,9 @@ export function Sidebar() {
   const [name, setName] = useState('');
   const [dragId, setDragId] = useState<string | null>(null);
   const { t } = useI18n();
-  const displayName =
-    cloudUser?.name?.trim() || cloudUser?.email?.split('@')[0] || user?.username || t('account.untitled');
+  const displayName = signedIn
+    ? (cloudUser?.name?.trim() || cloudUser?.email?.split('@')[0] || user?.username || t('account.untitled'))
+    : t('account.guest');
   const [overId, setOverId] = useState<string | null>(null);
 
   // 依赖 tasks / revision 触发重算（统计口径实时聚合）
@@ -122,9 +126,11 @@ export function Sidebar() {
         <span className="avatar">
           {cloudAvatarUrl
             ? <img src={cloudAvatarUrl} alt="" />
-            : user?.avatar_path
-              ? <img src={user.avatar_path} alt="" />
-              : (displayName[0]?.toUpperCase() ?? 'U')}
+            : signedIn
+              ? (user?.avatar_path
+                  ? <img src={user.avatar_path} alt="" />
+                  : (displayName[0]?.toUpperCase() ?? 'U'))
+              : <UserIcon size={14} aria-hidden />}
         </span>
         <span className="account-name" title={displayName}>{displayName}</span>
       </button>

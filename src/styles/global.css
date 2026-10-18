@@ -513,6 +513,26 @@ input:focus:not(:focus-visible), textarea:focus:not(:focus-visible) {
 }
 .num-input:focus { border-color: var(--accent-blue); }
 
+/* ── 输入框原生外观统一（账号邮箱/密码类在 WebKit/WebView2 上系统默认样式最明显） ──
+   .text-input 虽有自定义边框/背景，但 type=email/password 仍会被引擎叠上一层原生外观：
+   1) appearance 重置去掉系统内衬；2) 自动填充抹掉默认蓝/黄底，让背景跟随主题；
+   3) 隐藏 Windows WebView2 密码框的系统「显示密码」按钮，避免它顶开圆角边框。 */
+.text-input, .num-input, .search-box input {
+  -webkit-appearance: none; appearance: none;
+}
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-text-fill-color: var(--text-1);
+  -webkit-box-shadow: 0 0 0 1000px var(--bg-card) inset;
+  box-shadow: 0 0 0 1000px var(--bg-card) inset;
+  caret-color: var(--text-1);
+  transition: background-color 9999s ease-out;
+}
+input::-ms-reveal, input::-ms-clear { display: none; }
+
 .btn {
   height: 30px; padding: 0 14px;
   border-radius: var(--radius-sm);
@@ -554,7 +574,10 @@ input:focus:not(:focus-visible), textarea:focus:not(:focus-visible) {
 .account-form { display: flex; flex-direction: column; gap: 10px; width: 100%; }
 .account-field { display: flex; flex-direction: column; gap: 5px; }
 .account-field-label { font-size: 11.5px; color: var(--text-3); }
-.account-field .text-input { width: 100%; height: 38px; }
+/* .text-input 自带 flex:1（basis 0%）；放进 column 的 .account-field 后主轴变成纵向，
+   会以 0 为基底的 grow 抢占「无剩余高度」的空间，把 38px 高度压成内容行高 →
+   输入框变成长条细线。这里把 flex 改成不伸缩（basis auto 回落到 height），恢复 38px。 */
+.account-field .text-input { width: 100%; height: 38px; flex: 0 0 auto; }
 .account-submit { height: 38px; margin-top: 4px; font-size: 13.5px; font-weight: 600; }
 .account-switch {
   align-self: center; margin-top: 2px; padding: 4px 6px;

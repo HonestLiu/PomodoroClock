@@ -80,6 +80,7 @@ export const zh = {
   'appearance.now': '海浪', 'appearance.yesNo': '是',
   // 账号页（S5）：软件账号 = PocketBase 账号，一页两态
   'account.untitled': '未命名',
+  'account.guest': '未登录',
   'account.title': '登录 FocusPomodoro 账号',
   'account.subtitle': '账号用于把任务与设置同步到多台设备；不登录也能使用全部本地功能。',
   'account.signedIn': '已登录',
