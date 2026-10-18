@@ -97,14 +97,29 @@ export default function App() {
   }, [authStatus, cloudUser, localUserName]);
 
   // 菜单栏托盘菜单事件（PRD §5.4 FR-P3）
+  // 注：原生托盘事件经 subscribe（本地总线 + Tauri listen 桥接）才能收到，
+  //     直接用本地 on() 在 Tauri 下收不到。
   useEffect(() => {
     if (!isTauri()) return;
-    const unsub = on('tray://menu', (action) => {
+    const unsub = subscribe('tray://menu', (action) => {
+      const ui = useUiStore.getState();
       switch (action) {
         case 'tray-toggle': useTimerStore.getState().toggleRun(); break;
         case 'tray-skip': useTimerStore.getState().skip(); break;
-        case 'tray-report': useUiStore.getState().openReport(true); break;
-        case 'tray-settings': useUiStore.getState().openSettings(); break;
+        case 'tray-open-timer': useTimerStore.getState().openScreen(true); break;
+        case 'tray-report': ui.openReport(true); break;
+        case 'tray-settings': ui.openSettings(); break;
+        case 'tray-new-list': ui.openListCreate(true); break;
+        case 'tray-new-folder': ui.openFolderCreate(true); break;
+        case 'tray-new-task': {
+          ui.navigate({ name: 'tasks' });
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              document.querySelector<HTMLInputElement>('.add-task input')?.focus();
+            });
+          });
+          break;
+        }
       }
     });
     return () => { unsub?.(); };

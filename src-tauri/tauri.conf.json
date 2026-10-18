@@ -30,16 +30,28 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg", "nsis", "deb", "appimage"],
+    "targets": [
+      "app",
+      "dmg",
+      "nsis",
+      "deb",
+      "appimage"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
+      "icons/AppIcon.icns",
       "icons/icon.icns",
       "icons/icon.ico"
     ],
     "category": "Productivity",
     "shortDescription": "番茄钟 × 任务管理",
-    "longDescription": "番茄钟 × 任务管理桌面应用：规划任务、预估番茄数、专注计时、报表统计。"
+    "longDescription": "番茄钟 × 任务管理桌面应用：规划任务、预估番茄数、专注计时、报表统计。",
+    "macOS": {
+      "files": {
+        "Resources/Assets.car": "icons/Assets.car"
+      }
+    }
   }
 }

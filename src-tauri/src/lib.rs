@@ -123,7 +123,7 @@ pub fn run() {
                 }
             }
 
-            // macOS 菜单栏番茄钟：图标 + 倒计时文字 + 简化功能菜单（PRD §5.4 FR-P3）
+            // macOS 菜单栏番茄钟：图标 + 倒计时文字 + 功能菜单（PRD §5.4 FR-P3）
             let toggle_item = MenuItemBuilder::with_id("tray-toggle", "开始专注")
                 .build(app)?;
 
@@ -132,6 +132,11 @@ pub fn run() {
                 .separator()
                 .item(&toggle_item)
                 .text("tray-skip", "跳过当前阶段")
+                .text("tray-open-timer", "专注界面")
+                .separator()
+                .text("tray-new-task", "新建任务")
+                .text("tray-new-list", "新建清单")
+                .text("tray-new-folder", "新建清单夹")
                 .separator()
                 .text("tray-report", "报表")
                 .text("tray-settings", "设置")
