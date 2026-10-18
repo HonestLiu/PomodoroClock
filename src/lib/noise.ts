@@ -7,6 +7,14 @@ import breezeUrl from '@/assets/noise/breeze.mp3';
 import forestUrl from '@/assets/noise/forest.mp3';
 import woodsUrl from '@/assets/noise/woods.mp3';
 import cozyUrl from '@/assets/noise/cozy.mp3';
+// 封面图不是另找的设计资源，而是从上面这些 mp3 的 ID3 内嵌封面（APIC）里抠出来的
+// （tools/extract-noise-covers.sh 可一键重抠）。这样音色换音频时封面必然跟着换，不会出现
+// 「图与声音对不上」的错配。
+import wavesCover from '@/assets/noise/covers/waves.jpg';
+import breezeCover from '@/assets/noise/covers/breeze.jpg';
+import forestCover from '@/assets/noise/covers/forest.jpg';
+import woodsCover from '@/assets/noise/covers/woods.jpg';
+import cozyCover from '@/assets/noise/covers/cozy.jpg';
 import { tStatic } from '@/i18n';
 
 export type NoiseKind = 'waves' | 'rain' | 'wind' | 'woods' | 'cozy';
@@ -31,6 +39,18 @@ const NOISE_AUDIO: Record<NoiseKind, string> = {
   wind: breezeUrl,
   woods: woodsUrl,
   cozy: cozyUrl,
+};
+
+/** 选择弹窗里的展示顺序（PRD 未规定，按听感由「水→风→林→屋」排） */
+export const NOISE_KINDS: NoiseKind[] = ['waves', 'rain', 'wind', 'woods', 'cozy'];
+
+/** 音色封面 —— 与 NOISE_AUDIO 一一对应（rain 用的是 forest.mp3，故封面也取 forest 的） */
+export const NOISE_COVERS: Record<NoiseKind, string> = {
+  waves: wavesCover,
+  rain: forestCover,
+  wind: breezeCover,
+  woods: woodsCover,
+  cozy: cozyCover,
 };
 
 let audio: HTMLAudioElement | null = null;

@@ -372,14 +372,17 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
                 <div className="field">
                   <span className="field-label">{t('appearance.noise')}</span>
                   <div className="field-body">
-                    <select
-                      className="text-input" value={settings.noise} aria-label={t('appearance.noise')}
-                      onChange={(e) => void patch('noise', e.target.value)}
+                    {/* 点一下直接弹选择窗（含音量滑杆与封面列表），不再用下拉框 */}
+                    <button
+                      className="btn" aria-haspopup="dialog"
+                      onClick={() => ui.openNoise(true)}
                     >
-                      {(Object.keys(NOISE_LABELS) as NoiseKind[]).map((k) => (
-                        <option key={k} value={k}>{NOISE_LABELS[k]}</option>
-                      ))}
-                    </select>
+                      {t('noise.pick')}
+                    </button>
+                    <span className="field-hint">
+                      {NOISE_LABELS[settings.noise as NoiseKind] ?? NOISE_LABELS.waves}
+                      {' · '}{Math.round(settings.noise_volume * 100)}%
+                    </span>
                   </div>
                 </div>
                 <div className="field">

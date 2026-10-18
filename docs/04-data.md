@@ -33,8 +33,9 @@ focus_records ──(task_id 可空)──> tasks     notifications 独立   tim
 | focus_len_min / break_len_min / long_break_len_min / long_break_every | int | 25/5/15/4 | ✅ 已读入计时 |
 | daily_target_min | int | 180 | ✅ 同步到 goals 表 |
 | auto_start_next | bool | false | ✅ 已接状态机 |
-| theme / language / noise / wallpaper | str | light/zh/waves/waves | ✅ 全部已读入行为：`theme`→`data-theme`、`language`→词表切换、`noise`/`wallpaper`→专注界面 |
-| noise_volume | float | 0.5 | ✅ |
+| theme / language / wallpaper | str | light/zh/waves | ✅ 已读入行为：`theme`→`data-theme`、`language`→词表切换、`wallpaper`→专注界面 |
+| noise | str | waves | ✅ 有 UI 写入（取值 `waves`/`rain`/`wind`/`woods`/`cozy`）：入口＝外观页「选择白噪音」与白噪音弹窗，弹窗**确定**才写；选「无」不覆盖已存值（`lib/noise.ts::NOISE_KINDS`、`components/NoisePicker.tsx::confirm`） |
+| noise_volume | float | 0.5 | ✅ 有 UI 写入（0–1 浮点，弹窗滑杆；确定时总是写） |
 | notify_enabled / system_notify | bool | true/true | ✅ 应用内 / 系统通知两个独立门控（`timerStore.ts:323`） |
 | noise_on_focus / noise_on_break | bool | false | 🔶 **只写未读**：设置页可改，计时器尚未据此自动播放 |
 | autostart | bool | false | 🔶 **只写未读**：`tauri-plugin-autostart` 未安装，无系统行为 |

@@ -30,6 +30,8 @@ interface UiState {
   premiumOpen: boolean;
   friendsOpen: boolean;
   achievementsOpen: boolean;
+  /** 白噪音选择弹窗（计时页工具条与设置页共用） */
+  noiseOpen: boolean;
   floatVisible: boolean;
   editingTaskId: string | null;
   showCompleted: Record<string, boolean>;
@@ -47,6 +49,7 @@ interface UiState {
   openPremium(v: boolean): void;
   openFriends(v: boolean): void;
   openAchievements(v: boolean): void;
+  openNoise(v: boolean): void;
   setFloatVisible(v: boolean): void;
   setEditingTask(id: string | null): void;
   toggleShowCompleted(key: string): void;
@@ -72,6 +75,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   premiumOpen: false,
   friendsOpen: false,
   achievementsOpen: false,
+  noiseOpen: false,
   floatVisible: true,
   editingTaskId: null,
   showCompleted: {},
@@ -88,12 +92,13 @@ export const useUiStore = create<UiState>((set, get) => ({
   openPremium: (v) => set({ premiumOpen: v, notifOpen: false, friendsOpen: false, achievementsOpen: false }),
   openFriends: (v) => set({ friendsOpen: v, notifOpen: false, premiumOpen: false, achievementsOpen: false }),
   openAchievements: (v) => set({ achievementsOpen: v, notifOpen: false, premiumOpen: false, friendsOpen: false }),
+  openNoise: (v) => set({ noiseOpen: v, notifOpen: false, premiumOpen: false, friendsOpen: false, achievementsOpen: false }),
   setFloatVisible: (floatVisible) => set({ floatVisible }),
   setEditingTask: (editingTaskId) => set({ editingTaskId }),
   toggleShowCompleted: (key) =>
     set((s) => ({ showCompleted: { ...s.showCompleted, [key]: !s.showCompleted[key] } })),
   closeAllOverlays: () =>
-    set({ reportOpen: false, settingsOpen: false, searchOpen: false, notifOpen: false, premiumOpen: false, friendsOpen: false, achievementsOpen: false }),
+    set({ reportOpen: false, settingsOpen: false, searchOpen: false, notifOpen: false, premiumOpen: false, friendsOpen: false, achievementsOpen: false, noiseOpen: false }),
   askConfirm: (confirm) => set({ confirm }),
   clearConfirm: () => set({ confirm: null }),
   triggerHighlight: (highlight) => set({ highlight }),

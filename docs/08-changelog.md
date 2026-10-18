@@ -29,6 +29,22 @@
 
 ---
 
+## 2026-10-18 · 白噪音统一为选择弹窗（用户设计稿）
+
+### 能力补齐
+- **三处入口收敛为一个弹窗**：原先白噪音散在计时页工具条的内嵌小浮层（开关 + 分段按钮 + 滑杆）与设置→外观的 `<select>` 下拉，两处各存一份状态。现新增全局单例 `components/NoisePicker.tsx`（`App.tsx` 挂载），开关状态并入 `stores/uiStore.ts` 的 `noiseOpen`/`openNoise`（同时关闭其它弹层，已入 `closeAllOverlays`）；计时页「白噪音」与外观页「选择白噪音」都只调 `openNoise(true)`。**样式来自用户提供的设计稿截图、超出 PRD 规定范围**（标题 + 音量滑杆 + 圆形封面列表 + 取消/确定）。
+- **层级**：`.noise-overlay { z-index: 400 }`（`styles/global.css`）压过全屏专注层 200 / 通知 160 / 搜索 180，否则在专注页点了会被壁纸层盖住；已在壁纸上截图验证。
+- **播放状态收敛为全局唯一真相源**：新增 `stores/noiseStore.ts`（`{kind, volume, playing}` + `select/setVolume/setPlaying/hydrate/restore`），删除 `TimerScreen.tsx` 的局部 noise 状态与内嵌浮层；工具条图标与 `.on` 高亮改为跟随 `noiseStore.playing`，消除「弹窗里选了一个、工具条还显示旧的」类不同步。
+- **交互语义**：点某项**即刻试听**（用户手势内启停，规避 WebView 自动播放限制）；拖音量时若未选音色会自动试听当前高亮项；**取消回滚**（音色与音量都恢复打开前，`restore(snapshot)`）、**确定才落库**。落库：`noise_volume` 总写，`noise` 仅在选了具体音色时写——选「无」不覆盖已存音色（「专注时播放」仍按上次音色自动起）。打开时高亮 = 正在播放 ? 当前音色 : 「无」。「无」= 不播放，不是清空音色。
+- **封面取自音频自身**：新增 `src/assets/noise/covers/{waves,breeze,forest,woods,cozy}.jpg`（360×360、7–14 KB），全部从对应 mp3 的 **ID3 内嵌封面（APIC/attached_pic）** 提取，不是另找的设计资源；`tools/extract-noise-covers.sh` 用 ffmpeg/ffprobe 重抠（`-an -c:v copy`，无内嵌封面则跳过告警），换音频后重跑。`lib/noise.ts::NOISE_COVERS` 与 `NOISE_AUDIO` 一一对应，其中 `rain` 音色的音频本就是 `forest.mp3`、封面同用 forest 图，避免图音错配；展示顺序 `NOISE_KINDS = waves/rain/wind/woods/cozy`。
+- **i18n**：新增 `noise.title/none/volume/pick`；**键数 322 → 326**（zh/en 各 326，脚本核对无缺失/多余/空值）。英文界面 `White noise / None / Waves / Rain / Breeze / Forest / Cosy / Volume / Cancel / Confirm` 零中文残留。
+- **验收**：`bash tools/check-all.sh --with-shots` 6/6；截图检查 **7 → 8 项**，新增「白噪音弹窗结构」（`.noise-modal`、`.noise-item` 恰 6、5 张封面 `naturalWidth>0`、滑杆、确定），新截图 `S5c-noise-picker.png`；手测雨声 + 80% → `noise=rain`、`noise_volume=0.8`，设置行提示「雨声 · 80%」，重开回显一致。
+
+### 防复发 / 残余风险
+- 封面与音频强绑定：换 mp3 而不重跑 `tools/extract-noise-covers.sh` 会缺图——但 `tools/shoot.mjs` 会因封面未解码直接失败，属「有自动化护栏的约定」，不单列风险。
+
+---
+
 ## 2026-10-18 · 数据层/计时核心批量修复 + 可访问性 + 一键验收
 
 ### 缺陷修复
@@ -57,7 +73,7 @@
 
 ### 工程化
 - **一键验收** `tools/check-all.sh`：tsc → `check-runtime-parity.sh` → `verify-data.ts` → `cargo test --test queries` → `vite build` → 可选 `shoot.mjs`；支持 `--with-shots`/`--skip-build`，彩色 PASS/FAIL，失败退出码非 0。
-- **截图验收** `tools/shoot.mjs` 重写：结构选择器（不再依赖中英文文案）+ 7 项自动检查（首屏渲染、账号页断言、悬浮窗/专注页壁纸非 `none`、深色低对比度扫描、英文界面中文残留、console/pageerror）。账号页断言后于同日账号页重构升级为 `.account-*` 结构断言（见上方条目）。
+- **截图验收** `tools/shoot.mjs` 重写：结构选择器（不再依赖中英文文案）+ 7 项自动检查（后增至 8 项，2026-10-18 加白噪音弹窗；首屏渲染、账号页断言、悬浮窗/专注页壁纸非 `none`、深色低对比度扫描、英文界面中文残留、console/pageerror）。账号页断言后于同日账号页重构升级为 `.account-*` 结构断言（见上方条目）。
 - **验收脚本语言确定性**：`tools/verify-data.ts` 显式 `setDateLocale('zh')`——它断言的是 PRD §7.2 中文口径，而 `i18n/store` 在 Node 下会按 `navigator.language`（通常 en-US）把 `formatMinutes` 切成 `8h 59m` 造成 6 项假失败；`tools/shoot.mjs` 同理固定 `locale:'zh-CN'`，英文检查另起一次 `selectOption('en')`。
 - **英文专注层纳入扫描**：`tools/shoot.mjs` 追加「英文专注界面无中文残留」检查（`.timer-screen` 全屏层原先不在扫描范围内）。
 

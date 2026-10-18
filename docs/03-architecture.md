@@ -65,6 +65,16 @@ PRD §8.6/`01-vision.md` 把云同步列为非目标；当前实现作为**可�
 - **configs 关系约束**：`configs.user` 是关系字段，**删用户前必须先删其 configs 记录**，否则 `DELETE users` 返回 400；`users` 的 listRule 不公开，匿名无法枚举用户（测试残留账号只能按已知 id 删）。
 - **触发**：设置变更 `scheduleSyncPush` 防抖 1200ms 后推送；启动时 `useAuthStore.init()`（`App.tsx:48`）。
 
+## 白噪音选择弹窗（2026-10，来源：用户设计稿）
+
+用户指名的 UI 改造：原来白噪音有两个零碎入口（计时页工具条的内嵌小浮层、设置→外观的 `<select>` 下拉），现统一为**一个选择弹窗**，外观按用户提供的设计稿实现（标题 + 音量滑杆 + 圆形封面列表 + 取消/确定）。**样式不在 PRD 规定范围内**，是用户追加的设计要求。
+
+- **单一入口实现**：`components/NoisePicker.tsx` 是全局单例，由 `App.tsx` 挂载；打开状态在 `stores/uiStore.ts` 的 `noiseOpen` + `openNoise(v)`（已并入 `closeAllOverlays`）。计时页工具条「白噪音」与设置→外观「选择白噪音」都只调 `openNoise(true)`，不再各自维护浮层。
+- **层级**：`.noise-overlay { z-index: 400 }`，必须高于全屏专注层（200）、通知（160）、搜索（180）——否则在专注页点「白噪音」会被壁纸层盖住（已截图验证在壁纸上正常显示）。
+- **播放状态收敛为全局唯一真相源**：`stores/noiseStore.ts`（原状态散在 `TimerScreen` 的局部 `useState`），`{ kind, volume, playing }` + `select/setVolume/setPlaying/hydrate/restore`。这是「弹窗里选了一个、工具条还显示旧的」不再复发的结构原因；工具条图标与 `.on` 高亮直接跟随 `noiseStore.playing`。
+- **封面取自音频文件自身**：`src/assets/noise/covers/*.jpg` 是 5 个 mp3 的 **ID3 内嵌封面（APIC / attached_pic）**，360×360、7–14 KB，不是另找的设计资源；`tools/extract-noise-covers.sh` 用 ffmpeg/ffprobe 重抠（`-an -c:v copy`，无内嵌封面则跳过并告警），换音频后重跑即可。`lib/noise.ts::NOISE_COVERS` 与 `NOISE_AUDIO` 一一对应——注意 `rain` 的音频本来就是 `forest.mp3`，封面也用 forest 的内嵌图，避免图音错配。
+- **交互语义**：点某一项**即刻试听**（在用户手势内启停，规避 WebView 自动播放限制）；拖音量时若还没选音色，会自动试听当前高亮项；**取消回滚**试听（音色与音量都恢复到打开前），**确定**才落库。落库规则：`noise_volume` 总是写，`noise` 只在选了具体音色时写——选「无」不覆盖已存音色（「专注时播放」仍按上次音色自动起）。打开时高亮 = 正在播放 ? 当前音色 : 「无」。「无」= 不播放，**不是清空音色**。
+
 ## 可访问性（a11y，2026-10 补齐）
 
 - **模态**：`components/useModalA11y.ts` 提供栈式 Esc（仅最上层响应）、Tab 焦点循环、打开时聚焦首要素、关闭后还原焦点；Settings/Report/Placeholder/ConfirmDialog/TaskEditModal 均已接入，并带 `role="dialog" aria-modal aria-labelledby`。

@@ -11,6 +11,7 @@ import { CompletedView } from '@/pages/CompletedView';
 import { ReportModal } from '@/modals/ReportModal';
 import { SettingsModal } from '@/modals/SettingsModal';
 import { TimerScreen } from '@/modals/TimerScreen';
+import { NoisePicker } from '@/components/NoisePicker';
 import { TaskEditModal } from '@/modals/TaskEditModal';
 import { PlaceholderModal } from '@/modals/PlaceholderModal';
 import { ConfirmDialog, type ConfirmSpec } from '@/modals/ConfirmDialog';
@@ -18,7 +19,9 @@ import { useDataStore } from '@/stores/dataStore';
 import { useStatsStore } from '@/stores/statsStore';
 import { useTimerStore } from '@/stores/timerStore';
 import { useUiStore } from '@/stores/uiStore';
+import { useNoiseStore } from '@/stores/noiseStore';
 import { useAuthStore, scheduleSyncPush } from '@/stores/authStore';
+import type { NoiseKind } from '@/lib/noise';
 import { api, on, isTauri } from '@/api';
 import { useI18nStore, tStatic } from '@/i18n';
 
@@ -41,6 +44,9 @@ export default function App() {
       await bootstrap();
       await refreshStats();
       await initTimer();
+      // 白噪音音色/音量回填（不触发播放；真正播放要等用户手势）
+      const bootSettings = useTimerStore.getState().settings;
+      useNoiseStore.getState().hydrate(bootSettings.noise as NoiseKind, bootSettings.noise_volume);
       // 应用已存语言（settings.language）
       useI18nStore.getState().setLang(useTimerStore.getState().settings.language as 'zh' | 'en');
       setBooted(true);
@@ -174,6 +180,7 @@ export default function App() {
       <TaskEditModal onConfirm={setConfirm} />
       <PlaceholderModal />
       <TimerScreen />
+      <NoisePicker />
 
       {confirm && <ConfirmDialog spec={confirm} onClose={() => setConfirm(null)} />}
       {globalConfirm && <ConfirmDialog spec={globalConfirm} onClose={clearConfirm} />}

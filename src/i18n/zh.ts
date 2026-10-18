@@ -204,6 +204,9 @@ export const zh = {
   'cal.cellTip': '{date} · {min}分钟',
   'noise.waves': '海浪', 'noise.rain': '雨声', 'noise.wind': '微风',
   'noise.woods': '树林', 'noise.cozy': '温馨',
+  // 白噪音选择弹窗
+  'noise.title': '白噪音', 'noise.none': '无', 'noise.volume': '音量',
+  'noise.pick': '选择白噪音',
   'error.desc': '渲染时抛出了异常，本地数据仍保存在这台设备上。可以重新加载应用，或关闭提示继续操作。',
   'error.reload': '重新加载',
   'error.dismiss': '关闭提示',

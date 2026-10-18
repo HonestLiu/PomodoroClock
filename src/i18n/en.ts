@@ -198,6 +198,8 @@ export const en = {
   'cal.cellTip': '{date} · {min}m',
   'noise.waves': 'Waves', 'noise.rain': 'Rain', 'noise.wind': 'Breeze',
   'noise.woods': 'Forest', 'noise.cozy': 'Cosy',
+  'noise.title': 'White noise', 'noise.none': 'None', 'noise.volume': 'Volume',
+  'noise.pick': 'Choose white noise',
   'error.desc': 'A component threw while rendering. Your data is still stored on this device. Reload the app, or dismiss this message and keep going.',
   'error.reload': 'Reload',
   'error.dismiss': 'Dismiss',

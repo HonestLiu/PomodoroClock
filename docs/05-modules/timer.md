@@ -5,7 +5,8 @@
 
 ## 当前状态
 - ✅ 番茄钟模式 + 专注⇄休息状态机、暂停/恢复/跳过、长休息；另两种模式可选（见 ★3 的边界说明）。
-- ✅ 绝对时间戳计时 + 关闭后恢复结算、白噪音（Web Audio 三类）、全屏、任务选择/今日面板/时间轴。
+- ✅ 绝对时间戳计时 + 关闭后恢复结算、全屏、任务选择/今日面板/时间轴。
+- ✅ 白噪音：工具条「白噪音」按钮直接打开**全局选择弹窗**（`components/NoisePicker.tsx`，标题 + 音量滑杆 + 5 个音色圆形封面 + 取消/确定；原内嵌小浮层已移除）。图标与 `.on` 高亮跟随 `stores/noiseStore.ts` 的 `playing`；选音色即试听、确定才落库、取消回滚。
 - ✅ 番茄钟设置（时长/长休息/目标/自动下一轮）读入并影响计时。
 - ✅ 会话恢复提示（恢复横幅）、结束反馈文案（`timer.feedback.focusDone/breakDone`）、自动下一轮。
 - 🔶 倒计时/正计时仅有模式切换，缺独立时长设定与「停止并归档」语义；正计时专注当前**不写记录**（见 `07-backlog.md` #23）。
@@ -14,6 +15,7 @@
 - 阶段时长：`focus=settings.focus_len_min`；`break= completed % long_break_every==0 ? long_break : break`（completed 为本轮已完番茄数）。
 - 专注结束 → 若 `auto_start_next` 自动进入休息，否则**待开始**；写 `focus_record`（实际起止、`duration_min`）。
 - 跳过不写记录。
+- 白噪音弹窗可从专注页弹出（`.noise-overlay` z-index 400 > 专注层 200）；弹窗内试听不落库，`确定` 才写 `settings.noise/noise_volume`，选「无」只停止播放、不覆盖已存音色。
 - 退出全屏专注层：`Esc` 或右上「收起」；控件已消费的 Esc（`defaultPrevented`）与输入框/下拉/滑块内的 Esc 不拦截（`TimerScreen.tsx` 的 window keydown 监听）。
 - 恢复：启动时读 `timer_state`；关闭期间结束的补结算（见 `04-data.md`）。
 

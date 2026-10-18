@@ -20,16 +20,17 @@
 | i18n（中/英） | ✅ | `src/i18n/`（zh/en 词表 + `useI18n`，键集一致）；切换入口在外观页语言下拉（`patch('language')` + `setLang`），启动应用 `App.tsx:45`，首启跟随 `navigator.language` |
 | 深色主题 | ✅ | `App.tsx:54` 写 `documentElement.dataset.theme`；CSS `:root[data-theme='dark']`（`styles/global.css:29`）；设置下拉 `SettingsModal.tsx:383` |
 | 番茄钟设置全量 | 🔶 部分 | 时长/自动下一轮/长休息均已接状态机（`timerStore.ts:262/274`）；**白噪音按模式**（`noise_on_focus/break`）仅存设置、未接入播放 |
+| 白噪音选择弹窗 | ✅ 新增 | 工具条白噪音与外观页「选择白噪音」统一打开全局弹窗（`components/NoisePicker.tsx`，`uiStore.noiseOpen`）：6 项（无 + 5 音色，圆形封面取自 mp3 ID3 内嵌图）+ 音量滑杆 + 取消/确定；试听在内存、确定才落库、取消回滚（`stores/noiseStore.ts`）。**样式来自用户提供的设计稿，超出 PRD 范围**；验收见 `06` C 组与 G 组脚本断言 |
 | 系统级设置：开机自启 | ⬜ | 开关已存（`SettingsModal.tsx:47`），但 `tauri-plugin-autostart` 未安装、无系统行为（`Cargo.toml` 无该依赖） |
 | 导出/导入 JSON | ⬜ | 规格预留，未实现 |
 | 搜索增强 | ✅ | 即时过滤/分组、↑↓、回车定位高亮（`components/SearchOverlay.tsx:2,27-59`） |
 | 成就/高级版/好友 | 🔶 占位 | 符合"规格定义占位"；成就页已按 stats 实时算 4 条进度（`PlaceholderModal.tsx:33-50`），无解锁持久化 |
 | 账号中心 + PocketBase 云同步 | ✅ 新增 | 设置→账号即软件账号：登录/注册、改密码（需当前密码）、忘记密码（重置邮件）、同步区、头像上传/移除（PB 文件字段）、昵称就地编辑（`users.name`，邮箱只读）、退出（**会话级、不清本地数据**）；离线优先、本地为真相源；冲突按 rev→updated→device 裁决，PB 不可达静默降级（详见 `03-architecture.md` §账户与云同步）；端到端 36/36 已实测 |
 | 可访问性（键盘/焦点/语义/错误兜底） | ✅ | 模态 Esc+焦点陷阱（`components/useModalA11y.ts`）、菜单全键盘、拖拽键盘替代（`Alt+↑/↓`）、设置 tablist、`ErrorBoundary`；验收见 `06` G 组 |
-| 一键验收 | ✅ | `tools/check-all.sh`（tsc/红线/种子/cargo 16/build/可选截图 7 检查）；`bash tools/check-all.sh --with-shots` 当前 6 项全绿 |
+| 一键验收 | ✅ | `tools/check-all.sh`（tsc/红线/种子/cargo 16/build/可选截图 8 检查）；`bash tools/check-all.sh --with-shots` 当前 6 项全绿 |
 | 跨平台构建 | 🔶 部分 | macOS 真机构建通过；Windows/Linux 需真机验证 |
 
-> 结论：**P0/P1 已全绿，P2 完成大半**；当前主要缺口是数据迁移（导出/导入）、白噪音按模式、开机自启与占位项实质化。
+> 结论：**P0/P1 已全绿，P2 完成大半**；当前主要缺口是数据迁移（导出/导入）、白噪音**按模式自动播放**（选择弹窗已落地）、开机自启与占位项实质化。
 
 > ⚠️ **2026-10-14 已修复一个严重缺陷**：桌面版任务列表恒为空（写入正常但界面不显示）。
 > 根因是 UI 直连"本地存储版"查询模块，绕过了运行时抽象。详见 `08-changelog.md`，并已加守卫 `tools/check-runtime-parity.sh`。

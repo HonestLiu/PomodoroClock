@@ -17,7 +17,9 @@ function resolveWallpaper(raw: string): string {
 import { useDataStore } from '@/stores/dataStore';
 import { todayPendingTasks, todayRecords, todayPomodoroCount, todayDueTasks, type Dataset } from '@/lib/derive';
 import { formatClock, formatHM, formatMinutes } from '@/lib/date';
-import { NOISE_LABELS, setNoiseVolume, startNoise, stopNoise, type NoiseKind } from '@/lib/noise';
+import { stopNoise } from '@/lib/noise';
+import { useNoiseStore } from '@/stores/noiseStore';
+import { useUiStore } from '@/stores/uiStore';
 import { isTauri } from '@/api';
 import { useI18n } from '@/i18n';
 import type { TimerMode } from '@/types';
@@ -36,29 +38,16 @@ export function TimerScreen() {
   const { tasks, lists, records: allRecords, revision } = useDataStore();
 
   const [fullscreen, setFullscreen] = useState(false);
-  const [noiseOn, setNoiseOn] = useState(false);
-  const [noiseKind, setNoiseKind] = useState<NoiseKind>('waves');
-  const [volume, setVolume] = useState(0.5);
   const [modeOpen, setModeOpen] = useState(false);
-  const [noiseOpen, setNoiseOpen] = useState(false);
+  // 白噪音状态来自全局 store（工具条 / 设置页 / 选择弹窗共用同一份）
+  const noisePlaying = useNoiseStore((s) => s.playing);
   const { t } = useI18n();
   const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform);
   const [newTask, setNewTask] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
 
-  // 白噪音：切换/换音色直接启停；卸载时停止（PRD FR-P4）
-  useEffect(() => {
-    if (!noiseOn) return;
-    startNoise(noiseKind, volume);   // 音色切换时重启
-  }, [noiseKind]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 白噪音的启停由全局 store 管（NoisePicker），这里只兜底：应用卸载时停止（PRD FR-P4）
   useEffect(() => () => stopNoise(), []);
-
-  function toggleNoise(checked: boolean) {
-    setNoiseOn(checked);
-    // 在用户手势内直接启停，规避 WebView 自动播放限制
-    if (checked) startNoise(noiseKind, volume);
-    else stopNoise();
-  }
 
   const ds: Dataset = useMemo(
     () => ({ tasks, lists, records: allRecords }),
@@ -270,7 +259,7 @@ export function TimerScreen() {
           </button>
 
           <div style={{ position: 'relative' }}>
-            <button className="timer-tool" onClick={() => { setModeOpen(!modeOpen); setNoiseOpen(false); }}>
+            <button className="timer-tool" onClick={() => setModeOpen(!modeOpen)}>
               <TimerIcon size={13} /> {t(MODE_KEYS[state.mode])}
             </button>
             {modeOpen && (
@@ -288,47 +277,13 @@ export function TimerScreen() {
             )}
           </div>
 
-          <div style={{ position: 'relative' }}>
-            <button
-              className={`timer-tool${noiseOn ? ' on' : ''}`}
-              onClick={() => { setNoiseOpen(!noiseOpen); setModeOpen(false); }}
-            >
-              {noiseOn ? <Volume2 size={13} /> : <VolumeX size={13} />} {t('timer.noise')}
-            </button>
-            {noiseOpen && (
-              <div
-                style={{
-                  position: 'absolute', bottom: 42, right: 0, width: 208,
-                  background: 'rgba(255,255,255,.95)', borderRadius: 10, padding: 12,
-                  display: 'flex', flexDirection: 'column', gap: 10, color: '#1a1a1a',
-                }}
-              >
-                <label className="switch" style={{ color: '#1a1a1a' }}>
-                  <input type="checkbox" checked={noiseOn} onChange={(e) => toggleNoise(e.target.checked)} />
-                  <span className="track" />
-                  {t('timer.noise')}
-                </label>
-                <div className="seg" style={{ background: '#f2f1ed' }}>
-                  {(Object.keys(NOISE_LABELS) as NoiseKind[]).map((k) => (
-                    <button
-                      key={k}
-                      className={noiseKind === k ? 'active' : ''}
-                      onClick={() => setNoiseKind(k)}
-                    >
-                      {NOISE_LABELS[k]}
-                    </button>
-                  ))}
-                </div>
-                <input
-                  className="vol-slider"
-                  style={{ width: '100%', accentColor: '#4A7DE0' }}
-                  type="range" min={0} max={1} step={0.01}
-                  value={volume}
-                  onChange={(e) => { const v = Number(e.target.value); setVolume(v); setNoiseVolume(v); }}
-                />
-              </div>
-            )}
-          </div>
+          <button
+            className={`timer-tool${noisePlaying ? ' on' : ''}`}
+            aria-haspopup="dialog"
+            onClick={() => useUiStore.getState().openNoise(true)}
+          >
+            {noisePlaying ? <Volume2 size={13} /> : <VolumeX size={13} />} {t('timer.noise')}
+          </button>
 
           <button className="timer-tool" onClick={skip}>
             <SkipForward size={13} /> {t('timer.skip')}

@@ -48,6 +48,7 @@
 - **#1–#6 属实**：任务更多菜单/右键（`TaskView.tsx`）、拖拽排序（`sort_order` 写回）、系统通知（`lib/systemNotify.ts` + `Cargo.toml` notification 插件 + `timerStore.ts:323` 门控，真机弹窗待验）、搜索回车定位（`SearchOverlay.tsx:38-59`）、清单拖拽+默认清单、会话恢复提示（`timerStore` 恢复后 `wasRestored`）。#14 导出/导入未实现（仅 `api/local.ts:399` 测试注释）；#15 未装插件（`Cargo.toml` 无 autostart）。
 - **占位页按规格保留**：高级版/好友/成就均为 `PlaceholderModal.tsx`（注释指向 PRD FR-G3）；高级版 tab 有 ¥18/月、¥168/年、¥398 静态卡，文案明确"订阅流程未实现"；成就页用 `stats` 实时算 4 条进度（初次专注/坚持不懈/目标达成/任务达人），但**无解锁持久化**。故 #18 仍成立，且不应在验收里按"功能缺失"扣分。
 - **首启数据双端一致**：两端都先 `ensure_bootstrap`（默认用户/目标/计时状态），再写同一份 §6.3 演示数据（`db/seed.ts::buildSeed` / `db.rs::seed_demo`）并置 `demo_seeded=1`；仅「空库 + 未播种」才播种。「删除数据」「注销账号」都回到空业务表 + 默认用户 + 已播种标记，不重播种。详见 `04-data.md` §首启与清空。
+- **白噪音入口已统一为选择弹窗**：工具条与外观页都调 `uiStore.openNoise(true)`，播放状态收进 `stores/noiseStore.ts`；弹窗封面是 5 个 mp3 的 ID3 内嵌图（`tools/extract-noise-covers.sh` 重抠），换音频忘重跑会缺图——`tools/shoot.mjs` 会因封面未解码直接失败，故按「有自动化护栏的约定」处理，不单列风险行。按模式自动播放（`noise_on_focus/break`）仍未接线。
 - **账号页已重构为软件账号中心**：设置 → 账号即 PocketBase 账号（登录/注册、改密码、忘记密码、同步区、退出登录），旧的「编辑资料」整表单/本地改密码/云同步独立小区块已删（`SettingsModal.tsx::AccountPane`），昵称改为就地编辑、邮箱只读；头像以「云端账号头像」回归（PB `users.avatar` 文件字段，见 `03-architecture.md` §账户与云同步、风险见 #36）。端到端已实测 36/36（见 #30）；改密码后 PB 会作废全部旧 token，`changePassword` 已当场换新 token；**退出登录不清本地数据**（见 #35）。
 - **云同步已落地**（单设备）：PocketBase `users`/`configs`、离线优先、rev→updated→device 裁决、不可达静默降级（`03-architecture.md` §账户与云同步）。剩多设备并发压测归 #19；后端关系与权限约束归 #33/#34。
 

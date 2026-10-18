@@ -119,6 +119,43 @@ try {
   if (acctProblems.length) fail(`账号页结构不符：${acctProblems.join('；')}`);
   else ok('账号页结构正确（账号卡 + 邮箱/密码/登录 + 本地数据区，旧假档案已移除）');
 
+  // 白噪音选择弹窗（从外观页点开：结构 + 内嵌封面解码自检）
+  await settingsTab(TAB.appearance).click();
+  await page.waitForTimeout(250);
+  await page.locator('.settings-pane button:has-text("选择白噪音")').click();
+  await page.waitForSelector('.noise-modal', { timeout: 5000 });
+  await page
+    .waitForFunction(
+      () => [...document.querySelectorAll('.noise-thumb')].filter((e) => e.tagName === 'IMG')
+        .every((i) => i.complete && i.naturalWidth > 0),
+      null, { timeout: 5000 },
+    )
+    .catch(() => {});
+  await page.waitForTimeout(250);   // 等弹层动画结束再截图
+  const noise = await page.evaluate(() => {
+    const thumbs = [...document.querySelectorAll('.noise-thumb')].filter((e) => e.tagName === 'IMG');
+    return {
+      modal: document.querySelectorAll('.noise-modal').length,
+      items: document.querySelectorAll('.noise-item').length,
+      imgs: thumbs.length,
+      broken: thumbs.filter((i) => !i.complete || i.naturalWidth === 0).length,
+      slider: document.querySelectorAll('.noise-slider').length,
+      confirm: document.querySelectorAll('.noise-foot .btn.primary').length,
+    };
+  });
+  const noiseProblems = [];
+  if (!noise.modal) noiseProblems.push('未弹出 .noise-modal');
+  if (noise.items !== 6) noiseProblems.push(`音色项应为 6（无 + 5 种），实际 ${noise.items}`);
+  if (noise.imgs !== 5) noiseProblems.push(`封面缩略图应为 5 张，实际 ${noise.imgs}`);
+  if (noise.broken) noiseProblems.push(`${noise.broken} 张封面未解码（内嵌封面缺失？跑 tools/extract-noise-covers.sh）`);
+  if (!noise.slider) noiseProblems.push('缺少音量滑杆');
+  if (!noise.confirm) noiseProblems.push('缺少确定按钮');
+  if (noiseProblems.length) fail(`白噪音弹窗结构不符：${noiseProblems.join('；')}`);
+  else ok('白噪音弹窗结构正确（6 项 + 5 张内嵌封面可解码 + 音量滑杆 + 取消/确定）');
+  await shot('S5c-noise-picker');
+  await page.locator('.noise-foot .btn').first().click();   // 取消
+  await page.waitForSelector('.noise-modal', { state: 'detached' });
+
   // S5b 番茄钟设置页
   await settingsTab(TAB.pomodoro).click();
   await page.waitForTimeout(300);

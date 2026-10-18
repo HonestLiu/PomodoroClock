@@ -95,7 +95,7 @@ Rust 侧不重复结算，保证一次番茄恰好归档一条记录。
 | --- | --- | --- | --- |
 | 路由 | react-router-dom v6（内存路由） | `uiStore` 内存路由状态 | 依赖不可得；同一 §2.3 路由表语义（`/tasks`、`/today`…、`/lists/:id`） |
 | 图表 | ECharts 5 | 手写 SVG 组件 | 依赖不可得；`charts/` 下热力网格、环形图、日历、进度条均为 SVG，视觉与数据映射一致 |
-| 白噪音 | 打包本地音频资源 | Web Audio 合成（滤波噪声） | 无音频素材；海浪/雨声/风声三种，可循环、音量可调、失败静默降级（§8.8-5） |
+| 白噪音 | 打包本地音频资源 | Web Audio 合成（滤波噪声） | 5 段本地环境音循环播放、音量可调、失败静默降级（§8.8-5）；选择入口统一为**弹窗**（6 项含「无」、圆形封面取自 mp3 内嵌图、试听→确定才落库、取消回滚）。样式来自用户设计稿，超出 PRD |
 | 云同步 | §8.6 列为可扩展项（非目标） | PocketBase 云端对齐层 | 设置 → 账号即软件账号（登录/注册、改密码、忘记密码、头像上传/移除、昵称就地编辑（邮箱只读）、同步区、退出）；退出登录只清会话、不清本地数据；本地仍为断网时真相源；集合 `users`/`configs`；地址 `VITE_PB_URL`（回退 `http://62.234.82.11:28193`）；PB 不可达时静默降级、不阻塞本地；端到端 36/36 已实测 |
 
 另：
@@ -112,7 +112,7 @@ Rust 侧不重复结算，保证一次番茄恰好归档一条记录。
 ## 验证
 
 ```bash
-# 一键验收（推荐）：tsc → 红线 → 种子口径 → cargo test → build → 可选截图 7 检查
+# 一键验收（推荐）：tsc → 红线 → 种子口径 → cargo test → build → 可选截图 8 检查
 bash tools/check-all.sh              # 静态/构建检查
 bash tools/check-all.sh --with-shots # 追加 Playwright 截图验收（自动起 preview）
 bash tools/check-all.sh --skip-build # 只查类型与测试
@@ -130,11 +130,12 @@ cd src-tauri && cargo test --test queries                           # Rust 统�
 `tools/shoot.mjs` 用于截图比对：先 `npm run build && npx vite preview --port 4173`，再 `node tools/shoot.mjs`；
 直接跑 `bash tools/check-all.sh --with-shots` 则会在 4173 无服务时自动起 preview。
 **注意 4173 预览的是 `dist/`**——改完源码不重新 `vite build`，预览与截图仍是旧产物（此坑已踩）。
-它按结构选择器（不依赖中英文文案）依次截 S1–S5、深色主题（S1/S4/S5）与英文界面，并做 7 项自动检查
+它按结构选择器（不依赖中英文文案）依次截 S1–S5、深色主题（S1/S4/S5）与英文界面，并做 8 项自动检查（含白噪音弹窗结构与封面可解码）
 （首屏渲染、账号页结构断言（`.account-card`/`.account-form` 含邮箱密码框与提交按钮/`.account-local-data` 含删除按钮，旧 `.profile-avatar/.profile-edit/.profile-form`、`.cloud-card` 须为 0、未登录无 `.account-sync`）、悬浮窗/专注页壁纸非 `none`、深色低对比度、英文残留、console/pageerror）；
 产物写入 `SHOT_DIR`（默认 `/tmp/shots`），有 console 错误或断言失败时退出码非 0。
 `APP_URL`、`SHOT_DIR` 可用环境变量覆盖；仅 Playwright 导入路径与本机 Chrome 路径
 （`tools/shoot.mjs` 顶部的 `CHROME` 常量）为硬编码，换机器需改这两处。
+`tools/extract-noise-covers.sh` 从 `src/assets/noise/*.mp3` 的 ID3 内嵌封面重抠弹窗封面图（换音频后重跑；缺图会让 `tools/shoot.mjs` 直接失败）。
 `tools/link-bins.mjs`、`tools/vendor-deps.mjs` 为依赖/打包辅助脚本，不参与验收。
 
 ---
