@@ -237,6 +237,60 @@ input:focus:not(:focus-visible), textarea:focus:not(:focus-visible) {
   outline: none; font-size: 13px;
 }
 
+/* 用户清单紧跟"任务"后的分割线 */
+.nav-divider { height: 1px; background: var(--border); margin: 6px 4px; flex: 0 0 auto; }
+
+/* 用户清单图标：单色原点 ｜ 字体图标 */
+.list-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+.list-glyph { width: 18px; flex: 0 0 auto; text-align: center; font-size: 13px; line-height: 1; }
+
+/* 新建清单（名称 + 图标配置）弹层 */
+.list-create {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+}
+.list-create .new-list-input { flex: 0 0 auto; }
+.list-create-row { display: flex; flex-direction: column; gap: 6px; }
+.list-create-label { font-size: 11px; color: var(--text-3); }
+
+/* 圆点 / 图标 分段切换 */
+.seg { display: inline-flex; align-self: flex-start; background: var(--hover); border-radius: var(--radius-sm); padding: 2px; gap: 2px; }
+.seg > button {
+  padding: 4px 12px; border: none; border-radius: 5px;
+  background: none; font-size: 12px; line-height: 1; color: var(--text-2);
+}
+.seg > button.active { background: var(--bg-card); color: var(--text-1); box-shadow: var(--shadow-sm); }
+
+/* 字体图标：预置字形 + 自由输入 */
+.glyph-palette { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.glyph-palette > button {
+  width: 26px; height: 26px; padding: 0;
+  display: grid; place-items: center;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--bg-app); font-size: 15px; line-height: 1;
+}
+.glyph-palette > button.active { border-color: var(--accent-blue); }
+.glyph-custom {
+  width: 46px; height: 26px; padding: 0 4px; text-align: center;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--bg-card); font-size: 14px; outline: none;
+}
+
+/* 单色预置色板 */
+.color-palette { display: flex; flex-wrap: wrap; gap: 6px; }
+.color-palette > button {
+  width: 18px; height: 18px; padding: 0;
+  border-radius: 50%; border: 2px solid transparent;
+}
+.color-palette > button.active { border-color: var(--bg-card); box-shadow: 0 0 0 1px var(--text-2); }
+
+.list-create-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.list-create-actions .btn { height: 26px; font-size: 12px; }
+
 /* ── 主内容区 ─────────────────────────────────────────────── */
 
 .main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--bg-app); }
@@ -517,7 +571,7 @@ input:focus:not(:focus-visible), textarea:focus:not(:focus-visible) {
    .text-input 虽有自定义边框/背景，但 type=email/password 仍会被引擎叠上一层原生外观：
    1) appearance 重置去掉系统内衬；2) 自动填充抹掉默认蓝/黄底，让背景跟随主题；
    3) 隐藏 Windows WebView2 密码框的系统「显示密码」按钮，避免它顶开圆角边框。 */
-.text-input, .num-input, .search-box input {
+.text-input, .num-input, .search-box input, .glyph-custom, .list-create input {
   -webkit-appearance: none; appearance: none;
 }
 

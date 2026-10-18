@@ -88,6 +88,9 @@ export function buildSeed(opts: { empty?: boolean } = {}): DBShape {
     name: '任务',
     sort_order: 0,
     is_smart: 0,
+    icon_type: 'dot',
+    icon_color: '',
+    icon_glyph: '',
     created_at: now,
     updated_at: now,
   };

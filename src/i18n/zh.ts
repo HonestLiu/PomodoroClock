@@ -9,6 +9,9 @@ export const zh = {
   'sidebar.createList': '创建清单',
   'list.placeholder': '清单名称，回车创建',
   'list.dropToMove': '移入',
+  'list.icon.type': '图标类型', 'list.icon.dot': '圆点', 'list.icon.font': '图标',
+  'list.icon.glyph': '图标字符', 'list.icon.color': '图标颜色',
+  'list.new': '新建清单', 'list.create': '创建',
   'title.premium': '高级版', 'title.friends': '好友 / 社区', 'title.achievements': '成就',
 
   // 统计卡

@@ -10,7 +10,7 @@ import { useDataStore } from '@/stores/dataStore';
 import { useStatsStore } from '@/stores/statsStore';
 import { useTimerStore } from '@/stores/timerStore';
 import { useUiStore } from '@/stores/uiStore';
-import { completedForCategory, computeTaskCards, tasksForCategory, tasksInList, type Dataset } from '@/lib/derive';
+import { completedForCategory, computeTaskCards, focusMinExcludingCompleted, tasksForCategory, tasksInList, type Dataset } from '@/lib/derive';
 import { todayKey, tomorrowKey } from '@/lib/date';
 import { useI18n } from '@/i18n';
 import type { SmartKey } from '@/types';
@@ -35,6 +35,8 @@ export function TaskView() {
 
   const key: SmartKey = route.name === 'list' ? 'tasks' : route.name;
   const listId = route.name === 'list' ? route.id : null;
+  // 侧边栏「任务」类目：只统计/展示未完成任务，不考虑已完成（清单视图复用 key='tasks'，需与「任务」区分）
+  const isTasksSmart = !listId && key === 'tasks';
 
   const ds: Dataset = useMemo(() => ({ tasks, lists, records }), [tasks, lists, records]);
 
@@ -50,14 +52,17 @@ export function TaskView() {
 
   const cards = useMemo(() => {
     const c = computeTaskCards(ds, key, focusLenMin, stats);
+    // 「任务」类目：已专注时间排除已完成任务的记录；已完成任务不统计（置 0）
+    const focusedMin = isTasksSmart ? focusMinExcludingCompleted(ds) : c.focus_min;
+    const doneCount = isTasksSmart ? 0 : c.done;
     return [
       minutesCard(t('stat.estTime'), c.est_min),
       countCard(t('stat.pending'), listId ? view.pending.length : c.pending),
-      minutesCard(t('stat.focused'), c.focus_min),
-      countCard(t('stat.completed'), c.done),
+      minutesCard(t('stat.focused'), focusedMin),
+      countCard(t('stat.completed'), doneCount),
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dict, ds, key, focusLenMin, stats, statsRevision, view.pending.length, listId]);
+  }, [dict, ds, key, focusLenMin, stats, statsRevision, view.pending.length, listId, isTasksSmart]);
 
   const title = listId ? (lists.find((l) => l.id === listId)?.name ?? t('nav.tasks')) : t(TITLE_KEYS[key]);
   const expanded = !!showCompleted[key];
@@ -122,7 +127,8 @@ export function TaskView() {
       {/* 键盘重排的读屏播报（视觉隐藏） */}
       <div className="sr-only" role="status" aria-live="polite">{moveMsg}</div>
 
-      {(
+      {/* 「任务」类目不显示已完成任务（清单/其他分类保留「显示已完成任务」） */}
+      {!isTasksSmart && (
         <>
           <button
             className="show-completed" aria-expanded={expanded}

@@ -9,7 +9,8 @@ use crate::models::TaskList;
 
 fn read_list(conn: &rusqlite::Connection, id: &str) -> AppResult<TaskList> {
     conn.query_row(
-        "SELECT id, name, sort_order, is_smart, created_at, updated_at FROM lists WHERE id = ?1",
+        "SELECT id, name, sort_order, is_smart, icon_type, icon_color, icon_glyph, created_at, updated_at
+         FROM lists WHERE id = ?1",
         params![id],
         |r| {
             Ok(TaskList {
@@ -17,8 +18,11 @@ fn read_list(conn: &rusqlite::Connection, id: &str) -> AppResult<TaskList> {
                 name: r.get(1)?,
                 sort_order: r.get(2)?,
                 is_smart: r.get(3)?,
-                created_at: r.get(4)?,
-                updated_at: r.get(5)?,
+                icon_type: r.get(4)?,
+                icon_color: r.get(5)?,
+                icon_glyph: r.get(6)?,
+                created_at: r.get(7)?,
+                updated_at: r.get(8)?,
             })
         },
     )
@@ -29,7 +33,7 @@ fn read_list(conn: &rusqlite::Connection, id: &str) -> AppResult<TaskList> {
 pub fn list_lists(db: State<'_, Db>) -> AppResult<Vec<TaskList>> {
     let conn = db.0.lock();
     let mut stmt = conn.prepare(
-        "SELECT id, name, sort_order, is_smart, created_at, updated_at
+        "SELECT id, name, sort_order, is_smart, icon_type, icon_color, icon_glyph, created_at, updated_at
          FROM lists ORDER BY sort_order, created_at",
     )?;
     let rows = stmt.query_map([], |r| {
@@ -38,24 +42,41 @@ pub fn list_lists(db: State<'_, Db>) -> AppResult<Vec<TaskList>> {
             name: r.get(1)?,
             sort_order: r.get(2)?,
             is_smart: r.get(3)?,
-            created_at: r.get(4)?,
-            updated_at: r.get(5)?,
+            icon_type: r.get(4)?,
+            icon_color: r.get(5)?,
+            icon_glyph: r.get(6)?,
+            created_at: r.get(7)?,
+            updated_at: r.get(8)?,
         })
     })?;
     Ok(rows.collect::<Result<Vec<_>, _>>()?)
 }
 
 #[tauri::command]
-pub fn create_list(db: State<'_, Db>, name: String) -> AppResult<TaskList> {
+pub fn create_list(
+    db: State<'_, Db>,
+    name: String,
+    icon_type: Option<String>,
+    icon_color: Option<String>,
+    icon_glyph: Option<String>,
+) -> AppResult<TaskList> {
     super::require_non_empty("清单名称", &name)?;
     let conn = db.0.lock();
     let now = crate::db_now();
     let id = new_id("list");
     let order: i64 = conn.query_row("SELECT COUNT(*) FROM lists", [], |r| r.get(0))?;
     conn.execute(
-        "INSERT INTO lists (id, name, sort_order, is_smart, created_at, updated_at)
-         VALUES (?1, ?2, ?3, 0, ?4, ?4)",
-        params![id, name.trim(), order, now],
+        "INSERT INTO lists (id, name, sort_order, is_smart, icon_type, icon_color, icon_glyph, created_at, updated_at)
+         VALUES (?1, ?2, ?3, 0, ?4, ?5, ?6, ?7, ?7)",
+        params![
+            id,
+            name.trim(),
+            order,
+            icon_type.as_deref().unwrap_or("dot"),
+            icon_color.as_deref().unwrap_or(""),
+            icon_glyph.as_deref().unwrap_or(""),
+            now
+        ],
     )?;
     read_list(&conn, &id)
 }

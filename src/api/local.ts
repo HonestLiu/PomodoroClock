@@ -14,14 +14,22 @@ import {
   pomodoroGrid, recordsInRange, taskDurations, tasksForCategory,
 } from '@/db/queries';
 import type { Period } from '@/types';
-import type { Api, CreateRecordArgs, CreateTaskArgs, ListTasksArgs, UpdateTaskPatch } from './types';
+import type { Api, CreateListArgs, CreateRecordArgs, CreateTaskArgs, ListTasksArgs, UpdateTaskPatch } from './types';
 import { broadcastDataChanged } from './events';
 import { parseDateKey, toDateKey } from '@/lib/date';
+import { defaultListIcon } from '@/lib/listIcon';
 
 const uid = (p: string) =>
   `${p}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
 async function ready() { await initDB(); }
+
+/** 旧库升级兜底：早期建的清单可能没有 icon 字段，补默认值 */
+function normalizeList<T extends TaskList>(l: T): TaskList {
+  if (l.icon_type) return l;
+  const d = defaultListIcon();
+  return { ...l, icon_type: d.icon_type, icon_color: l.icon_color || d.icon_color, icon_glyph: l.icon_glyph || d.icon_glyph };
+}
 
 export const localApi: Api = {
   async get_user() {
@@ -73,7 +81,7 @@ export const localApi: Api = {
   async list_lists() {
     await ready();
     return getDB().lists
-      .map((l) => ({ ...l }))
+      .map((l) => normalizeList(l))
       .sort((a, b) => a.sort_order - b.sort_order || a.created_at - b.created_at);
   },
 
@@ -105,14 +113,19 @@ export const localApi: Api = {
     broadcastDataChanged('lists');
   },
 
-  async create_list(name) {
+  async create_list({ name, iconType, iconColor, iconGlyph }: CreateListArgs) {
     await ready();
-    const listName = name.trim();
+    const listName = (name ?? '').trim();
     if (!listName) throw new Error(tStatic('err.listNameRequired'));
+    const icon = defaultListIcon();
     const out = mutate((d) => {
       const l: TaskList = {
         id: uid('list'), name: listName, sort_order: d.lists.length,
-        is_smart: 0, created_at: Date.now(), updated_at: Date.now(),
+        is_smart: 0,
+        icon_type: iconType ?? icon.icon_type,
+        icon_color: (iconColor ?? '').trim() || icon.icon_color,
+        icon_glyph: (iconGlyph ?? '').trim() || icon.icon_glyph,
+        created_at: Date.now(), updated_at: Date.now(),
       };
       d.lists.push(l);
       return { ...l };

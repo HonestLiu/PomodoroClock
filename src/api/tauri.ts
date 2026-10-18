@@ -25,7 +25,8 @@ export const tauriApi: Api = {
   reorder_lists: (ids) => mutate('lists', () => invoke('reorder_lists', { ids })),
   get_default_list: () => invoke('get_default_list'),
   set_default_list: (id) => mutate('lists', () => invoke('set_default_list', { id })),
-  create_list: (name) => mutate('lists', () => invoke('create_list', { name })),
+  create_list: ({ name, iconType, iconColor, iconGlyph }) =>
+    mutate('lists', () => invoke('create_list', { name, iconType, iconColor, iconGlyph })),
   rename_list: (id, name) => mutate('lists', () => invoke('rename_list', { id, name })),
   delete_list: (id) => mutate('lists', () => invoke('delete_list', { id })),
 

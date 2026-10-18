@@ -18,6 +18,10 @@ pub struct TaskList {
     pub name: String,
     pub sort_order: i64,
     pub is_smart: i64,
+    /// 自定义清单图标：单色原点 | 字体图标
+    pub icon_type: String,
+    pub icon_color: String,
+    pub icon_glyph: String,
     pub created_at: i64,
     pub updated_at: i64,
 }

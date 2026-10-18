@@ -7,6 +7,9 @@ export const en = {
   'sidebar.createList': 'New list',
   'list.placeholder': 'List name, press Enter',
   'list.dropToMove': 'Move',
+  'list.icon.type': 'Icon type', 'list.icon.dot': 'Dot', 'list.icon.font': 'Icon',
+  'list.icon.glyph': 'Glyph', 'list.icon.color': 'Icon color',
+  'list.new': 'New list', 'list.create': 'Create',
   'title.premium': 'Premium', 'title.friends': 'Friends', 'title.achievements': 'Achievements',
 
   'stat.estTime': 'Estimated Time', 'stat.pending': 'To-do',

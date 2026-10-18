@@ -9,11 +9,17 @@ export interface User {
   updated_at: number;
 }
 
+/** 自定义清单的图标形态：单色原点 ｜ 字体图标（iconfont/任意 Unicode 字形） */
+export type ListIconType = 'dot' | 'font';
+
 export interface TaskList {
   id: string;
   name: string;
   sort_order: number;
   is_smart: number; // 1=智能分类，0=用户清单
+  icon_type: ListIconType;
+  icon_color: string; // 十六进制色值，空则走默认色
+  icon_glyph: string; // type=font 时的字形字符（emoji / Unicode 符号）
   created_at: number;
   updated_at: number;
 }
@@ -113,6 +119,10 @@ export const DEFAULT_SETTINGS: Settings = {
 
 /** 侧边栏 / 路由使用的分类键 */
 export type SmartKey = 'today' | 'tomorrow' | 'week' | 'scheduled' | 'completed' | 'tasks';
+
+/** 系统内置「任务」清单的 id（种子创建，容纳所有演示任务）。
+ *  侧边栏自定义清单区排除它，避免与顶部智能分类「任务」重复。 */
+export const ALL_TASKS_LIST_ID = 'list_default';
 
 /** 报表 / 详情页的周期 */
 export type Period = 'day' | 'week' | 'month' | 'year';

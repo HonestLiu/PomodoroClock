@@ -1,5 +1,5 @@
 // 侧边栏 —— PRD FR-G2（截图事实 S1/S2）
-// 账号区 / 搜索框 / 6 分类导航（各带已专注时长 + 任务数角标）/ 用户清单 / 创建清单
+// 账号区 / 搜索框 / 6 分类导航（各带已专注时长 + 任务数角标）/ 用户清单（紧跟"任务"、分割线分隔）/ 创建清单（名称 + 图标）
 
 import { useMemo, useState } from 'react';
 import {
@@ -13,8 +13,10 @@ import { useAuthStore } from '@/stores/authStore';
 import { pbAvatarFileUrl } from '@/lib/pb';
 import { categoryFocusMinutes, categoryTaskCount, tasksInList, type Dataset } from '@/lib/derive';
 import { formatMinutesShort } from '@/lib/date';
+import { defaultListIcon, LIST_ICON_COLORS, LIST_ICON_GLYPHS, resolveListIconColor } from '@/lib/listIcon';
 import { useI18n, type ZhKey } from '@/i18n';
-import type { SmartKey } from '@/types';
+import type { SmartKey, ListIconType } from '@/types';
+import { ALL_TASKS_LIST_ID } from '@/types';
 
 const NAV: Array<{ key: SmartKey; labelKey: ZhKey; icon: typeof Sun }> = [
   { key: 'today', labelKey: 'nav.today', icon: Sun },
@@ -48,6 +50,9 @@ export function Sidebar() {
   const todayFocusMin = useStatsStore((s) => s.stats?.today_focus_min ?? 0);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
+  const [iconType, setIconType] = useState<ListIconType>(defaultListIcon().icon_type);
+  const [iconColor, setIconColor] = useState(defaultListIcon().icon_color);
+  const [iconGlyph, setIconGlyph] = useState('');
   const [dragId, setDragId] = useState<string | null>(null);
   const { t } = useI18n();
   const displayName = signedIn
@@ -74,6 +79,9 @@ export function Sidebar() {
     [lists, ds, statsRevision],
   );
 
+  // 侧边栏只展示「自定义」清单：排除内置的「任务」清单（与顶部智能分类重复）
+  const customRows = useMemo(() => listRows.filter((l) => l.id !== ALL_TASKS_LIST_ID), [listRows]);
+
   function onDrop(targetId: string) {
     // 任务是拖来的（跨视图移入清单）：移动任务
     if (draggingTaskId) {
@@ -85,28 +93,36 @@ export function Sidebar() {
       return;
     }
     if (!dragId || dragId === targetId) { setDragId(null); setOverId(null); return; }
-    const fromIdx = listRows.findIndex((l) => l.id === dragId);
-    const toIdx = listRows.findIndex((l) => l.id === targetId);
+    const fromIdx = customRows.findIndex((l) => l.id === dragId);
+    const toIdx = customRows.findIndex((l) => l.id === targetId);
     if (fromIdx < 0 || toIdx < 0) { setDragId(null); setOverId(null); return; }
-    const next = [...listRows.map((l) => l.id)];
+    const next = [...customRows.map((l) => l.id)];
     const [moved] = next.splice(fromIdx, 1);
     next.splice(toIdx, 0, moved);
     void reorderLists(next);
     setDragId(null); setOverId(null);
   }
 
-  async function submitList() {
-    const v = name.trim();
+  function cancelCreate() {
     setCreating(false);
     setName('');
-    if (v) await createList(v);
+    setIconType('dot');
+    setIconColor(defaultListIcon().icon_color);
+    setIconGlyph('');
+  }
+
+  async function submitList() {
+    const v = name.trim();
+    if (!v) return;
+    await createList(v, { icon_type: iconType, icon_color: iconColor, icon_glyph: iconGlyph.trim() });
+    cancelCreate();
   }
 
   const activeKey = ui.route.name === 'list' ? null : ui.route.name;
 
   /** 键盘重排清单：焦点在清单行上按 Alt + ↑/↓，与拖拽等效 */
   function moveList(id: string, dir: -1 | 1) {
-    const ids = listRows.map((l) => l.id);
+    const ids = customRows.map((l) => l.id);
     const from = ids.indexOf(id);
     const to = from + dir;
     if (from < 0 || to < 0 || to >= ids.length) return;
@@ -164,10 +180,11 @@ export function Sidebar() {
             </button>
           );
         })}
-      </nav>
 
-      <div className="sidebar-foot">
-        {listRows.map((l) => (
+        {/* 自定义清单：紧跟"任务"条目之后，分割线分隔（排除内置「任务」清单） */}
+        {customRows.length > 0 && <div className="nav-divider" role="separator" />}
+
+        {customRows.map((l) => (
           <div
             key={l.id}
             className={`list-row-wrap${overId === l.id ? ' drag-over' : ''}`}
@@ -190,28 +207,105 @@ export function Sidebar() {
               }}
             >
               <span className="list-grip" aria-hidden><GripVertical size={12} /></span>
-              <span className="dot" style={{ background: '#B4B2AD' }} />
+              {l.icon_type === 'font' && l.icon_glyph
+                ? <span className="list-glyph" style={{ color: resolveListIconColor(l) }}>{l.icon_glyph}</span>
+                : <span className="list-dot" style={{ background: resolveListIconColor(l) }} />}
               <span className="nav-label" style={{ flex: 1 }}>{l.name}</span>
               {draggingTaskId && <span className="list-move-hint">{t('list.dropToMove')}</span>}
               <span className="nav-count">{l.count}</span>
             </button>
           </div>
         ))}
+      </nav>
 
+      {/* 创建清单：固定在侧边栏底部 */}
+      <div className="sidebar-foot">
         {creating ? (
-          <input
-            className="new-list-input"
-            autoFocus
-            placeholder={t('list.placeholder')}
-            aria-label={t('list.placeholder')}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onBlur={submitList}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') void submitList();
-              if (e.key === 'Escape') { setCreating(false); setName(''); }
-            }}
-          />
+          <div className="list-create" role="group" aria-label={t('list.new')}>
+            <input
+              className="new-list-input"
+              autoFocus
+              placeholder={t('list.placeholder')}
+              aria-label={t('list.placeholder')}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void submitList();
+                if (e.key === 'Escape') cancelCreate();
+              }}
+            />
+
+            <div className="list-create-row">
+              <span className="list-create-label">{t('list.icon.type')}</span>
+              <div className="seg" role="group" aria-label={t('list.icon.type')}>
+                <button
+                  type="button" className={iconType === 'dot' ? 'active' : ''}
+                  aria-pressed={iconType === 'dot'}
+                  onClick={() => setIconType('dot')}
+                >
+                  {t('list.icon.dot')}
+                </button>
+                <button
+                  type="button" className={iconType === 'font' ? 'active' : ''}
+                  aria-pressed={iconType === 'font'}
+                  onClick={() => setIconType('font')}
+                >
+                  {t('list.icon.font')}
+                </button>
+              </div>
+            </div>
+
+            {iconType === 'font' && (
+              <div className="list-create-row">
+                <span className="list-create-label">{t('list.icon.glyph')}</span>
+                <div className="glyph-palette">
+                  {LIST_ICON_GLYPHS.map((g) => (
+                    <button
+                      type="button" key={g}
+                      className={iconGlyph === g ? 'active' : ''}
+                      style={{ color: iconColor }}
+                      onClick={() => setIconGlyph(g)}
+                    >
+                      {g}
+                    </button>
+                  ))}
+                  <input
+                    className="glyph-custom" maxLength={2}
+                    aria-label={t('list.icon.glyph')}
+                    value={iconGlyph}
+                    onChange={(e) => setIconGlyph(e.target.value.slice(-1))}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="list-create-row">
+              <span className="list-create-label">{t('list.icon.color')}</span>
+              <div className="color-palette" role="group" aria-label={t('list.icon.color')}>
+                {LIST_ICON_COLORS.map((c) => (
+                  <button
+                    type="button" key={c}
+                    className={iconColor === c ? 'active' : ''}
+                    style={{ background: c }}
+                    aria-label={c}
+                    aria-pressed={iconColor === c}
+                    onClick={() => setIconColor(c)}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="list-create-actions">
+              <button type="button" className="btn" onClick={cancelCreate}>{t('common.cancel')}</button>
+              <button
+                type="button" className="btn primary"
+                disabled={!name.trim()}
+                onClick={() => void submitList()}
+              >
+                {t('list.create')}
+              </button>
+            </div>
+          </div>
         ) : (
           <button className="list-row" onClick={() => setCreating(true)}>
             <Plus size={14} style={{ color: 'var(--text-2)' }} aria-hidden />

@@ -27,6 +27,9 @@ CREATE TABLE IF NOT EXISTS lists (
   name        TEXT NOT NULL,
   sort_order  INTEGER DEFAULT 0,
   is_smart    INTEGER DEFAULT 0,
+  icon_type   TEXT NOT NULL DEFAULT 'dot',
+  icon_color  TEXT NOT NULL DEFAULT '',
+  icon_glyph  TEXT NOT NULL DEFAULT '',
   created_at  INTEGER NOT NULL,
   updated_at  INTEGER NOT NULL
 );
@@ -95,6 +98,7 @@ pub fn open(path: &Path) -> AppResult<Connection> {
     let conn = Connection::open(path)?;
     conn.execute_batch("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;")?;
     conn.execute_batch(SCHEMA)?;
+    migrate_list_icon(&conn)?;
     Ok(conn)
 }
 
@@ -103,7 +107,31 @@ pub fn open_in_memory() -> AppResult<Connection> {
     let conn = Connection::open_in_memory()?;
     conn.execute_batch("PRAGMA foreign_keys = ON;")?;
     conn.execute_batch(SCHEMA)?;
+    migrate_list_icon(&conn)?;
     Ok(conn)
+}
+
+/// 增量迁移：给旧库的 lists 表补上 icon 三列（CREATE TABLE IF NOT EXISTS 不会改已有表）。
+/// 新库在 SCHEMA 里已含这些列，此处即空操作。
+fn migrate_list_icon(conn: &Connection) -> AppResult<()> {
+    let mut cols: Vec<String> = Vec::new();
+    {
+        let mut stmt = conn.prepare("PRAGMA table_info(lists)")?;
+        let mut rows = stmt.query([])?;
+        while let Some(r) = rows.next()? {
+            cols.push(r.get(1)?);
+        }
+    }
+    for (col, ddl) in [
+        ("icon_type", "ALTER TABLE lists ADD COLUMN icon_type TEXT NOT NULL DEFAULT 'dot'"),
+        ("icon_color", "ALTER TABLE lists ADD COLUMN icon_color TEXT NOT NULL DEFAULT ''"),
+        ("icon_glyph", "ALTER TABLE lists ADD COLUMN icon_glyph TEXT NOT NULL DEFAULT ''"),
+    ] {
+        if !cols.iter().any(|c| c == col) {
+            conn.execute_batch(ddl)?;
+        }
+    }
+    Ok(())
 }
 
 /// 当前本地时间戳（毫秒）

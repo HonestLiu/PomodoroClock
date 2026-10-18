@@ -21,6 +21,14 @@ export interface CreateTaskArgs {
   notes?: string;
 }
 
+/** 建清单入参：图标可省略（省略则用默认单色原点） */
+export interface CreateListArgs {
+  name: string;
+  iconType?: 'dot' | 'font';
+  iconColor?: string;
+  iconGlyph?: string;
+}
+
 export interface UpdateTaskPatch {
   title?: string;
   list_id?: string | null;
@@ -49,7 +57,7 @@ export interface Api {
   reorder_lists(ids: string[]): Promise<void>;
   get_default_list(): Promise<string | null>;
   set_default_list(id: string | null): Promise<void>;
-  create_list(name: string): Promise<TaskList>;
+  create_list(args: CreateListArgs): Promise<TaskList>;
   rename_list(id: string, name: string): Promise<TaskList>;
   delete_list(id: string): Promise<void>;
 

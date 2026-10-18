@@ -5,6 +5,7 @@ import { create } from 'zustand';
 import { api, on } from '@/api';
 import type { FocusRecord, Notification, Task, TaskList, User } from '@/types';
 import type { CreateTaskArgs, UpdateTaskPatch } from '@/api/types';
+import type { ListIconSpec } from '@/lib/listIcon';
 
 interface DataState {
   ready: boolean;
@@ -26,7 +27,7 @@ interface DataState {
   reorderTasks(ids: string[]): Promise<void>;
   deleteTask(id: string): Promise<void>;
 
-  createList(name: string): Promise<void>;
+  createList(name: string, icon?: ListIconSpec): Promise<void>;
   renameList(id: string, name: string): Promise<void>;
   deleteList(id: string): Promise<void>;
   reorderLists(ids: string[]): Promise<void>;
@@ -86,7 +87,15 @@ export const useDataStore = create<DataState>((set, get) => ({
   async reorderTasks(ids) { await api.reorder_tasks(ids); await get().reload(); },
   async deleteTask(id) { await api.delete_task(id); await get().reload(); },
 
-  async createList(name) { await api.create_list(name); await get().reload(); },
+  async createList(name, icon) {
+    await api.create_list({
+      name,
+      iconType: icon?.icon_type,
+      iconColor: icon?.icon_color,
+      iconGlyph: icon?.icon_glyph,
+    });
+    await get().reload();
+  },
   async reorderLists(ids) { await api.reorder_lists(ids); await get().reload(); },
   async setDefaultList(id) { await api.set_setting('default_list_id', id ?? ''); await get().reload(); },
   async renameList(id, name) { await api.rename_list(id, name); await get().reload(); },

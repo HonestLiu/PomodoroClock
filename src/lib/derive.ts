@@ -172,19 +172,29 @@ export function focusTrend(ds: Dataset, days: number): Array<{ dateKey: string; 
 
 // ── 侧边栏（PRD §7.2 分类已专注时长 / 角标） ────────────────────────────
 
+/**
+ * 专注时长，排除「已完成任务」相关记录。
+ * 用户需求：侧边栏「任务」类目的时间不考虑已完成任务——只统计当前未完成任务的专注时长。
+ * 未绑定任务的记录（task_id 为空，「未指定任务」）不属于已完成，仍计入。
+ */
+export function focusMinExcludingCompleted(ds: Dataset): number {
+  const doneIds = new Set(ds.tasks.filter((t) => t.completed === 1).map((t) => t.id));
+  return sum(ds.records.filter((r) => !r.task_id || !doneIds.has(r.task_id)).map((r) => r.duration_min));
+}
+
 export function categoryTaskCount(ds: Dataset, key: SmartKey): number {
   return tasksForCategory(ds, key).length;
 }
 
 /**
- * 分类已专注时长（PRD §7.2）：今天=今日记录；本周=本周记录；任务=全部记录；
+ * 分类已专注时长（PRD §7.2）：今天=今日记录；本周=本周记录；任务=当前未完成任务的记录（不考虑已完成）；
  * 已完成=已完成任务相关记录；明天/已计划=该分类待办任务相关记录。
  */
 export function categoryFocusMinutes(ds: Dataset, key: SmartKey, todayFocusMin: number): number {
   const weekStart = startOfWeek(new Date()).getTime();
   if (key === 'today') return todayFocusMin; // PRD 明确：今天 = 今日记录时长
   if (key === 'week') return sum(ds.records.filter((r) => r.start_at >= weekStart).map((r) => r.duration_min));
-  if (key === 'tasks') return sum(ds.records.map((r) => r.duration_min));
+  if (key === 'tasks') return focusMinExcludingCompleted(ds); // 任务：不考虑已完成任务的记录
   if (key === 'completed') {
     const ids = new Set(ds.tasks.filter((t) => t.completed === 1).map((t) => t.id));
     return sum(ds.records.filter((r) => r.task_id && ids.has(r.task_id)).map((r) => r.duration_min));
