@@ -38,12 +38,13 @@
       "appimage"
     ],
     "icon": [
+      "icons/AppIcon.icns",
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
-      "icons/AppIcon.icns",
-      "icons/icon.icns",
-      "icons/icon.ico"
+      "icons/512x512.png",
+      "icons/icon.ico",
+      "icons/icon.png"
     ],
     "category": "Productivity",
     "shortDescription": "番茄钟 × 任务管理",
