@@ -3,13 +3,14 @@
 
 import { create } from 'zustand';
 import { api, on } from '@/api';
-import type { FocusRecord, Notification, Task, TaskList, User } from '@/types';
+import type { FocusRecord, Folder, Notification, Task, TaskList, User } from '@/types';
 import type { CreateTaskArgs, UpdateTaskPatch } from '@/api/types';
 import type { ListIconSpec } from '@/lib/listIcon';
 
 interface DataState {
   ready: boolean;
   user: User | null;
+  folders: Folder[];
   lists: TaskList[];
   tasks: Task[];
   records: FocusRecord[];
@@ -32,6 +33,14 @@ interface DataState {
   deleteList(id: string): Promise<void>;
   reorderLists(ids: string[]): Promise<void>;
   setDefaultList(id: string | null): Promise<void>;
+  setListFolder(listId: string, folderId: string | null): Promise<void>;
+  setListIcon(listId: string, icon: ListIconSpec): Promise<void>;
+
+  createFolder(name: string, color: string): Promise<void>;
+  renameFolder(id: string, name: string): Promise<void>;
+  updateFolder(id: string, name: string, color: string): Promise<void>;
+  deleteFolder(id: string): Promise<void>;
+  reorderFolders(ids: string[]): Promise<void>;
 
   updateUser(patch: Partial<Pick<User, 'username' | 'email' | 'avatar_path'>>): Promise<void>;
   pickAvatar(): Promise<void>;
@@ -44,6 +53,7 @@ let subscribed = false;
 export const useDataStore = create<DataState>((set, get) => ({
   ready: false,
   user: null,
+  folders: [],
   lists: [],
   tasks: [],
   records: [],
@@ -60,11 +70,11 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 
   async reload() {
-    const [user, lists, tasks, records, notifications] = await Promise.all([
-      api.get_user(), api.list_lists(), api.list_tasks(),
+    const [user, folders, lists, tasks, records, notifications] = await Promise.all([
+      api.get_user(), api.list_folders(), api.list_lists(), api.list_tasks(),
       api.list_focus_records(), api.list_notifications(),
     ]);
-    set((s) => ({ user, lists, tasks, records, notifications, revision: s.revision + 1 }));
+    set((s) => ({ user, folders, lists, tasks, records, notifications, revision: s.revision + 1 }));
   },
 
   async reloadTasks() {
@@ -100,6 +110,17 @@ export const useDataStore = create<DataState>((set, get) => ({
   async setDefaultList(id) { await api.set_setting('default_list_id', id ?? ''); await get().reload(); },
   async renameList(id, name) { await api.rename_list(id, name); await get().reload(); },
   async deleteList(id) { await api.delete_list(id); await get().reload(); },
+  async setListFolder(listId, folderId) { await api.set_list_folder(listId, folderId); await get().reload(); },
+  async setListIcon(listId, icon) {
+    await api.set_list_icon(listId, icon.icon_type, icon.icon_color, icon.icon_glyph);
+    await get().reload();
+  },
+
+  async createFolder(name, color) { await api.create_folder({ name, color }); await get().reload(); },
+  async renameFolder(id, name) { await api.rename_folder(id, name); await get().reload(); },
+  async updateFolder(id, name, color) { await api.update_folder(id, name, color); await get().reload(); },
+  async deleteFolder(id) { await api.delete_folder(id); await get().reload(); },
+  async reorderFolders(ids) { await api.reorder_folders(ids); await get().reload(); },
 
   async updateUser(patch) { const user = await api.update_user(patch); set({ user }); },
   async pickAvatar() {

@@ -6,13 +6,14 @@
 // 替换 src/api 的适配器（见 src/api/index.ts）。
 
 import type {
-  FocusRecord, Goal, Notification, Task, TaskList, TimerState, User,
+  FocusRecord, Folder, Goal, Notification, Task, TaskList, TimerState, User,
 } from '@/types';
 import { DEFAULT_SETTINGS } from '@/types';
 import { buildSeed } from './seed';
 
 export interface DBShape {
   users: User[];
+  folders: Folder[];
   lists: TaskList[];
   tasks: Task[];
   focus_records: FocusRecord[];
@@ -30,6 +31,7 @@ const KEY = 'db';
 export function emptyDB(): DBShape {
   return {
     users: [],
+    folders: [],
     lists: [],
     tasks: [],
     focus_records: [],

@@ -1,5 +1,6 @@
 // Rust 命令层 —— PRD §8.4 invoke 接口清单
 
+pub mod folders;
 pub mod lists;
 pub mod notify;
 pub mod records;

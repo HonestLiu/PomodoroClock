@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { TitleBar } from '@/components/TitleBar';
 import { Sidebar } from '@/components/Sidebar';
+import { SidebarContextMenu } from '@/components/SidebarContextMenu';
 import { FloatWindow } from '@/components/FloatWindow';
 import { NotificationPanel } from '@/components/NotificationPanel';
 import { SearchOverlay } from '@/components/SearchOverlay';
@@ -14,6 +15,8 @@ import { TimerScreen } from '@/modals/TimerScreen';
 import { NoisePicker } from '@/components/NoisePicker';
 import { TaskEditModal } from '@/modals/TaskEditModal';
 import { PlaceholderModal } from '@/modals/PlaceholderModal';
+import { CreateFolderModal } from '@/modals/CreateFolderModal';
+import { CreateListModal } from '@/modals/CreateListModal';
 import { ConfirmDialog, type ConfirmSpec } from '@/modals/ConfirmDialog';
 import { useDataStore } from '@/stores/dataStore';
 import { useStatsStore } from '@/stores/statsStore';
@@ -22,7 +25,7 @@ import { useUiStore } from '@/stores/uiStore';
 import { useNoiseStore } from '@/stores/noiseStore';
 import { useAuthStore, scheduleSyncPush } from '@/stores/authStore';
 import type { NoiseKind } from '@/lib/noise';
-import { api, on, isTauri } from '@/api';
+import { api, on, subscribe, isTauri } from '@/api';
 import { useI18nStore, tStatic } from '@/i18n';
 
 export default function App() {
@@ -107,6 +110,30 @@ export default function App() {
     return () => { unsub?.(); };
   }, []);
 
+  // 应用菜单栏命令（menu://command；含 macOS Cmd+, 打开设置）
+  useEffect(() => {
+    const unsub = subscribe('menu://command', (cmd) => {
+      const ui = useUiStore.getState();
+      switch (cmd) {
+        case 'menu-settings': ui.openSettings(); break;
+        case 'menu-report': ui.openReport(true); break;
+        case 'menu-new-list': ui.openListCreate(true); break;
+        case 'menu-new-folder': ui.openFolderCreate(true); break;
+        case 'menu-new-task': {
+          ui.navigate({ name: 'tasks' });
+          // 渲染后聚焦「添加任务」输入框
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              document.querySelector<HTMLInputElement>('.add-task input')?.focus();
+            });
+          });
+          break;
+        }
+      }
+    });
+    return () => unsub?.();
+  }, []);
+
   // 更新托盘「开始/暂停」菜单项文字
   useEffect(() => {
     if (!isTauri()) return;
@@ -179,6 +206,9 @@ export default function App() {
       <SettingsModal onConfirm={setConfirm} />
       <TaskEditModal onConfirm={setConfirm} />
       <PlaceholderModal />
+      <CreateFolderModal />
+      <CreateListModal />
+      <SidebarContextMenu />
       <TimerScreen />
       <NoisePicker />
 

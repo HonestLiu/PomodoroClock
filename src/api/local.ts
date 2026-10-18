@@ -2,7 +2,7 @@
 // 与 Tauri 适配器（src/api/tauri.ts）提供完全相同的调用面。
 
 import type {
-  FocusRecord, Goal, Notification, Task, TaskList, TimerState, User,
+  FocusRecord, Folder, Goal, Notification, Task, TaskList, TimerState, User,
 } from '@/types';
 import { DEFAULT_SETTINGS } from '@/types';
 import { tStatic } from '@/i18n/store';
@@ -24,11 +24,10 @@ const uid = (p: string) =>
 
 async function ready() { await initDB(); }
 
-/** 旧库升级兜底：早期建的清单可能没有 icon 字段，补默认值 */
+/** 旧库升级兜底：早期建的清单可能没有 icon / folder 字段，补默认值 */
 function normalizeList<T extends TaskList>(l: T): TaskList {
-  if (l.icon_type) return l;
-  const d = defaultListIcon();
-  return { ...l, icon_type: d.icon_type, icon_color: l.icon_color || d.icon_color, icon_glyph: l.icon_glyph || d.icon_glyph };
+  const base = l.icon_type ? l : { ...l, ...defaultListIcon() };
+  return { ...base, folder_id: base.folder_id ?? null };
 }
 
 export const localApi: Api = {
@@ -125,6 +124,7 @@ export const localApi: Api = {
         icon_type: iconType ?? icon.icon_type,
         icon_color: (iconColor ?? '').trim() || icon.icon_color,
         icon_glyph: (iconGlyph ?? '').trim() || icon.icon_glyph,
+        folder_id: null,
         created_at: Date.now(), updated_at: Date.now(),
       };
       d.lists.push(l);
@@ -132,6 +132,114 @@ export const localApi: Api = {
     });
     broadcastDataChanged('lists');
     return out;
+  },
+
+  /** 把清单归档到清单夹（folderId=null 移出到顶层） */
+  async set_list_folder(list_id, folder_id) {
+    await ready();
+    const out = mutate((d) => {
+      const l = d.lists.find((x) => x.id === list_id);
+      if (!l) throw new Error(tStatic('err.listNotFound'));
+      if (folder_id && !d.folders.some((f) => f.id === folder_id)) throw new Error(tStatic('err.listNotFound'));
+      l.folder_id = folder_id ?? null;
+      l.updated_at = Date.now();
+      return { ...l };
+    });
+    broadcastDataChanged('lists');
+    return out;
+  },
+
+  /** 编辑清单图标 */
+  async set_list_icon(list_id, icon_type, icon_color, icon_glyph) {
+    await ready();
+    const out = mutate((d) => {
+      const l = d.lists.find((x) => x.id === list_id);
+      if (!l) throw new Error(tStatic('err.listNotFound'));
+      l.icon_type = icon_type as TaskList['icon_type'];
+      l.icon_color = icon_color;
+      l.icon_glyph = icon_glyph;
+      l.updated_at = Date.now();
+      return { ...l };
+    });
+    broadcastDataChanged('lists');
+    return out;
+  },
+
+  async list_folders() {
+    await ready();
+    return getDB().folders
+      .map((f) => ({ ...f }))
+      .sort((a, b) => a.sort_order - b.sort_order || a.created_at - b.created_at);
+  },
+
+  async create_folder({ name, color }) {
+    await ready();
+    const folderName = (name ?? '').trim();
+    if (!folderName) throw new Error(tStatic('err.listNameRequired'));
+    const out = mutate((d) => {
+      const f: Folder = {
+        id: uid('folder'), name: folderName, color: color.trim(),
+        sort_order: d.folders.length, created_at: Date.now(), updated_at: Date.now(),
+      };
+      d.folders.push(f);
+      return { ...f };
+    });
+    broadcastDataChanged('lists');
+    return out;
+  },
+
+  async rename_folder(id, name) {
+    await ready();
+    const folderName = name.trim();
+    if (!folderName) throw new Error(tStatic('err.listNameRequired'));
+    const out = mutate((d) => {
+      const f = d.folders.find((x) => x.id === id);
+      if (!f) throw new Error(tStatic('err.listNotFound'));
+      f.name = folderName;
+      f.updated_at = Date.now();
+      return { ...f };
+    });
+    broadcastDataChanged('lists');
+    return out;
+  },
+
+  /** 编辑清单夹：名称 + 颜色 */
+  async update_folder(id, name, color) {
+    await ready();
+    const folderName = name.trim();
+    if (!folderName) throw new Error(tStatic('err.listNameRequired'));
+    const out = mutate((d) => {
+      const f = d.folders.find((x) => x.id === id);
+      if (!f) throw new Error(tStatic('err.listNotFound'));
+      f.name = folderName;
+      f.color = color.trim();
+      f.updated_at = Date.now();
+      return { ...f };
+    });
+    broadcastDataChanged('lists');
+    return out;
+  },
+
+  async delete_folder(id) {
+    await ready();
+    mutate((d) => {
+      d.folders = d.folders.filter((f) => f.id !== id);
+      // 夹内清单归还到顶层
+      for (const l of d.lists) if (l.folder_id === id) l.folder_id = null;
+    });
+    broadcastDataChanged('lists');
+  },
+
+  async reorder_folders(ids) {
+    await ready();
+    mutate((d) => {
+      const byId = new Map(d.folders.map((f) => [f.id, f]));
+      ids.forEach((id, i) => {
+        const f = byId.get(id);
+        if (f) f.sort_order = i;
+      });
+    });
+    broadcastDataChanged('lists');
   },
 
   async rename_list(id, name) {

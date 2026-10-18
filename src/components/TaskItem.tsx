@@ -169,6 +169,14 @@ export function TaskItem({ task, onReorder }: {
       }}
     >
       <button
+        className={`check${task.completed ? ' checked' : ''}`}
+        aria-label={task.completed ? t('task.uncomplete') : t('task.complete')}
+        onClick={(e) => { e.stopPropagation(); void toggleTask(task.id); }}
+      >
+        {task.completed === 1 && <Check size={11} strokeWidth={3} aria-hidden />}
+      </button>
+
+      <button
         className="task-play"
         title={t('timer.cta.start')}
         aria-label={t('timer.cta.start')}
@@ -176,14 +184,6 @@ export function TaskItem({ task, onReorder }: {
         onPointerDown={(e) => e.stopPropagation()}
       >
         <Play size={11} strokeWidth={2.5} aria-hidden />
-      </button>
-
-      <button
-        className={`check${task.completed ? ' checked' : ''}`}
-        aria-label={task.completed ? t('task.uncomplete') : t('task.complete')}
-        onClick={(e) => { e.stopPropagation(); void toggleTask(task.id); }}
-      >
-        {task.completed === 1 && <Check size={11} strokeWidth={3} aria-hidden />}
       </button>
 
       <span

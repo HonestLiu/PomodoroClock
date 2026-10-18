@@ -1,7 +1,7 @@
 // invoke 接口签名 —— PRD §8.4
 
 import type {
-  FocusRecord, Goal, GridCell, ListDistribution, Notification, Settings, Stats,
+  FocusRecord, Folder, Goal, GridCell, ListDistribution, Notification, Settings, Stats,
   Task, TaskDuration, TaskList, TimerState, User,
 } from '@/types';
 
@@ -60,6 +60,17 @@ export interface Api {
   create_list(args: CreateListArgs): Promise<TaskList>;
   rename_list(id: string, name: string): Promise<TaskList>;
   delete_list(id: string): Promise<void>;
+  /** 把清单归档到清单夹（folderId=null 表示移出到顶层） */
+  set_list_folder(list_id: string, folder_id: string | null): Promise<TaskList>;
+  /** 编辑清单图标 */
+  set_list_icon(list_id: string, icon_type: string, icon_color: string, icon_glyph: string): Promise<TaskList>;
+
+  list_folders(): Promise<Folder[]>;
+  create_folder(args: { name: string; color: string }): Promise<Folder>;
+  rename_folder(id: string, name: string): Promise<Folder>;
+  update_folder(id: string, name: string, color: string): Promise<Folder>;
+  delete_folder(id: string): Promise<void>;
+  reorder_folders(ids: string[]): Promise<void>;
 
   list_tasks(args?: ListTasksArgs): Promise<Task[]>;
   create_task(args: CreateTaskArgs): Promise<Task>;
@@ -100,4 +111,4 @@ export interface Api {
 }
 
 /** Rust→前端事件（PRD §8.5）；浏览器运行时下由本地 emitter 承担 */
-export type AppEvent = 'timer://tick' | 'timer://state-changed' | 'timer://finished' | 'data://changed' | 'tray://menu';
+export type AppEvent = 'timer://tick' | 'timer://state-changed' | 'timer://finished' | 'data://changed' | 'tray://menu' | 'menu://command';

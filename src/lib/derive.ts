@@ -182,6 +182,29 @@ export function focusMinExcludingCompleted(ds: Dataset): number {
   return sum(ds.records.filter((r) => !r.task_id || !doneIds.has(r.task_id)).map((r) => r.duration_min));
 }
 
+/** 单个清单的聚合：未完成任务数 + 这些任务的专注时长（排除已完成任务记录） */
+export function listAggregate(ds: Dataset, listId: string): { count: number; minutes: number } {
+  const tasks = ds.tasks.filter((t) => t.list_id === listId && t.completed === 0);
+  const ids = new Set(tasks.map((t) => t.id));
+  return {
+    count: tasks.length,
+    minutes: sum(ds.records.filter((r) => r.task_id && ids.has(r.task_id)).map((r) => r.duration_min)),
+  };
+}
+
+/** 清单夹聚合：夹内所有清单的未完成任务数 + 专注时长 */
+export function folderAggregate(ds: Dataset, folderId: string): { count: number; minutes: number } {
+  let count = 0;
+  let minutes = 0;
+  for (const l of ds.lists) {
+    if (l.folder_id !== folderId) continue;
+    const a = listAggregate(ds, l.id);
+    count += a.count;
+    minutes += a.minutes;
+  }
+  return { count, minutes };
+}
+
 export function categoryTaskCount(ds: Dataset, key: SmartKey): number {
   return tasksForCategory(ds, key).length;
 }

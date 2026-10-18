@@ -91,6 +91,7 @@ export function buildSeed(opts: { empty?: boolean } = {}): DBShape {
     icon_type: 'dot',
     icon_color: '',
     icon_glyph: '',
+    folder_id: null,
     created_at: now,
     updated_at: now,
   };

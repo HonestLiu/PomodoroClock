@@ -9,7 +9,7 @@ use crate::models::TaskList;
 
 fn read_list(conn: &rusqlite::Connection, id: &str) -> AppResult<TaskList> {
     conn.query_row(
-        "SELECT id, name, sort_order, is_smart, icon_type, icon_color, icon_glyph, created_at, updated_at
+        "SELECT id, name, sort_order, is_smart, icon_type, icon_color, icon_glyph, folder_id, created_at, updated_at
          FROM lists WHERE id = ?1",
         params![id],
         |r| {
@@ -21,8 +21,9 @@ fn read_list(conn: &rusqlite::Connection, id: &str) -> AppResult<TaskList> {
                 icon_type: r.get(4)?,
                 icon_color: r.get(5)?,
                 icon_glyph: r.get(6)?,
-                created_at: r.get(7)?,
-                updated_at: r.get(8)?,
+                folder_id: r.get(7)?,
+                created_at: r.get(8)?,
+                updated_at: r.get(9)?,
             })
         },
     )
@@ -33,7 +34,7 @@ fn read_list(conn: &rusqlite::Connection, id: &str) -> AppResult<TaskList> {
 pub fn list_lists(db: State<'_, Db>) -> AppResult<Vec<TaskList>> {
     let conn = db.0.lock();
     let mut stmt = conn.prepare(
-        "SELECT id, name, sort_order, is_smart, icon_type, icon_color, icon_glyph, created_at, updated_at
+        "SELECT id, name, sort_order, is_smart, icon_type, icon_color, icon_glyph, folder_id, created_at, updated_at
          FROM lists ORDER BY sort_order, created_at",
     )?;
     let rows = stmt.query_map([], |r| {
@@ -45,8 +46,9 @@ pub fn list_lists(db: State<'_, Db>) -> AppResult<Vec<TaskList>> {
             icon_type: r.get(4)?,
             icon_color: r.get(5)?,
             icon_glyph: r.get(6)?,
-            created_at: r.get(7)?,
-            updated_at: r.get(8)?,
+            folder_id: r.get(7)?,
+            created_at: r.get(8)?,
+            updated_at: r.get(9)?,
         })
     })?;
     Ok(rows.collect::<Result<Vec<_>, _>>()?)
@@ -66,8 +68,8 @@ pub fn create_list(
     let id = new_id("list");
     let order: i64 = conn.query_row("SELECT COUNT(*) FROM lists", [], |r| r.get(0))?;
     conn.execute(
-        "INSERT INTO lists (id, name, sort_order, is_smart, icon_type, icon_color, icon_glyph, created_at, updated_at)
-         VALUES (?1, ?2, ?3, 0, ?4, ?5, ?6, ?7, ?7)",
+        "INSERT INTO lists (id, name, sort_order, is_smart, icon_type, icon_color, icon_glyph, folder_id, created_at, updated_at)
+         VALUES (?1, ?2, ?3, 0, ?4, ?5, ?6, NULL, ?7, ?7)",
         params![
             id,
             name.trim(),
@@ -79,6 +81,44 @@ pub fn create_list(
         ],
     )?;
     read_list(&conn, &id)
+}
+
+/// 把清单归档到清单夹（folderId=None 表示移出到顶层）
+#[tauri::command]
+pub fn set_list_folder(
+    db: State<'_, Db>,
+    list_id: String,
+    folder_id: Option<String>,
+) -> AppResult<TaskList> {
+    let conn = db.0.lock();
+    if let Some(fid) = &folder_id {
+        let exists: bool = conn
+            .query_row("SELECT EXISTS(SELECT 1 FROM folders WHERE id = ?1)", params![fid], |r| r.get(0))
+            .unwrap_or(false);
+        if !exists { return Err(AppError::msg("清单夹不存在")); }
+    }
+    conn.execute(
+        "UPDATE lists SET folder_id = ?1, updated_at = ?2 WHERE id = ?3",
+        params![folder_id, crate::db_now(), list_id],
+    )?;
+    read_list(&conn, &list_id)
+}
+
+/// 编辑清单图标（单色原点 / 字体图标）
+#[tauri::command]
+pub fn set_list_icon(
+    db: State<'_, Db>,
+    list_id: String,
+    icon_type: String,
+    icon_color: String,
+    icon_glyph: String,
+) -> AppResult<TaskList> {
+    let conn = db.0.lock();
+    conn.execute(
+        "UPDATE lists SET icon_type = ?1, icon_color = ?2, icon_glyph = ?3, updated_at = ?4 WHERE id = ?5",
+        params![icon_type, icon_color, icon_glyph, crate::db_now(), list_id],
+    )?;
+    read_list(&conn, &list_id)
 }
 
 #[tauri::command]

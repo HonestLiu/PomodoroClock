@@ -1,21 +1,23 @@
 // 侧边栏 —— PRD FR-G2（截图事实 S1/S2）
-// 账号区 / 搜索框 / 6 分类导航（各带已专注时长 + 任务数角标）/ 用户清单（紧跟"任务"、分割线分隔）/ 创建清单（名称 + 图标）
+// 账号区 / 搜索框 / 6 分类导航 / 清单夹（可收纳多个清单，嵌套导引线）+ 顶层自定义清单 / 底部创建清单·清单夹
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import {
-  CalendarDays, CalendarClock, CheckCircle2, GripVertical, ListTodo, Plus, Search,
-  Sun, Sunrise, User as UserIcon,
+  CalendarDays, CalendarClock, CheckCircle2, ChevronDown, ChevronRight, Folder, FolderPlus,
+  GripVertical, ListTodo, Plus, Search, Sun, Sunrise, User as UserIcon,
 } from 'lucide-react';
 import { useUiStore } from '@/stores/uiStore';
 import { useDataStore } from '@/stores/dataStore';
 import { useStatsStore } from '@/stores/statsStore';
 import { useAuthStore } from '@/stores/authStore';
 import { pbAvatarFileUrl } from '@/lib/pb';
-import { categoryFocusMinutes, categoryTaskCount, tasksInList, type Dataset } from '@/lib/derive';
+import {
+  categoryFocusMinutes, categoryTaskCount, folderAggregate, listAggregate, tasksInList, type Dataset,
+} from '@/lib/derive';
 import { formatMinutesShort } from '@/lib/date';
-import { defaultListIcon, LIST_ICON_COLORS, LIST_ICON_GLYPHS, resolveListIconColor } from '@/lib/listIcon';
+import { resolveFolderColor, resolveListIconColor } from '@/lib/listIcon';
 import { useI18n, type ZhKey } from '@/i18n';
-import type { SmartKey, ListIconType } from '@/types';
+import type { SmartKey, TaskList } from '@/types';
 import { ALL_TASKS_LIST_ID } from '@/types';
 
 const NAV: Array<{ key: SmartKey; labelKey: ZhKey; icon: typeof Sun }> = [
@@ -34,7 +36,7 @@ const DOT_COLORS: Record<string, string> = {
 
 export function Sidebar() {
   const ui = useUiStore();
-  const { user, lists, tasks, records, createList, reorderLists, updateTask } = useDataStore();
+  const { user, folders, lists, tasks, records, reorderLists, updateTask } = useDataStore();
   const draggingTaskId = useUiStore((s) => s.draggingTaskId);
   const setDraggingTask = useUiStore((s) => s.setDraggingTask);
   const statsRevision = useStatsStore((s) => s.revision);
@@ -48,17 +50,14 @@ export function Sidebar() {
     ? pbAvatarFileUrl(cloudUser, 72)
     : '';
   const todayFocusMin = useStatsStore((s) => s.stats?.today_focus_min ?? 0);
-  const [creating, setCreating] = useState(false);
-  const [name, setName] = useState('');
-  const [iconType, setIconType] = useState<ListIconType>(defaultListIcon().icon_type);
-  const [iconColor, setIconColor] = useState(defaultListIcon().icon_color);
-  const [iconGlyph, setIconGlyph] = useState('');
   const [dragId, setDragId] = useState<string | null>(null);
   const { t } = useI18n();
   const displayName = signedIn
     ? (cloudUser?.name?.trim() || cloudUser?.email?.split('@')[0] || user?.username || t('account.untitled'))
     : t('account.guest');
   const [overId, setOverId] = useState<string | null>(null);
+  // 折叠的清单夹 id 集合（默认全部展开）
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   // 依赖 tasks / revision 触发重算（统计口径实时聚合）
   const ds: Dataset = useMemo(() => ({ tasks, lists, records }), [tasks, lists, records]);
@@ -82,6 +81,24 @@ export function Sidebar() {
   // 侧边栏只展示「自定义」清单：排除内置的「任务」清单（与顶部智能分类重复）
   const customRows = useMemo(() => listRows.filter((l) => l.id !== ALL_TASKS_LIST_ID), [listRows]);
 
+  const foldersSorted = useMemo(() => [...folders].sort((a, b) => a.sort_order - b.sort_order || a.created_at - b.created_at), [folders]);
+  const listsInFolder = useMemo(
+    () => (fid: string) => customRows.filter((l) => l.folder_id === fid).sort((a, b) => a.sort_order - b.sort_order || a.created_at - b.created_at),
+    [customRows],
+  );
+  const unfiledLists = useMemo(
+    () => customRows.filter((l) => l.folder_id == null).sort((a, b) => a.sort_order - b.sort_order || a.created_at - b.created_at),
+    [customRows],
+  );
+
+  function toggleCollapse(id: string) {
+    setCollapsed((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  }
+
   function onDrop(targetId: string) {
     // 任务是拖来的（跨视图移入清单）：移动任务
     if (draggingTaskId) {
@@ -103,21 +120,6 @@ export function Sidebar() {
     setDragId(null); setOverId(null);
   }
 
-  function cancelCreate() {
-    setCreating(false);
-    setName('');
-    setIconType('dot');
-    setIconColor(defaultListIcon().icon_color);
-    setIconGlyph('');
-  }
-
-  async function submitList() {
-    const v = name.trim();
-    if (!v) return;
-    await createList(v, { icon_type: iconType, icon_color: iconColor, icon_glyph: iconGlyph.trim() });
-    cancelCreate();
-  }
-
   const activeKey = ui.route.name === 'list' ? null : ui.route.name;
 
   /** 键盘重排清单：焦点在清单行上按 Alt + ↑/↓，与拖拽等效 */
@@ -130,6 +132,45 @@ export function Sidebar() {
     const [moved] = next.splice(from, 1);
     next.splice(to, 0, moved);
     void reorderLists(next);
+  }
+
+  /** 单个清单行：图标 + 名称 + 专注时长 + 未完成任务数（顶层与夹内复用） */
+  function renderListRow(l: TaskList) {
+    const agg = listAggregate(ds, l.id);
+    return (
+      <div
+        key={l.id}
+        className={`list-row-wrap${overId === l.id ? ' drag-over' : ''}`}
+        draggable
+        onDragStart={() => setDragId(l.id)}
+        onDragOver={(e) => { e.preventDefault(); if (overId !== l.id) setOverId(l.id); }}
+        onDragLeave={() => setOverId((p) => (p === l.id ? null : p))}
+        onDrop={(e) => { e.preventDefault(); onDrop(l.id); }}
+        onDragEnd={() => { setDragId(null); setOverId(null); }}
+      >
+        <button
+          className={`list-row${ui.route.name === 'list' && ui.route.id === l.id ? ' active' : ''}`}
+          aria-current={ui.route.name === 'list' && ui.route.id === l.id ? 'page' : undefined}
+          title={t('a11y.reorderHint')}
+          onClick={() => ui.navigate({ name: 'list', id: l.id })}
+          onContextMenu={(e) => { e.preventDefault(); ui.openContextMenu({ x: e.clientX, y: e.clientY, kind: 'list', id: l.id }); }}
+          onKeyDown={(e) => {
+            if (!e.altKey) return;
+            if (e.key === 'ArrowUp') { e.preventDefault(); moveList(l.id, -1); }
+            if (e.key === 'ArrowDown') { e.preventDefault(); moveList(l.id, 1); }
+          }}
+        >
+          <span className="list-grip" aria-hidden><GripVertical size={12} /></span>
+          {l.icon_type === 'font' && l.icon_glyph
+            ? <span className="list-glyph" style={{ color: resolveListIconColor(l) }}>{l.icon_glyph}</span>
+            : <span className="list-dot" style={{ background: resolveListIconColor(l) }} />}
+          <span className="nav-label" style={{ flex: 1 }}>{l.name}</span>
+          {draggingTaskId && <span className="list-move-hint">{t('list.dropToMove')}</span>}
+          <span className="nav-time">{formatMinutesShort(agg.minutes)}</span>
+          <span className="nav-count">{agg.count}</span>
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -181,137 +222,57 @@ export function Sidebar() {
           );
         })}
 
-        {/* 自定义清单：紧跟"任务"条目之后，分割线分隔（排除内置「任务」清单） */}
-        {customRows.length > 0 && <div className="nav-divider" role="separator" />}
+        {/* 清单夹 + 顶层自定义清单：紧跟"任务"条目之后，分割线分隔（排除内置「任务」清单） */}
+        {(customRows.length > 0 || foldersSorted.length > 0) && <div className="nav-divider" role="separator" />}
 
-        {customRows.map((l) => (
-          <div
-            key={l.id}
-            className={`list-row-wrap${overId === l.id ? ' drag-over' : ''}`}
-            draggable
-            onDragStart={() => setDragId(l.id)}
-            onDragOver={(e) => { e.preventDefault(); if (overId !== l.id) setOverId(l.id); }}
-            onDragLeave={() => setOverId((p) => (p === l.id ? null : p))}
-            onDrop={(e) => { e.preventDefault(); onDrop(l.id); }}
-            onDragEnd={() => { setDragId(null); setOverId(null); }}
-          >
-            <button
-              className={`list-row${ui.route.name === 'list' && ui.route.id === l.id ? ' active' : ''}`}
-              aria-current={ui.route.name === 'list' && ui.route.id === l.id ? 'page' : undefined}
-              title={t('a11y.reorderHint')}
-              onClick={() => ui.navigate({ name: 'list', id: l.id })}
-              onKeyDown={(e) => {
-                if (!e.altKey) return;
-                if (e.key === 'ArrowUp') { e.preventDefault(); moveList(l.id, -1); }
-                if (e.key === 'ArrowDown') { e.preventDefault(); moveList(l.id, 1); }
-              }}
-            >
-              <span className="list-grip" aria-hidden><GripVertical size={12} /></span>
-              {l.icon_type === 'font' && l.icon_glyph
-                ? <span className="list-glyph" style={{ color: resolveListIconColor(l) }}>{l.icon_glyph}</span>
-                : <span className="list-dot" style={{ background: resolveListIconColor(l) }} />}
-              <span className="nav-label" style={{ flex: 1 }}>{l.name}</span>
-              {draggingTaskId && <span className="list-move-hint">{t('list.dropToMove')}</span>}
-              <span className="nav-count">{l.count}</span>
-            </button>
-          </div>
-        ))}
+        {foldersSorted.map((f) => {
+          const agg = folderAggregate(ds, f.id);
+          const isCollapsed = collapsed.has(f.id);
+          return (
+            <div key={f.id} className="folder-block">
+              <button
+                className="folder-row"
+                aria-expanded={!isCollapsed}
+                onClick={() => toggleCollapse(f.id)}
+                onContextMenu={(e) => { e.preventDefault(); ui.openContextMenu({ x: e.clientX, y: e.clientY, kind: 'folder', id: f.id }); }}
+              >
+                <Folder size={15} style={{ color: resolveFolderColor(f), flex: '0 0 auto' }} aria-hidden />
+                <span className="nav-label">{f.name}</span>
+                <span className="nav-time">{formatMinutesShort(agg.minutes)}</span>
+                <span className="nav-count">{agg.count}</span>
+                {isCollapsed ? <ChevronRight size={13} aria-hidden /> : <ChevronDown size={13} aria-hidden />}
+              </button>
+              {!isCollapsed && (
+                <div className="folder-children" style={{ '--guide': resolveFolderColor(f) } as CSSProperties}>
+                  {listsInFolder(f.id).map((l) => renderListRow(l))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {unfiledLists.map((l) => renderListRow(l))}
       </nav>
 
-      {/* 创建清单：固定在侧边栏底部 */}
+      {/* 底部操作：创建清单 + 创建清单夹（同行，各弹一个弹窗） */}
       <div className="sidebar-foot">
-        {creating ? (
-          <div className="list-create" role="group" aria-label={t('list.new')}>
-            <input
-              className="new-list-input"
-              autoFocus
-              placeholder={t('list.placeholder')}
-              aria-label={t('list.placeholder')}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void submitList();
-                if (e.key === 'Escape') cancelCreate();
-              }}
-            />
-
-            <div className="list-create-row">
-              <span className="list-create-label">{t('list.icon.type')}</span>
-              <div className="seg" role="group" aria-label={t('list.icon.type')}>
-                <button
-                  type="button" className={iconType === 'dot' ? 'active' : ''}
-                  aria-pressed={iconType === 'dot'}
-                  onClick={() => setIconType('dot')}
-                >
-                  {t('list.icon.dot')}
-                </button>
-                <button
-                  type="button" className={iconType === 'font' ? 'active' : ''}
-                  aria-pressed={iconType === 'font'}
-                  onClick={() => setIconType('font')}
-                >
-                  {t('list.icon.font')}
-                </button>
-              </div>
-            </div>
-
-            {iconType === 'font' && (
-              <div className="list-create-row">
-                <span className="list-create-label">{t('list.icon.glyph')}</span>
-                <div className="glyph-palette">
-                  {LIST_ICON_GLYPHS.map((g) => (
-                    <button
-                      type="button" key={g}
-                      className={iconGlyph === g ? 'active' : ''}
-                      style={{ color: iconColor }}
-                      onClick={() => setIconGlyph(g)}
-                    >
-                      {g}
-                    </button>
-                  ))}
-                  <input
-                    className="glyph-custom" maxLength={2}
-                    aria-label={t('list.icon.glyph')}
-                    value={iconGlyph}
-                    onChange={(e) => setIconGlyph(e.target.value.slice(-1))}
-                  />
-                </div>
-              </div>
-            )}
-
-            <div className="list-create-row">
-              <span className="list-create-label">{t('list.icon.color')}</span>
-              <div className="color-palette" role="group" aria-label={t('list.icon.color')}>
-                {LIST_ICON_COLORS.map((c) => (
-                  <button
-                    type="button" key={c}
-                    className={iconColor === c ? 'active' : ''}
-                    style={{ background: c }}
-                    aria-label={c}
-                    aria-pressed={iconColor === c}
-                    onClick={() => setIconColor(c)}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div className="list-create-actions">
-              <button type="button" className="btn" onClick={cancelCreate}>{t('common.cancel')}</button>
-              <button
-                type="button" className="btn primary"
-                disabled={!name.trim()}
-                onClick={() => void submitList()}
-              >
-                {t('list.create')}
-              </button>
-            </div>
-          </div>
-        ) : (
-          <button className="list-row" onClick={() => setCreating(true)}>
-            <Plus size={14} style={{ color: 'var(--text-2)' }} aria-hidden />
-            <span style={{ color: 'var(--text-2)' }}>{t('sidebar.createList')}</span>
+        <div className="sidebar-actions">
+          <button
+            className="list-row create-list-btn"
+            aria-label={t('list.new')} title={t('list.new')}
+            onClick={() => ui.openListCreate(true)}
+          >
+            <Plus size={14} style={{ color: 'var(--accent-focus)' }} aria-hidden />
+            <span>{t('sidebar.createList')}</span>
           </button>
-        )}
+          <button
+            className="icon-btn create-folder-btn"
+            aria-label={t('folder.new')} title={t('folder.new')}
+            onClick={() => ui.openFolderCreate(true)}
+          >
+            <FolderPlus size={16} style={{ color: 'var(--accent-focus)' }} aria-hidden />
+          </button>
+        </div>
       </div>
     </aside>
   );

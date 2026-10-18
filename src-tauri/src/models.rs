@@ -13,6 +13,16 @@ pub struct User {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Folder {
+    pub id: String,
+    pub name: String,
+    pub color: String,
+    pub sort_order: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskList {
     pub id: String,
     pub name: String,
@@ -22,6 +32,8 @@ pub struct TaskList {
     pub icon_type: String,
     pub icon_color: String,
     pub icon_glyph: String,
+    /// 所属清单夹；None=顶层
+    pub folder_id: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
 }

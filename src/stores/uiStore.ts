@@ -32,6 +32,15 @@ interface UiState {
   achievementsOpen: boolean;
   /** 白噪音选择弹窗（计时页工具条与设置页共用） */
   noiseOpen: boolean;
+  /** 新建清单夹弹窗 */
+  folderCreateOpen: boolean;
+  /** 新建清单弹窗 */
+  listCreateOpen: boolean;
+  /** 侧边栏右键菜单（编辑/删除） */
+  contextMenu: { x: number; y: number; kind: 'folder' | 'list'; id: string } | null;
+  /** 编辑态：打开新建弹窗时带上要编辑的 id（null=新建） */
+  listEditId: string | null;
+  folderEditId: string | null;
   floatVisible: boolean;
   editingTaskId: string | null;
   showCompleted: Record<string, boolean>;
@@ -50,6 +59,12 @@ interface UiState {
   openFriends(v: boolean): void;
   openAchievements(v: boolean): void;
   openNoise(v: boolean): void;
+  openFolderCreate(v: boolean): void;
+  openListCreate(v: boolean): void;
+  openFolderEdit(id: string): void;
+  openListEdit(id: string): void;
+  openContextMenu(m: { x: number; y: number; kind: 'folder' | 'list'; id: string }): void;
+  closeContextMenu(): void;
   setFloatVisible(v: boolean): void;
   setEditingTask(id: string | null): void;
   toggleShowCompleted(key: string): void;
@@ -76,6 +91,11 @@ export const useUiStore = create<UiState>((set, get) => ({
   friendsOpen: false,
   achievementsOpen: false,
   noiseOpen: false,
+  folderCreateOpen: false,
+  listCreateOpen: false,
+  contextMenu: null,
+  listEditId: null,
+  folderEditId: null,
   floatVisible: true,
   editingTaskId: null,
   showCompleted: {},
@@ -93,12 +113,18 @@ export const useUiStore = create<UiState>((set, get) => ({
   openFriends: (v) => set({ friendsOpen: v, notifOpen: false, premiumOpen: false, achievementsOpen: false }),
   openAchievements: (v) => set({ achievementsOpen: v, notifOpen: false, premiumOpen: false, friendsOpen: false }),
   openNoise: (v) => set({ noiseOpen: v, notifOpen: false, premiumOpen: false, friendsOpen: false, achievementsOpen: false }),
+  openFolderCreate: (v) => set({ folderCreateOpen: v, folderEditId: null }),
+  openListCreate: (v) => set({ listCreateOpen: v, listEditId: null }),
+  openFolderEdit: (id) => set({ folderCreateOpen: true, folderEditId: id, contextMenu: null }),
+  openListEdit: (id) => set({ listCreateOpen: true, listEditId: id, contextMenu: null }),
+  openContextMenu: (contextMenu) => set({ contextMenu }),
+  closeContextMenu: () => set({ contextMenu: null }),
   setFloatVisible: (floatVisible) => set({ floatVisible }),
   setEditingTask: (editingTaskId) => set({ editingTaskId }),
   toggleShowCompleted: (key) =>
     set((s) => ({ showCompleted: { ...s.showCompleted, [key]: !s.showCompleted[key] } })),
   closeAllOverlays: () =>
-    set({ reportOpen: false, settingsOpen: false, searchOpen: false, notifOpen: false, premiumOpen: false, friendsOpen: false, achievementsOpen: false, noiseOpen: false }),
+    set({ reportOpen: false, settingsOpen: false, searchOpen: false, notifOpen: false, premiumOpen: false, friendsOpen: false, achievementsOpen: false, noiseOpen: false, folderCreateOpen: false, listCreateOpen: false, contextMenu: null, listEditId: null, folderEditId: null }),
   askConfirm: (confirm) => set({ confirm }),
   clearConfirm: () => set({ confirm: null }),
   triggerHighlight: (highlight) => set({ highlight }),

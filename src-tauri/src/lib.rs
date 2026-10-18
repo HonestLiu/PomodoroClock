@@ -8,7 +8,7 @@ pub mod models;
 pub mod timer_engine;
 
 use tauri::{Emitter, Manager};
-use tauri::menu::{MenuBuilder, MenuItemBuilder};
+use tauri::menu::{AboutMetadata, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 use tauri::tray::TrayIconBuilder;
 
 /// 当前本地时间戳（毫秒）
@@ -17,6 +17,73 @@ pub fn db_now() -> i64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as i64)
         .unwrap_or(0)
+}
+
+/// 应用菜单栏（macOS 原生：Cmd+, 设置、Cmd+N 新建任务、Cmd+R 报表等）。
+/// 点击项通过 `menu://command` 事件转发给前端（仅转发自定义 menu-* id，
+/// 其余为系统角色项由 OS 原生处理）。
+fn setup_app_menu(app: &tauri::App) -> tauri::Result<()> {
+    let settings = MenuItemBuilder::with_id("menu-settings", "设置…")
+        .accelerator("CmdOrCtrl+,")
+        .build(app)?;
+    let new_task = MenuItemBuilder::with_id("menu-new-task", "新建任务")
+        .accelerator("CmdOrCtrl+N")
+        .build(app)?;
+    let new_list = MenuItemBuilder::with_id("menu-new-list", "新建清单")
+        .accelerator("CmdOrCtrl+Shift+L")
+        .build(app)?;
+    let new_folder = MenuItemBuilder::with_id("menu-new-folder", "新建清单夹")
+        .accelerator("CmdOrCtrl+Shift+F")
+        .build(app)?;
+    let report = MenuItemBuilder::with_id("menu-report", "报表")
+        .accelerator("CmdOrCtrl+R")
+        .build(app)?;
+
+    // 应用菜单（macOS 首个子菜单即应用名菜单，承载 关于/设置/退出）
+    let app_menu = SubmenuBuilder::new(app, "FocusPomodoro")
+        .about(Some(AboutMetadata::default()))
+        .separator()
+        .item(&settings)
+        .separator()
+        .quit()
+        .build()?;
+
+    let file_menu = SubmenuBuilder::new(app, "文件")
+        .item(&new_task)
+        .item(&new_list)
+        .item(&new_folder)
+        .separator()
+        .item(&report)
+        .build()?;
+
+    let edit_menu = SubmenuBuilder::new(app, "编辑")
+        .undo()
+        .redo()
+        .separator()
+        .cut()
+        .copy()
+        .paste()
+        .select_all()
+        .build()?;
+
+    let view_menu = SubmenuBuilder::new(app, "视图")
+        .fullscreen()
+        .build()?;
+
+    let window_menu = SubmenuBuilder::new(app, "窗口")
+        .minimize()
+        .build()?;
+
+    let menu = MenuBuilder::new(app)
+        .item(&app_menu)
+        .item(&file_menu)
+        .item(&edit_menu)
+        .item(&view_menu)
+        .item(&window_menu)
+        .build()?;
+
+    app.set_menu(menu)?;
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -43,6 +110,9 @@ pub fn run() {
             }
 
             app.manage(db::Db(parking_lot::Mutex::new(conn)));
+
+            // 应用菜单栏：设置(Cmd+,) / 新建任务(Cmd+N) / 报表(Cmd+R) 等（替代 Tauri 默认菜单）
+            setup_app_menu(app)?;
 
             // macOS: titleBarStyle:Overlay 保留系统红黄绿 + 圆角；
             // Windows/Linux: 去掉系统标题栏，改用前端自绘按钮（PRD §8.7）
@@ -98,6 +168,13 @@ pub fn run() {
             timer_engine::spawn_ticker(app.handle().clone());
             Ok(())
         })
+        .on_menu_event(|app, event| {
+            let id = event.id().0.as_str();
+            // 仅转发自定义项（menu-*）；系统角色项（关于/退出/最小化…）由 OS 原生处理
+            if id.starts_with("menu-") {
+                let _ = app.emit("menu://command", id.to_string());
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             // 用户
             commands::user::get_user,
@@ -113,6 +190,15 @@ pub fn run() {
             commands::lists::reorder_lists,
             commands::lists::get_default_list,
             commands::lists::set_default_list,
+            commands::lists::set_list_folder,
+            commands::lists::set_list_icon,
+            // 清单夹
+            commands::folders::list_folders,
+            commands::folders::create_folder,
+            commands::folders::rename_folder,
+            commands::folders::update_folder,
+            commands::folders::delete_folder,
+            commands::folders::reorder_folders,
             // 任务
             commands::tasks::list_tasks,
             commands::tasks::create_task,

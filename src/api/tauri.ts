@@ -29,6 +29,17 @@ export const tauriApi: Api = {
     mutate('lists', () => invoke('create_list', { name, iconType, iconColor, iconGlyph })),
   rename_list: (id, name) => mutate('lists', () => invoke('rename_list', { id, name })),
   delete_list: (id) => mutate('lists', () => invoke('delete_list', { id })),
+  set_list_folder: (list_id, folder_id) =>
+    mutate('lists', () => invoke('set_list_folder', { listId: list_id, folderId: folder_id })),
+  set_list_icon: (list_id, icon_type, icon_color, icon_glyph) =>
+    mutate('lists', () => invoke('set_list_icon', { listId: list_id, iconType: icon_type, iconColor: icon_color, iconGlyph: icon_glyph })),
+
+  list_folders: () => invoke('list_folders'),
+  create_folder: ({ name, color }) => mutate('lists', () => invoke('create_folder', { name, color })),
+  rename_folder: (id, name) => mutate('lists', () => invoke('rename_folder', { id, name })),
+  update_folder: (id, name, color) => mutate('lists', () => invoke('update_folder', { id, name, color })),
+  delete_folder: (id) => mutate('lists', () => invoke('delete_folder', { id })),
+  reorder_folders: (ids) => mutate('lists', () => invoke('reorder_folders', { ids })),
 
   list_tasks: (args = {}) => invoke('list_tasks', { args }),
   create_task: (args) => mutate('tasks', () => invoke('create_task', { args })),

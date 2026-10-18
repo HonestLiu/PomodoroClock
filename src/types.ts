@@ -12,6 +12,16 @@ export interface User {
 /** 自定义清单的图标形态：单色原点 ｜ 字体图标（iconfont/任意 Unicode 字形） */
 export type ListIconType = 'dot' | 'font';
 
+/** 清单夹（文件夹）：容纳多个 todo 清单 */
+export interface Folder {
+  id: string;
+  name: string;
+  color: string; // 十六进制色值，驱动夹图标与嵌套导引线
+  sort_order: number;
+  created_at: number;
+  updated_at: number;
+}
+
 export interface TaskList {
   id: string;
   name: string;
@@ -20,6 +30,7 @@ export interface TaskList {
   icon_type: ListIconType;
   icon_color: string; // 十六进制色值，空则走默认色
   icon_glyph: string; // type=font 时的字形字符（emoji / Unicode 符号）
+  folder_id: string | null; // 所属清单夹；null=顶层未归档
   created_at: number;
   updated_at: number;
 }

@@ -22,6 +22,15 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at  INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS folders (
+  id         TEXT PRIMARY KEY,
+  name       TEXT NOT NULL,
+  color      TEXT NOT NULL DEFAULT '',
+  sort_order INTEGER DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS lists (
   id          TEXT PRIMARY KEY,
   name        TEXT NOT NULL,
@@ -30,6 +39,7 @@ CREATE TABLE IF NOT EXISTS lists (
   icon_type   TEXT NOT NULL DEFAULT 'dot',
   icon_color  TEXT NOT NULL DEFAULT '',
   icon_glyph  TEXT NOT NULL DEFAULT '',
+  folder_id   TEXT REFERENCES folders(id) ON DELETE SET NULL,
   created_at  INTEGER NOT NULL,
   updated_at  INTEGER NOT NULL
 );
@@ -111,7 +121,7 @@ pub fn open_in_memory() -> AppResult<Connection> {
     Ok(conn)
 }
 
-/// 增量迁移：给旧库的 lists 表补上 icon 三列（CREATE TABLE IF NOT EXISTS 不会改已有表）。
+/// 增量迁移：给旧库的 lists 表补上 icon / folder 三（四）列（CREATE TABLE IF NOT EXISTS 不会改已有表）。
 /// 新库在 SCHEMA 里已含这些列，此处即空操作。
 fn migrate_list_icon(conn: &Connection) -> AppResult<()> {
     let mut cols: Vec<String> = Vec::new();
@@ -126,6 +136,7 @@ fn migrate_list_icon(conn: &Connection) -> AppResult<()> {
         ("icon_type", "ALTER TABLE lists ADD COLUMN icon_type TEXT NOT NULL DEFAULT 'dot'"),
         ("icon_color", "ALTER TABLE lists ADD COLUMN icon_color TEXT NOT NULL DEFAULT ''"),
         ("icon_glyph", "ALTER TABLE lists ADD COLUMN icon_glyph TEXT NOT NULL DEFAULT ''"),
+        ("folder_id", "ALTER TABLE lists ADD COLUMN folder_id TEXT"),
     ] {
         if !cols.iter().any(|c| c == col) {
             conn.execute_batch(ddl)?;

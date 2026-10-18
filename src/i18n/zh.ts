@@ -11,7 +11,16 @@ export const zh = {
   'list.dropToMove': '移入',
   'list.icon.type': '图标类型', 'list.icon.dot': '圆点', 'list.icon.font': '图标',
   'list.icon.glyph': '图标字符', 'list.icon.color': '图标颜色',
-  'list.new': '新建清单', 'list.create': '创建',
+  'list.new': '新建清单', 'list.create': '创建', 'list.edit': '编辑清单',
+  'folder.createTitle': '创建清单夹', 'folder.editTitle': '编辑清单夹', 'folder.new': '新建清单夹',
+  'folder.name': '名称', 'folder.namePlaceholder': '清单夹名称',
+  'folder.color': '颜色', 'folder.addList': '创建清单', 'folder.addListPlaceholder': '清单名称',
+  'menu.editFolder': '编辑文件夹', 'menu.deleteFolder': '删除文件夹',
+  'menu.editList': '编辑清单', 'menu.deleteList': '删除清单',
+  'confirm.deleteFolderTitle': '删除文件夹',
+  'confirm.deleteFolderMsg': '文件夹内的清单不会被删除，会移回顶层。确定删除该文件夹吗？',
+  'confirm.deleteListTitle': '删除清单',
+  'confirm.deleteListMsg': '删除后该清单内的任务将变为未归档（仍保留在「任务」中）。确定删除吗？',
   'title.premium': '高级版', 'title.friends': '好友 / 社区', 'title.achievements': '成就',
 
   // 统计卡
@@ -20,6 +29,7 @@ export const zh = {
   'stat.totalFocus': '总专注时间', 'stat.weekFocus': '本周专注时间',
   'stat.todayFocus': '今日专注时间', 'stat.totalDone': '总完成任务',
   'stat.weekDone': '本周完成任务', 'stat.todayDone': '今日完成任务',
+  'stat.records': '专注记录', 'stat.focusDays': '专注天数',
 
   // 任务
   'task.add': '在“{list}”中添加一个任务，按「回车」键保存',

@@ -285,11 +285,99 @@ input:focus:not(:focus-visible), textarea:focus:not(:focus-visible) {
 .color-palette > button {
   width: 18px; height: 18px; padding: 0;
   border-radius: 50%; border: 2px solid transparent;
+  display: grid; place-items: center; color: #fff;
 }
 .color-palette > button.active { border-color: var(--bg-card); box-shadow: 0 0 0 1px var(--text-2); }
 
 .list-create-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .list-create-actions .btn { height: 26px; font-size: 12px; }
+
+.list-row .nav-time { font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.list-row .nav-count { font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; min-width: 14px; text-align: right; }
+
+/* ── 清单夹（文件夹） ───────────────────────────── */
+.folder-block { display: flex; flex-direction: column; }
+.folder-row {
+  display: flex; align-items: center; gap: 8px;
+  height: 28px; padding: 0 8px;
+  border-radius: var(--radius-sm);
+  font-size: 13px; width: 100%; text-align: left; color: var(--text-1);
+  transition: background .12s;
+}
+.folder-row:hover { background: var(--hover); }
+.folder-row .nav-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-row .nav-time { font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.folder-row .nav-count { font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; min-width: 14px; text-align: right; }
+
+/* 夹内嵌套清单：左侧竖向导引线用夹的颜色（--guide 内联注入） */
+.folder-children {
+  display: flex; flex-direction: column; gap: 1px;
+  border-left: 2px solid var(--guide, var(--border));
+  margin-left: 15px; padding-left: 10px;
+}
+
+/* 底部操作行：创建清单 + 创建清单夹（同行） */
+.sidebar-actions { display: flex; align-items: center; gap: 4px; }
+.create-list-btn { flex: 1; color: var(--accent-focus); gap: 8px; }
+.create-folder-btn { flex: 0 0 auto; }
+
+/* ── 新建清单夹弹窗 ─────────────────────────────── */
+.folder-modal { width: 420px; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.folder-modal-title { text-align: center; font-size: 15px; font-weight: 700; color: var(--text-1); }
+/* 弹窗内输入框：column flex 下 .text-input 的 flex:1 会把高度压成内容行高（细条），
+   用更高优先级改为不伸缩（basis 回落 height），并统一内边距/圆角，去掉原生外观 */
+.folder-modal .folder-name,
+.list-modal .folder-name {
+  width: 100%; height: 40px; flex: 0 0 auto;
+  padding: 0 12px; font-size: 13.5px;
+}
+.folder-colors { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; }
+.folder-color {
+  width: 100%; aspect-ratio: 1; border-radius: 50%; padding: 0;
+  border: 2px solid transparent;
+  display: grid; place-items: center; color: #fff;
+}
+.folder-color.active { border-color: var(--bg-card); box-shadow: 0 0 0 1px var(--text-2); }
+.folder-lists {
+  display: flex; flex-direction: column; gap: 2px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 4px; max-height: 220px; overflow-y: auto;
+}
+.folder-list-row { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 8px; border-radius: 4px; }
+.folder-list-name { flex: 1; font-size: 13px; color: var(--text-1); }
+.folder-list-toggle { border: none; background: none; cursor: pointer; color: var(--text-3); display: grid; place-items: center; }
+.folder-list-toggle.on { color: var(--accent-focus); }
+.folder-add-list {
+  display: flex; align-items: center; gap: 8px;
+  height: 34px; padding: 0 8px;
+  color: var(--accent-focus); font-size: 13px; text-align: left;
+  border: none; background: none; cursor: pointer;
+}
+.folder-lists .folder-new-input { width: 100%; height: 34px; flex: 0 0 auto; padding: 0 10px; }
+.folder-modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
+/* 新建清单弹窗（与新建清单夹同款样式） */
+.list-modal { width: 420px; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.list-config { display: flex; flex-direction: column; gap: 12px; }
+
+/* 侧边栏右键菜单 */
+.ctx-backdrop { position: fixed; inset: 0; z-index: 60; }
+.ctx-menu {
+  position: fixed; z-index: 61;
+  min-width: 140px; padding: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  display: flex; flex-direction: column;
+}
+.ctx-menu > button {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px; border-radius: 4px;
+  font-size: 13px; color: var(--text-1); text-align: left;
+}
+.ctx-menu > button:hover { background: var(--hover); }
+.ctx-menu > button.danger { color: var(--accent-focus); }
 
 /* ── 主内容区 ─────────────────────────────────────────────── */
 
@@ -348,15 +436,15 @@ input:focus:not(:focus-visible), textarea:focus:not(:focus-visible) {
 .check:hover { border-color: var(--accent-blue); }
 .check.checked { background: var(--accent-blue); border-color: var(--accent-blue); color: #fff; }
 .task-play {
-  visibility: hidden;
-  width: 22px; height: 22px; border-radius: 50%;
+  opacity: 0; visibility: hidden;
+  width: 20px; height: 20px; border-radius: 50%;
   flex: 0 0 auto;
   display: grid; place-items: center;
   color: var(--accent-focus);
   border: 1px solid var(--border);
-  transition: opacity .12s;
+  transition: opacity .12s, visibility .12s;
 }
-.task-item:hover .task-play { visibility: visible; }
+.task-item:hover .task-play { opacity: 1; visibility: visible; }
 .task-play:hover { background: var(--accent-focus); border-color: var(--accent-focus); color: #fff; }
 
 .task-title { flex: 1; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
