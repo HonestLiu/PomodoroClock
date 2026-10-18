@@ -63,8 +63,8 @@ export function FloatWindow() {
   if (!visible) return null;
 
   const taskName = state.task_id
-    ? (tasks.find((t) => t.id === state.task_id)?.title ?? '未指定任务')
-    : '未指定任务';
+    ? (tasks.find((t) => t.id === state.task_id)?.title ?? t('task.unspecified'))
+    : t('task.unspecified');
 
   const count = todayPomodoroCount({ tasks, lists, records }, state.task_id ?? undefined);
   const running = state.running;
@@ -75,7 +75,7 @@ export function FloatWindow() {
     <div
       ref={ref}
       className="float-win"
-      style={{ backgroundImage: `url(${resolveThumb(settings.wallpaper)})`, right: pos.right, bottom: pos.bottom }}
+      style={{ backgroundImage: `url("${resolveThumb(settings.wallpaper)}")`, right: pos.right, bottom: pos.bottom }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -92,9 +92,9 @@ export function FloatWindow() {
           </span>
           <button
             className="float-play"
-            title={running ? '暂停' : '开始专注'}
+            title={running ? t('timer.cta.pause') : t('timer.cta.start')}
             onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => { openScreen(true); if (state.phase === 'idle') toggleRun(); }}
+            onClick={() => { openScreen(true); toggleRun(); }}
           >
             {running ? <Pause size={14} /> : <Play size={14} style={{ marginLeft: 1 }} />}
           </button>
@@ -103,7 +103,7 @@ export function FloatWindow() {
 
       <button
         className="float-expand"
-        title="展开专注界面"
+        title={t('float.expand')}
         onPointerDown={(e) => e.stopPropagation()}
         onClick={() => openScreen(true)}
       >
@@ -112,7 +112,7 @@ export function FloatWindow() {
 
       <button
         className="float-close"
-        title="关闭小窗（计时继续）"
+        title={t('float.close')}
         onPointerDown={(e) => e.stopPropagation()}
         onClick={() => setVisible(false)}
       >

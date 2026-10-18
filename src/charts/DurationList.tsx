@@ -2,9 +2,11 @@
 
 import type { TaskDuration } from '@/types';
 import { formatMinutes } from '@/lib/date';
+import { useI18n } from '@/i18n';
 
 export function DurationList({ items, showTask }: { items: TaskDuration[]; showTask: boolean }) {
-  if (items.length === 0) return <div className="empty">该周期暂无专注记录</div>;
+  const { t } = useI18n();
+  if (items.length === 0) return <div className="empty">{t('charts.noData')}</div>;
   const max = Math.max(1, ...items.map((i) => i.minutes));
 
   return (
@@ -13,7 +15,7 @@ export function DurationList({ items, showTask }: { items: TaskDuration[]; showT
         <div key={`${it.task_id ?? 'none'}-${i}`} style={{ marginBottom: 10 }}>
           <div className="dur-row" style={{ padding: 0 }}>
             <span className="dur-name">
-              {showTask ? it.title : `任务 ${i + 1}`}
+              {showTask ? it.title : t('chart.taskN', { n: i + 1 })}
             </span>
             <span className="dur-val">{formatMinutes(it.minutes)}</span>
           </div>

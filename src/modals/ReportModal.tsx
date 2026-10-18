@@ -1,6 +1,6 @@
 // 报表模态窗口 —— PRD §5.5 FR-R1…FR-R6（截图事实 S4）
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { StatCards, countCard, minutesCard } from '@/components/StatCards';
 import { PomodoroHeatmap } from '@/charts/PomodoroHeatmap';
@@ -14,8 +14,9 @@ import { useStatsStore } from '@/stores/statsStore';
 import { useDataStore } from '@/stores/dataStore';
 import { dailyFocusMap, focusTrend, type Dataset } from '@/lib/derive';
 import type { GridCell, ListDistribution, Period, TaskDuration } from '@/types';
-import { formatMinutes, shiftPeriod, startOfWeek, toDateKey } from '@/lib/date';
+import { formatMinutes, formatPeriodTitle, shiftPeriod, toDateKey } from '@/lib/date';
 import { useI18n, tStatic } from '@/i18n';
+import { useModalA11y } from '@/components/useModalA11y';
 
 const PERIODS: Array<{ key: Period; label: string }> = [
   { key: 'day', label: 'report.day' },
@@ -24,34 +25,15 @@ const PERIODS: Array<{ key: Period; label: string }> = [
   { key: 'year', label: 'report.year' },
 ];
 
-function periodLabel(period: Period, anchor: Date): string {
-  const now = new Date();
-  const sameDay = toDateKey(anchor) === toDateKey(now);
-  switch (period) {
-    case 'day':
-      if (sameDay) return '今天';
-      return `${anchor.getMonth() + 1}月${anchor.getDate()}日`;
-    case 'week': {
-      const s = startOfWeek(anchor);
-      const e = new Date(s); e.setDate(e.getDate() + 6);
-      const isThisWeek = toDateKey(s) === toDateKey(startOfWeek(now));
-      return isThisWeek ? '本周' : `${s.getMonth() + 1}月${s.getDate()}日–${e.getMonth() + 1}月${e.getDate()}日`;
-    }
-    case 'month':
-      return `${anchor.getFullYear()}年${anchor.getMonth() + 1}月`;
-    case 'year':
-      return `${anchor.getFullYear()}年`;
-  }
-}
-
 function PeriodNav({
   period, anchor, onChange,
 }: { period: Period; anchor: Date; onChange(d: Date): void }) {
+  const { t } = useI18n();
   return (
     <div className="period-nav">
-      <button onClick={() => onChange(shiftPeriod(period, anchor, -1))} aria-label="上一周期"><ChevronLeft size={14} /></button>
-      <span className="period-label">{periodLabel(period, anchor)}</span>
-      <button onClick={() => onChange(shiftPeriod(period, anchor, 1))} aria-label="下一周期"><ChevronRight size={14} /></button>
+      <button onClick={() => onChange(shiftPeriod(period, anchor, -1))} aria-label={t('report.prev')}><ChevronLeft size={14} aria-hidden /></button>
+      <span className="period-label">{formatPeriodTitle(period, anchor)}</span>
+      <button onClick={() => onChange(shiftPeriod(period, anchor, 1))} aria-label={t('report.next')}><ChevronRight size={14} aria-hidden /></button>
     </div>
   );
 }
@@ -73,6 +55,8 @@ export function ReportModal() {
   const [distribution, setDistribution] = useState<{ items: ListDistribution[]; total: number }>({ items: [], total: 0 });
   const [calAnchor, setCalAnchor] = useState(new Date());
   const { t } = useI18n();
+  const modalRef = useRef<HTMLDivElement>(null);
+  useModalA11y(open, () => close(false), modalRef);
 
   useEffect(() => { if (open) void refresh(); }, [open, refresh, revision]);
 
@@ -100,22 +84,29 @@ export function ReportModal() {
 
   const s = stats;
   const cards = [
-    minutesCard('总专注时间', s?.total_focus_min ?? 0),
-    minutesCard('本周专注时间', s?.week_focus_min ?? 0),
-    minutesCard('今日专注时间', s?.today_focus_min ?? 0),
-    countCard('总完成任务', s?.total_done_tasks ?? 0),
-    countCard('本周完成任务', s?.week_done_tasks ?? 0),
-    countCard('今日完成任务', s?.today_done_tasks ?? 0),
+    minutesCard(t('stat.totalFocus'), s?.total_focus_min ?? 0),
+    minutesCard(t('stat.weekFocus'), s?.week_focus_min ?? 0),
+    minutesCard(t('stat.todayFocus'), s?.today_focus_min ?? 0),
+    countCard(t('stat.totalDone'), s?.total_done_tasks ?? 0),
+    countCard(t('stat.weekDone'), s?.week_done_tasks ?? 0),
+    countCard(t('stat.todayDone'), s?.today_done_tasks ?? 0),
   ];
 
   const goalMin = goal.daily_target_min;
 
   return (
     <div className="overlay" onClick={() => close(false)}>
-      <div className="modal report-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal report-modal"
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="report-title"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-head">
-          <h2>{t('report.title')}</h2>
-          <button className="icon-btn" onClick={() => close(false)} aria-label="关闭"><X size={16} /></button>
+          <h2 id="report-title">{t('report.title')}</h2>
+          <button className="icon-btn" onClick={() => close(false)} aria-label={t('common.close')}><X size={16} aria-hidden /></button>
         </div>
 
         <div className="modal-body">
@@ -234,9 +225,13 @@ export function ReportModal() {
 function GoalRing({ value, target }: { value: number; target: number }) {
   const pct = target > 0 ? Math.min(100, Math.round((value / target) * 100)) : 0;
   const r = 46, c = 2 * Math.PI * r;
+  const targetText = target > 0 ? tStatic('report.minutes', { n: target }) : '—';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, paddingTop: 6 }}>
-      <svg width={124} height={124} viewBox="0 0 124 124">
+      <svg
+        width={124} height={124} viewBox="0 0 124 124" role="img"
+        aria-label={`${tStatic('report.goalAchieve')} ${pct}% · ${formatMinutes(value)} / ${targetText}`}
+      >
         <circle cx={62} cy={62} r={r} fill="none" stroke="var(--accent-task)" strokeWidth={10} opacity={0.4} />
         <circle
           cx={62} cy={62} r={r} fill="none"
@@ -247,7 +242,7 @@ function GoalRing({ value, target }: { value: number; target: number }) {
         />
         <text x={62} y={56} textAnchor="middle" style={{ fontSize: 22, fontWeight: 700, fill: 'var(--text-1)' }}>{pct}%</text>
         <text x={62} y={74} textAnchor="middle" style={{ fontSize: 11, fill: 'var(--text-2)' }}>
-          {formatMinutes(value)} / {target > 0 ? `${target}分钟` : '—'}
+          {formatMinutes(value)} / {targetText}
         </text>
       </svg>
       <span style={{ fontSize: 12, color: 'var(--text-2)' }}>{tStatic('report.goalAchieve')}</span>

@@ -3,7 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
     <title>FocusPomodoro</title>
+    <script>
+      // 首帧语言：与 src/i18n/store.ts 的 detectLang() 同一规则，便于读屏与断词。
+      // 应用加载后由 i18n store 的 applyLang() 依据用户设置覆盖。
+      try {
+        document.documentElement.lang =
+          (navigator.language || 'zh').toLowerCase().startsWith('en') ? 'en' : 'zh-CN';
+      } catch (e) { /* 忽略：保持默认 zh-CN */ }
+    </script>
   </head>
   <body>
     <div id="root"></div>

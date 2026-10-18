@@ -32,10 +32,15 @@
   --bg-card: #2a2a2e;
   --text-1: #f2f2f4;
   --text-2: #9a9a9f;
-  --text-3: #6e6e73;
+  /* 原 #6e6e73 在深色卡片上对比度仅 2.8:1（提示文案几乎不可读），提到 4.2:1 */
+  --text-3: #8a8a91;
   --accent-task: #3a3a3e;
   --border: #38383c;
   --hover: #323236;
+  /* 深色下需要更重的阴影才有层次（浅色阴影在 #1c1c1e 上几乎不可见） */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 12px 48px rgba(0, 0, 0, 0.62);
 }
 
 * { box-sizing: border-box; }
@@ -69,9 +74,16 @@ input, textarea, select {
   user-select: text;
 }
 
-input:focus, textarea:focus, button:focus-visible {
+input:focus-visible, textarea:focus-visible, select:focus-visible,
+a:focus-visible, button:focus-visible,
+[tabindex]:focus-visible, [role='button']:focus-visible, [role='menuitem']:focus-visible,
+[role='option']:focus-visible, [role='tab']:focus-visible {
   outline: 2px solid var(--accent-blue);
   outline-offset: 1px;
+}
+/* 鼠标点击时不显示胶囊焦点圈，但键盘依旧可见 */
+input:focus:not(:focus-visible), textarea:focus:not(:focus-visible) {
+  outline: none;
 }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -235,7 +247,10 @@ input:focus, textarea:focus, button:focus-visible {
 
 /* 统计卡片（FR-T2 / FR-R2） */
 .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
-.stat-row.six { grid-template-columns: repeat(6, 1fr); }
+.stat-row.six { grid-template-columns: repeat(6, 1fr); gap: 10px; }
+/* 六卡并排时 28px 数字会互相压叠（1080px 弹层内每列仅 ~170px），按列宽等比缩小 */
+.stat-row.six .stat-value { font-size: 22px; letter-spacing: -.03em; white-space: nowrap; }
+.stat-row.six .stat-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .stat-card { display: flex; flex-direction: column; gap: 6px; }
 .stat-card .stat-label { font-size: 12px; color: var(--text-2); }
@@ -390,7 +405,11 @@ input:focus, textarea:focus, button:focus-visible {
 .period-nav button:hover { background: var(--hover); color: var(--text-1); }
 
 .switch { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text-2); cursor: pointer; }
-.switch input { display: none; }
+.switch input {
+  position: absolute; width: 1px; height: 1px; margin: -1px;
+  opacity: 0; pointer-events: none;
+}
+.switch:focus-within .track { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
 .switch .track {
   width: 32px; height: 18px; border-radius: 9px; background: var(--accent-task);
   position: relative; transition: background .16s;
@@ -511,106 +530,138 @@ input:focus, textarea:focus, button:focus-visible {
 .btn.danger:hover { background: rgba(232, 93, 63, 0.08); }
 .btn:disabled { opacity: .5; cursor: default; }
 
-.avatar-lg { width: 64px; height: 64px; border-radius: 50%; background: var(--accent-blue); color: #fff; display: grid; place-items: center; font-size: 24px; font-weight: 600; overflow: hidden; }
-.avatar-lg img { width: 100%; height: 100%; object-fit: cover; }
 
-/* ── 账号资料卡 ─────────────────────────────────────── */
-.profile-card {
-  display: flex; align-items: flex-start; gap: 20px;
-  background: linear-gradient(135deg, var(--bg-sidebar) 0%, var(--bg-card) 82%);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 22px 24px;
-  margin-bottom: 6px;
+/* ── 账号页（S5）：软件账号 = 云端账号，一页两态 ───────────── */
+.account-card {
+  display: flex; flex-direction: column; gap: 18px;
+  max-width: 460px; margin: 0 auto;
+  background: linear-gradient(180deg, var(--bg-card), var(--bg-sidebar) 150%);
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  padding: 28px 26px 22px; box-shadow: var(--shadow-md);
 }
-.profile-avatar {
-  position: relative; flex: 0 0 auto;
-  width: 84px; height: 84px; border-radius: 50%;
-  background: var(--accent-blue); color: #fff;
-  display: grid; place-items: center;
-  font-size: 32px; font-weight: 600; overflow: hidden;
-  border: 3px solid var(--bg-card);
-  box-shadow: var(--shadow-md);
-}
-.profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
-.profile-avatar-edit {
-  position: absolute; inset: auto 0 0 0; height: 30px;
-  background: rgba(0,0,0,.5); color: #fff;
-  display: grid; place-items: center;
-  opacity: 0; transition: opacity .15s;
-}
-.profile-avatar:hover .profile-avatar-edit { opacity: 1; }
-.profile-avatar:hover { box-shadow: 0 0 0 3px var(--accent-blue), var(--shadow-md); }
-.profile-info { flex: 1; min-width: 0; display: flex; }
-.profile-head { position: relative; display: flex; flex-direction: column; gap: 4px; width: 100%; }
-.profile-name { font-size: 18px; font-weight: 700; letter-spacing: -.02em; color: var(--text-1); }
-.profile-email { font-size: 13px; color: var(--text-2); }
-.profile-motto {
-  font-size: 13px; color: var(--text-2); font-style: italic;
-  margin-top: 6px; padding-top: 8px; border-top: 1px dashed var(--border);
-  line-height: 1.6;
-}
-.profile-motto.empty { color: var(--text-3); font-style: normal; }
-.profile-edit {
-  position: absolute; top: 2px; right: 0;
-  font-size: 12px; color: var(--accent-blue);
-  padding: 3px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm);
-  background: var(--bg-card);
-  transition: background .12s, border-color .12s;
-}
-.profile-edit:hover { background: var(--hover); border-color: var(--accent-blue); }
-.profile-form { display: flex; flex-direction: column; gap: 8px; width: 100%; }
-.profile-actions { display: flex; gap: 8px; margin-top: 2px; }
-
-/* ── 登录卡（未登录态） ─────────────────────────────── */
-.login-wrap { display: flex; justify-content: center; padding: 28px 0 12px; }
-.login-card {
-  width: min(340px, 100%);
-  background: linear-gradient(180deg, var(--bg-card), var(--bg-sidebar) 130%);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 30px 28px 22px;
-  box-shadow: var(--shadow-md);
-  display: flex; flex-direction: column; align-items: center;
-}
-.login-logo {
+/* 未登录：登录/注册卡 */
+.account-form-wrap { display: flex; flex-direction: column; align-items: center; }
+.account-logo {
   width: 54px; height: 54px; border-radius: 50%;
   background: linear-gradient(135deg, var(--accent-focus), var(--accent-blue));
   color: #fff; display: grid; place-items: center;
-  box-shadow: 0 6px 18px rgba(232, 93, 63, .35);
+  font-size: 24px; font-weight: 700;
+  box-shadow: 0 6px 18px rgba(232, 93, 63, .32);
   margin-bottom: 14px;
 }
-.login-title { font-size: 18px; font-weight: 700; margin: 0 0 4px; letter-spacing: -.02em; }
-.login-sub { font-size: 12.5px; color: var(--text-2); margin: 0 0 18px; text-align: center; line-height: 1.6; }
-.login-field {
-  display: flex; align-items: center; gap: 9px;
-  width: 100%; margin-bottom: 10px;
-  background: var(--bg-card);
+.account-title { margin: 0 0 6px; font-size: 17px; font-weight: 700; letter-spacing: -.02em; color: var(--text-1); text-align: center; }
+.account-subtitle { margin: 0 0 18px; max-width: 340px; font-size: 12.5px; line-height: 1.65; color: var(--text-2); text-align: center; }
+.account-form { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.account-field { display: flex; flex-direction: column; gap: 5px; }
+.account-field-label { font-size: 11.5px; color: var(--text-3); }
+.account-field .text-input { width: 100%; height: 38px; }
+.account-submit { height: 38px; margin-top: 4px; font-size: 13.5px; font-weight: 600; }
+.account-switch {
+  align-self: center; margin-top: 2px; padding: 4px 6px;
+  font-size: 12.5px; color: var(--accent-blue);
+  background: none; border: none; cursor: pointer; border-radius: var(--radius-sm);
+}
+.account-switch:hover { text-decoration: underline; }
+.account-error { font-size: 12px; color: var(--accent-focus); }
+
+/* 已登录：账号卡 */
+.account-head { display: flex; align-items: center; gap: 14px; }
+.account-avatar {
+  position: relative; flex: 0 0 auto; width: 64px; height: 64px; border-radius: 50%;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--accent-focus), var(--accent-blue));
+  color: #fff; display: grid; place-items: center;
+  font-size: 24px; font-weight: 700;
+  /* 现在是个按钮：抹掉浏览器默认外观，保持与原 div 一致 */
+  border: 0; padding: 0; font-family: inherit;
+  cursor: pointer; -webkit-appearance: none; appearance: none;
+}
+.account-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.account-avatar:disabled { cursor: progress; }
+.account-avatar-edit {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  background: rgba(0, 0, 0, 0.42); color: #fff;
+  opacity: 0; transition: opacity 0.15s;
+}
+.account-avatar:hover .account-avatar-edit,
+.account-avatar:focus-visible .account-avatar-edit,
+.account-avatar[aria-busy='true'] .account-avatar-edit { opacity: 1; }
+.account-avatar:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
+.account-avatar-loading {
+  padding: 0 4px; text-align: center;
+  font-size: 9px; line-height: 1.15; font-weight: 600; letter-spacing: 0;
+}
+.account-avatar-hint { font-size: 11px; line-height: 1.45; color: var(--text-3); }
+.account-avatar-remove {
+  margin-right: auto; border: 0; padding: 0; background: none;
+  font: inherit; font-size: 11.5px; color: var(--text-2); cursor: pointer;
+}
+.account-avatar-remove:hover { color: var(--accent-focus); text-decoration: underline; }
+.account-avatar-remove:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; border-radius: 3px; }
+.account-id { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.account-name-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.account-name-row .account-name { min-width: 0; }
+.account-edit {
+  flex: 0 0 auto; border: 0; padding: 0; background: none;
+  font: inherit; font-size: 11.5px; color: var(--text-2);
+  cursor: pointer; border-radius: 3px;
+}
+.account-edit:hover { color: var(--accent-blue); text-decoration: underline; }
+.account-edit:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
+/* 就地编辑资料（昵称；邮箱只读） */
+.account-profile-form {
+  display: flex; flex-direction: column; gap: 8px;
+  padding-top: 14px; border-top: 1px solid var(--border);
+}
+.account-profile-form .text-input { width: 100%; height: 38px; }
+.account-email-locked { font-size: 11px; line-height: 1.5; color: var(--text-3); }
+.account-card .account-name {
+  font-size: 17px; font-weight: 700; letter-spacing: -.02em; color: var(--text-1);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.account-card .account-email {
+  font-size: 12.5px; color: var(--text-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.account-badge {
+  display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto;
+  padding: 3px 10px; border: 1px solid var(--border); border-radius: 999px;
+  font-size: 11.5px; color: var(--text-2); white-space: nowrap;
+}
+.account-dot { width: 6px; height: 6px; border-radius: 50%; background: #3f9d6a; }
+.account-sync { display: flex; flex-direction: column; gap: 10px; padding-top: 16px; border-top: 1px solid var(--border); }
+.account-sync-title { font-size: 12px; font-weight: 600; color: var(--text-2); }
+.account-sync-state { font-size: 12.5px; color: var(--text-3); }
+.account-sync-state.error { color: var(--accent-focus); }
+.account-sync-actions { display: flex; gap: 8px; }
+.account-hint { margin: 0; font-size: 11.5px; line-height: 1.6; color: var(--text-3); }
+.account-hint.warn { color: var(--accent-focus); }
+.account-foot { display: flex; justify-content: flex-end; gap: 8px; padding-top: 14px; border-top: 1px solid var(--border); }
+/* 就地改密码（已登录） */
+.account-pwd-form { display: flex; flex-direction: column; gap: 8px; padding-top: 14px; border-top: 1px solid var(--border); }
+.account-pwd-form .text-input { width: 100%; height: 38px; }
+.account-pwd-actions { display: flex; gap: 8px; margin-top: 2px; }
+/* 未登录：注册/忘记密码两条文字链并排 */
+.account-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; margin-top: 4px; }
+
+/* 本地数据（两态通用） */
+.account-local-data {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+  max-width: 460px; margin: 18px auto 0; padding: 16px 18px;
   border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 0 12px; height: 40px;
-  transition: border-color .14s, box-shadow .14s;
+  background: var(--bg-app);
 }
-.login-field:focus-within { border-color: var(--accent-blue); box-shadow: 0 0 0 3px rgba(74, 125, 224, 0.18); }
-.login-field svg { flex: 0 0 auto; color: var(--text-3); }
-.login-field input {
-  flex: 1; min-width: 0; border: none; outline: none; background: none;
-  font: inherit; font-size: 13.5px; color: var(--text-1);
-}
-.login-field input::placeholder { color: var(--text-3); }
-.login-submit {
-  width: 100%; height: 40px; margin-top: 4px; font-size: 14px; font-weight: 600;
-  border-radius: var(--radius);
-}
-.login-switch {
-  margin-top: 14px; font-size: 12.5px; color: var(--accent-blue); padding: 4px 8px;
-}
-.login-switch:hover { text-decoration: underline; }
+.account-local-head { font-size: 12px; font-weight: 600; color: var(--text-2); }
+
+/* 登录/注册提示行（账号页与其它登录入口共用） */
 .login-msg {
   width: 100%; margin-top: 12px; padding: 8px 12px; border-radius: var(--radius-sm);
   font-size: 12px; line-height: 1.5; text-align: center;
 }
 .login-msg.error { background: rgba(232, 93, 63, 0.10); color: var(--accent-focus); }
 .login-msg.ok { background: rgba(74, 125, 224, 0.12); color: var(--accent-blue); }
+.login-msg.info { background: var(--hover); color: var(--text-1); }
+:root[data-theme='dark'] .login-msg.info { background: #2a2a2e; color: var(--text-1); }
 
 /* 确认弹窗 */
 .confirm-modal { width: min(400px, 92vw); }
@@ -951,4 +1002,78 @@ input:focus, textarea:focus, button:focus-visible {
   z-index: 6; padding: 7px 18px; border-radius: 20px;
   background: rgba(255,255,255,.92); color: #1a1a1a; font-size: 13px; font-weight: 600;
   box-shadow: 0 6px 24px rgba(0,0,0,.18); animation: pop .18s ease-out;
+}
+
+
+/* ── 深色主题补充覆盖（2026-10 审计补齐） ─────────────────────
+   变量级覆盖不足以表达 13 处硬编码颜色的语义，这里按需逐条修正。 */
+
+/* 滚动条：浅色是黑 14%，深色下必须换成白 */
+:root[data-theme='dark'] ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); }
+:root[data-theme='dark'] ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.26); }
+
+/* 遮罩：深色背景上 28% 黑不足以分离层级 */
+:root[data-theme='dark'] .overlay { background: rgba(0, 0, 0, 0.52); }
+:root[data-theme='dark'] .search-overlay { background: rgba(0, 0, 0, 0.5); }
+
+/* 未读通知底色：浅色 5% 蓝在深色卡片上不可见 */
+:root[data-theme='dark'] .notif-row.unread { background: rgba(74, 125, 224, 0.16); }
+
+/* 开关滑块、提示气泡、登录提示、危险按钮 hover */
+:root[data-theme='dark'] .switch .track::after { background: #e8e8ec; }
+:root[data-theme='dark'] .chart-tip { background: rgba(58, 58, 62, 0.96); color: var(--text-1); }
+:root[data-theme='dark'] .login-msg.error { background: rgba(232, 93, 63, 0.18); }
+:root[data-theme='dark'] .login-msg.ok { background: rgba(74, 125, 224, 0.2); }
+:root[data-theme='dark'] .btn.danger:hover { background: rgba(232, 93, 63, 0.18); }
+:root[data-theme='dark'] .timer-feedback { background: rgba(46, 46, 50, 0.94); color: var(--text-1); }
+
+/* 输入框在深色卡片内需要与卡片区分 */
+:root[data-theme='dark'] .text-input,
+:root[data-theme='dark'] .num-input,
+:root[data-theme='dark'] .new-list-input { background: rgba(255, 255, 255, 0.04); }
+:root[data-theme='dark'] .text-input:hover,
+:root[data-theme='dark'] .num-input:hover { border-color: #4a4a50; }
+
+/* 选中文本 */
+:root[data-theme='dark'] ::selection { background: rgba(74, 125, 224, 0.45); color: #fff; }
+::selection { background: rgba(74, 125, 224, 0.22); }
+
+/* ── 仅屏幕阅读器可见 ─────────────────────────────────────── */
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%);
+  white-space: nowrap; border: 0;
+}
+
+/* ── 渲染崩溃兜底（components/ErrorBoundary.tsx） ─────────── */
+.crash {
+  position: fixed; inset: 0; z-index: 9999;
+  display: grid; place-items: center;
+  background: var(--bg-app); padding: 24px;
+}
+.crash-card {
+  width: min(560px, 92vw);
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
+  padding: 24px 26px;
+}
+.crash-title { margin: 0 0 8px; font-size: 16px; font-weight: 600; color: var(--text-1); }
+.crash-text { margin: 0; font-size: 13px; color: var(--text-2); line-height: 1.7; }
+.crash-detail {
+  margin: 14px 0 0; padding: 10px 12px; max-height: 180px; overflow: auto;
+  background: var(--hover); border-radius: var(--radius-sm);
+  font-size: 12px; color: var(--text-2); white-space: pre-wrap; word-break: break-word;
+}
+.crash-actions { display: flex; gap: 8px; margin-top: 18px; }
+
+/* ── 减少动态效果（NFR：无障碍 / 系统偏好） ───────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .timer-count.warn { animation: none !important; opacity: 1; }
 }

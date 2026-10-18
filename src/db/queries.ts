@@ -2,6 +2,7 @@
 //
 // 所有指标均由 focus_records / tasks 实时聚合，不做前端缓存（PRD §8.8-3）。
 
+import { tStatic } from '@/i18n/store';
 import type {
   FocusRecord, GridCell, ListDistribution, Period, SmartKey, Stats, Task, TaskDuration,
 } from '@/types';
@@ -105,9 +106,9 @@ export function completedGroups(): Array<{ dateKey: string; records: FocusRecord
 }
 
 export function taskTitle(taskId: string | null): string {
-  if (!taskId) return '未指定任务';
+  if (!taskId) return tStatic('task.unspecified');
   const t = getDB().tasks.find((x) => x.id === taskId);
-  return t ? t.title : '未指定任务';
+  return t ? t.title : tStatic('task.unspecified');
 }
 
 // ── 统计口径（PRD §7.2） ────────────────────────────────────────────────
@@ -273,7 +274,7 @@ export function listDistribution(period: Period, anchor: Date): { items: ListDis
       const list = db.lists.find((l) => l.id === k);
       return {
         list_id: k === '__none__' ? null : k,
-        name: list ? list.name : '未指定任务',
+        name: list ? list.name : tStatic('task.unspecified'),
         minutes,
         percent: total === 0 ? 0 : Math.round((minutes / total) * 100),
       };

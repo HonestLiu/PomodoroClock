@@ -1,4 +1,21 @@
 // 日期与分组逻辑 —— PRD §7.3
+//
+// 本地化说明：本模块不 import i18n（避免 i18n → date → i18n 循环依赖）。
+// 当前语言由 src/i18n/store.ts 通过 setDateLocale() 单向下发，因此调用方无需传参，
+// 英文界面下「今天 / 昨天 / 10月13日 / 8小时59分钟」会自动切换为 Today / Yesterday / 10/13 / 8h 59m。
+
+export type DateLocale = 'zh' | 'en';
+
+let dateLocale: DateLocale = 'zh';
+
+/** 由 i18n 层在初始化与切换语言时调用 */
+export function setDateLocale(locale: DateLocale): void {
+  dateLocale = locale === 'en' ? 'en' : 'zh';
+}
+
+export function getDateLocale(): DateLocale {
+  return dateLocale;
+}
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -103,11 +120,15 @@ export function shiftPeriod(period: 'day' | 'week' | 'month' | 'year', anchor: D
   }
 }
 
-/** 「8小时59分钟」/「20分钟」/「0分钟」 */
+/** 「8小时59分钟」/「20分钟」/「0分钟」；英文「8h 59m」/「20m」/「0m」 */
 export function formatMinutes(min: number): string {
   const m = Math.max(0, Math.round(min));
   const h = Math.floor(m / 60);
   const rest = m % 60;
+  if (dateLocale === 'en') {
+    if (h > 0) return rest === 0 ? `${h}h` : `${h}h ${rest}m`;
+    return `${m}m`;
+  }
   if (h > 0) return rest === 0 ? `${h}小时` : `${h}小时${rest}分钟`;
   return `${rest}分钟`;
 }
@@ -137,28 +158,79 @@ export function formatHM(ts: number): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-/** 分组标题：今天 / 昨天 / 10月13日（PRD §5.3 FR-C1） */
+/** 分组标题：今天 / 昨天 / 10月13日（PRD §5.3 FR-C1）；英文 Today / Yesterday / 10/13 */
 export function relativeDayLabel(key: string): string {
+  const en = dateLocale === 'en';
   const today = todayKey();
-  if (key === today) return '今天';
-  if (key === toDateKey(addDays(new Date(), -1))) return '昨天';
+  if (key === today) return en ? 'Today' : '今天';
+  if (key === toDateKey(addDays(new Date(), -1))) return en ? 'Yesterday' : '昨天';
   const d = parseDateKey(key);
   const now = new Date();
-  if (d.getFullYear() === now.getFullYear()) return `${d.getMonth() + 1}月${d.getDate()}日`;
-  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+  const md = `${d.getMonth() + 1}${en ? '/' : '月'}${d.getDate()}${en ? '' : '日'}`;
+  if (d.getFullYear() === now.getFullYear()) return md;
+  return en ? `${md}/${d.getFullYear()}` : `${d.getFullYear()}年${md}`;
 }
 
-/** 「10月13日」—— 任务行到期日 */
+/** 「10月13日」—— 任务行到期日；英文 10/13 */
 export function formatDueDate(key: string | null): string {
   if (!key) return '';
   const d = parseDateKey(key);
   const now = new Date();
-  if (d.getFullYear() === now.getFullYear()) return `${d.getMonth() + 1}月${d.getDate()}日`;
-  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+  if (d.getFullYear() === now.getFullYear()) {
+    return dateLocale === 'en'
+      ? `${d.getMonth() + 1}/${d.getDate()}`
+      : `${d.getMonth() + 1}月${d.getDate()}日`;
+  }
+  return dateLocale === 'en'
+    ? `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`
+    : `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
-/** 月历网格（周一起始，上下月补位）—— PRD §7.3 / FR-R6 */
-export interface CalendarCell {
+/**
+ * 报表周期标题 —— 今天 / 10月13日 / 本周 / 10月1日–10月31日 / 2026年10月 / 2026
+ * 英文：Today / 10/13 / This week / 10/1 – 10/31 / Oct 2026 / 2026
+ */
+export function formatPeriodTitle(
+  period: 'day' | 'week' | 'month' | 'year',
+  anchor: Date,
+): string {
+  const en = dateLocale === 'en';
+  const y = anchor.getFullYear();
+  const m = anchor.getMonth() + 1;
+  const d = anchor.getDate();
+  if (period === 'day') {
+    if (toDateKey(anchor) === todayKey()) return en ? 'Today' : '今天';
+    return en ? `${m}/${d}` : `${m}月${d}日`;
+  }
+  if (period === 'week') {
+    if (toDateKey(startOfWeek(anchor)) === toDateKey(startOfWeek(new Date()))) {
+      return en ? 'This week' : '本周';
+    }
+    const s = startOfWeek(anchor);
+    const e = endOfWeek(anchor);
+    const sm = s.getMonth() + 1;
+    const em = e.getMonth() + 1;
+    return en
+      ? `${sm}/${s.getDate()} – ${em}/${e.getDate()}`
+      : `${sm}月${s.getDate()}日–${em}月${e.getDate()}日`;
+  }
+  if (period === 'month') {
+    if (en) {
+      const mon = anchor.toLocaleDateString('en-US', { month: 'short' });
+      return `${mon} ${y}`;
+    }
+    return `${y}年${m}月`;
+  }
+  return String(y);
+}
+
+/** 图表坐标轴短日期：10/13（中英一致），供趋势图 X 轴使用 */
+export function formatShortDate(key: string): string {
+  const d = parseDateKey(key);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+/** 月历网格（周一起始，上下月补位）—— PRD §7.3 / FR-R6 */export interface CalendarCell {
   date: Date;
   key: string;
   inMonth: boolean;

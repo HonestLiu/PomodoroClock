@@ -23,8 +23,9 @@ export function phaseDurationMs(
 /** 当前剩余毫秒；正计时模式返回已用毫秒 */
 export function remainingMs(state: TimerState, now: number): number {
   if (state.mode === 'stopwatch') {
-    if (!state.start_at) return 0;
-    return state.running ? now - state.start_at : 0;
+    // 暂停中必须返回已冻结的已用时（paused_remaining_ms），否则暂停后仍随 now 增长
+    if (state.running) return state.start_at ? Math.max(0, now - state.start_at) : 0;
+    return state.paused_remaining_ms ?? 0;
   }
   if (state.running && state.end_at !== null) return Math.max(0, state.end_at - now);
   if (state.paused_remaining_ms !== null) return state.paused_remaining_ms;
@@ -40,7 +41,9 @@ export function isExpired(state: TimerState, now: number): boolean {
 export function startState(state: TimerState, durationMs: number, now: number): TimerState {
   const remaining = state.paused_remaining_ms ?? durationMs;
   if (state.mode === 'stopwatch') {
-    return { ...state, running: true, start_at: state.start_at ?? now, end_at: null, paused_remaining_ms: null };
+    // 正计时恢复：把已冻结的已用时折算回 start_at，否则暂停期间会被算进专注时长
+    const startAt = state.start_at === null ? now : now - (state.paused_remaining_ms ?? 0);
+    return { ...state, running: true, start_at: startAt, end_at: null, paused_remaining_ms: null };
   }
   return {
     ...state,
@@ -76,8 +79,9 @@ export function idlePhase(state: TimerState, phase: TimerPhase, durationMs: numb
 /** 格式化 MM:SS（正计时显示已用时间） */
 export function displayMs(state: TimerState, now: number, fallbackMs: number): number {
   if (state.mode === 'stopwatch') {
-    if (!state.start_at) return 0;
-    return Math.max(0, now - state.start_at);
+    if (state.running) return state.start_at ? Math.max(0, now - state.start_at) : 0;
+    // 暂停中：显示冻结的已用时，而不是随 now 继续增长
+    return state.paused_remaining_ms ?? 0;
   }
   if (state.phase === 'idle' && !state.running && state.paused_remaining_ms === null) return fallbackMs;
   return remainingMs(state, now);

@@ -3,8 +3,13 @@
 
 import { useMemo } from 'react';
 import { monthGrid, todayKey } from '@/lib/date';
+import { useI18n } from '@/i18n';
 
-const WEEK_LABELS = ['一', '二', '三', '四', '五', '六', '日'];
+/** 星期表头（周一起始）—— 文案走词表，英文显示 Mon…Sun */
+const WEEK_KEYS = [
+  'weekday.mon', 'weekday.tue', 'weekday.wed', 'weekday.thu',
+  'weekday.fri', 'weekday.sat', 'weekday.sun',
+] as const;
 
 export function DailyCalendar({
   year, month0, focusByDay, goalMin,
@@ -16,11 +21,12 @@ export function DailyCalendar({
 }) {
   const cells = useMemo(() => monthGrid(year, month0), [year, month0]);
   const today = todayKey();
+  const { t } = useI18n();
 
   return (
     <>
-      <div className="cal-head">
-        {WEEK_LABELS.map((w) => <span key={w}>{w}</span>)}
+      <div className="cal-head" aria-hidden>
+        {WEEK_KEYS.map((k) => <span key={k}>{t(k)}</span>)}
       </div>
       <div className="cal-grid">
         {cells.map((c) => {
@@ -39,7 +45,7 @@ export function DailyCalendar({
             <div
               key={c.key}
               className={cls}
-              title={minutes > 0 ? `${c.key} · ${minutes}分钟` : c.key}
+              title={minutes > 0 ? t('cal.cellTip', { date: c.key, min: minutes }) : c.key}
             >
               {c.date.getDate()}
             </div>

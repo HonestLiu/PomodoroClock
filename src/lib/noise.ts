@@ -7,15 +7,21 @@ import breezeUrl from '@/assets/noise/breeze.mp3';
 import forestUrl from '@/assets/noise/forest.mp3';
 import woodsUrl from '@/assets/noise/woods.mp3';
 import cozyUrl from '@/assets/noise/cozy.mp3';
+import { tStatic } from '@/i18n';
 
 export type NoiseKind = 'waves' | 'rain' | 'wind' | 'woods' | 'cozy';
 
+/**
+ * 白噪音名称 —— 走词表，中英双语。
+ * 用 getter 而非静态字符串：每次读取都取当前语言的文案，
+ * 所以切换语言后计时页工具条与设置页下拉都会跟着变。
+ */
 export const NOISE_LABELS: Record<NoiseKind, string> = {
-  waves: '海浪',
-  rain: '雨声',
-  wind: '微风',
-  woods: '树林',
-  cozy: '温馨',
+  get waves() { return tStatic('noise.waves'); },
+  get rain() { return tStatic('noise.rain'); },
+  get wind() { return tStatic('noise.wind'); },
+  get woods() { return tStatic('noise.woods'); },
+  get cozy() { return tStatic('noise.cozy'); },
 };
 
 /** 每种白噪音对应的音频资源 */

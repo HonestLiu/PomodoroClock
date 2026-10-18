@@ -29,24 +29,24 @@ export function TitleBar() {
       {/* macOS：系统红黄绿由 titleBarStyle:Overlay 保留，不需要自绘按钮 */}
       {!isMac && (
         <div className="traffic">
-          <button className="close" title="关闭" onClick={() => windowAction('close')}><span>✕</span></button>
-          <button className="min" title="最小化" onClick={() => windowAction('minimize')}><span>−</span></button>
-          <button className="max" title="最大化" onClick={() => windowAction('toggleMaximize')}><span>+</span></button>
+          <button className="close" title={t('titlebar.close')} aria-label={t('titlebar.close')} onClick={() => windowAction('close')}><span aria-hidden>✕</span></button>
+          <button className="min" title={t('titlebar.minimize')} aria-label={t('titlebar.minimize')} onClick={() => windowAction('minimize')}><span aria-hidden>−</span></button>
+          <button className="max" title={t('titlebar.maximize')} aria-label={t('titlebar.maximize')} onClick={() => windowAction('toggleMaximize')}><span aria-hidden>+</span></button>
         </div>
       )}
 
       <div className="titlebar-drag" data-tauri-drag-region />
 
       <div className="titlebar-actions">
-        <button className="icon-btn" title={t('title.premium')} onClick={() => ui.openPremium(!ui.premiumOpen)}><Crown size={16} /></button>
-        <button className="icon-btn" title={t('title.friends')} onClick={() => ui.openFriends(!ui.friendsOpen)}><Users size={16} /></button>
-        <button className="icon-btn" title={t('notif.title')} onClick={() => ui.openNotif(!ui.notifOpen)}>
-          <Bell size={16} />
-          {unread > 0 && <span className="badge">{unread}</span>}
+        <button className="icon-btn" title={t('title.premium')} aria-label={t('title.premium')} aria-pressed={ui.premiumOpen} onClick={() => ui.openPremium(!ui.premiumOpen)}><Crown size={16} aria-hidden /></button>
+        <button className="icon-btn" title={t('title.friends')} aria-label={t('title.friends')} aria-pressed={ui.friendsOpen} onClick={() => ui.openFriends(!ui.friendsOpen)}><Users size={16} aria-hidden /></button>
+        <button className="icon-btn" title={t('notif.title')} aria-label={t('notif.title')} aria-expanded={ui.notifOpen} onClick={() => ui.openNotif(!ui.notifOpen)}>
+          <Bell size={16} aria-hidden />
+          {unread > 0 && <span className="badge" aria-hidden>{unread}</span>}
         </button>
-        <button className="icon-btn" title={t('title.achievements')} onClick={() => ui.openAchievements(!ui.achievementsOpen)}><Trophy size={16} /></button>
-        <button className={`icon-btn${ui.reportOpen ? ' active' : ''}`} title={t('report.title')} onClick={() => ui.openReport()}><BarChart3 size={16} /></button>
-        <button className="icon-btn" title={t('settings.title')} onClick={() => ui.openSettings()}><SettingsIcon size={16} /></button>
+        <button className="icon-btn" title={t('title.achievements')} aria-label={t('title.achievements')} aria-pressed={ui.achievementsOpen} onClick={() => ui.openAchievements(!ui.achievementsOpen)}><Trophy size={16} aria-hidden /></button>
+        <button className={`icon-btn${ui.reportOpen ? ' active' : ''}`} title={t('report.title')} aria-label={t('report.title')} aria-expanded={ui.reportOpen} onClick={() => ui.openReport()}><BarChart3 size={16} aria-hidden /></button>
+        <button className="icon-btn" title={t('settings.title')} aria-label={t('settings.title')} aria-expanded={ui.settingsOpen} onClick={() => ui.openSettings()}><SettingsIcon size={16} aria-hidden /></button>
       </div>
     </div>
   );

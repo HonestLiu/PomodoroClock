@@ -3,6 +3,7 @@
 // 三步都是**纯函数**，便于单测；两侧都收敛到同一结果。
 
 import { pb, CONFIGS, currentUser, pbErrorMessage } from './pb';
+import { tStatic } from '@/i18n';
 import { api } from '@/api';
 import { DEFAULT_SETTINGS, type Settings } from '@/types';
 
@@ -82,7 +83,11 @@ export function resolveDirection(local: SyncMeta | null, remote: SyncMeta | null
   if (remote.rev > local.rev) return 'pull';
   if (remote.rev < local.rev) return 'push';
   if (remote.updated !== local.updated) return remote.updated > local.updated ? 'pull' : 'push';
-  return (remote.device ?? '') > (local.device ?? '') ? 'pull' : 'push';
+  // 三元组完全一致（同一次写入）说明两边已对齐；此时再机械 push 会与实时订阅互相触发写放大。
+  const rd = remote.device ?? '';
+  const ld = local.device ?? '';
+  if (!rd || !ld || rd === ld) return 'none';
+  return rd > ld ? 'pull' : 'push';
 }
 
 // ── 读写云端 ──────────────────────────────────────────────────────────
@@ -105,7 +110,7 @@ export async function fetchRemote(): Promise<ConfigRecord | null> {
 /** 本地 -> 云端：读本地 Settings，按 rev 自增后 upsert */
 export async function pushConfig(): Promise<SyncMeta> {
   const me = currentUser();
-  if (!me) throw new Error('尚未登录');
+  if (!me) throw new Error(tStatic('err.notSignedIn'));
   const settings = await api.get_settings();
   const remote = await fetchRemote();
   const device = deviceId();
@@ -132,14 +137,20 @@ export async function pushConfig(): Promise<SyncMeta> {
   return meta;
 }
 
-/** 云端 -> 本地：把远端 Settings 覆盖写入本地（走 api 层，两个运行时一致） */
+/**
+ * 云端 -> 本地：把远端 Settings 写入本地（走 api 层，两个运行时一致）。
+ * 只写「远端确实带了」的白名单键：远端缺的键保留本地当前值，
+ * 这样部分配置（例如老版本只同步了主题）不会把其余设置冲成默认值。
+ */
 export async function applyRemote(rec: ConfigRecord): Promise<void> {
   const data = rec.data ?? {};
-  // 只写白名单键，避免脏数据污染本地
   const known = DEFAULT_SETTINGS as unknown as Record<string, unknown>;
   const writes: Array<Promise<unknown>> = [];
   for (const [k, v] of Object.entries(data)) {
     if (!(k in known)) continue;
+    // 跳过空值与非标量：String(undefined) 会写出 "undefined" 污染本地设置
+    if (v === null || v === undefined) continue;
+    if (typeof v === 'object' || typeof v === 'function') continue;
     writes.push(api.set_setting(k, String(v)));
   }
   await Promise.all(writes);
@@ -153,13 +164,10 @@ export async function pullConfig(): Promise<Direction> {
   if (!me) return 'none';
   const remote = await fetchRemote();
   const direction = resolveDirection(readMeta(me.id), remote ? remoteMeta(remote) : null);
-  if (direction === 'pull' && remote) await applyRemote(recWithLocalDefaults(remote));
+  // applyRemote 只写远端出现的键，缺键自然保留本地值；无需先做合并，
+  // 否则会把本地所有键重新写一遍，触发无意义的设置变更与推送。
+  if (direction === 'pull' && remote) await applyRemote(remote);
   return direction;
-}
-
-/** 远端缺键时用本地值补齐，避免把部分配置覆盖成默认值 */
-function recWithLocalDefaults(remote: ConfigRecord): ConfigRecord {
-  return { ...remote, data: { ...(remote.data ?? {}) } };
 }
 
 // ── 实时订阅 ──────────────────────────────────────────────────────────

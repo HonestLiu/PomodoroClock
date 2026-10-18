@@ -143,6 +143,27 @@ pub fn is_empty(conn: &Connection) -> AppResult<bool> {
     Ok(n == 0)
 }
 
+/// 是否已完成过首启播种（与浏览器侧 settings.demo_seeded 语义对齐）。
+///
+/// `is_empty` 只看 lists 计数：用户「删除数据」后它又会变空，单靠它会在每次启动
+/// 重新播种。因此播种标记是唯一的防重播守卫（docs/03「同一种子数据」红线）。
+pub fn demo_seeded(conn: &Connection) -> AppResult<bool> {
+    let seeded: Option<String> = conn
+        .query_row("SELECT value FROM settings WHERE key='demo_seeded'", [], |r| r.get(0))
+        .ok();
+    Ok(seeded.as_deref() == Some("1"))
+}
+
+/// 写入播种标记；首次播种、「删除数据」与「注销」后都要写，保证重启不再播种。
+pub fn mark_demo_seeded(conn: &Connection) -> AppResult<()> {
+    conn.execute(
+        "INSERT INTO settings (key, value) VALUES ('demo_seeded', '1')
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        [],
+    )?;
+    Ok(())
+}
+
 /// 截图还原数据 —— PRD §6.3
 ///
 /// 派生目标值：总专注 8小时59分钟(539min) / 本周 8小时59分钟 / 今日 20分钟
@@ -265,6 +286,7 @@ pub fn load_settings(conn: &Connection) -> AppResult<Settings> {
             "language" => s.language = v,
             "noise" => s.noise = v,
             "wallpaper" => s.wallpaper = v,
+            "motto" => s.motto = v,
             _ => {}
         }
     }

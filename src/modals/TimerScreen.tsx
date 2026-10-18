@@ -73,6 +73,21 @@ export function TimerScreen() {
     return () => clearTimeout(t);
   }, [feedback, setFeedback]);
 
+  // Esc 关闭全屏专注层（平台惯例）：控件已消费的 Esc（defaultPrevented）以及
+  // 输入框/下拉/音量滑杆内的 Esc 不拦截，避免打断输入与调节
+  useEffect(() => {
+    if (!screenOpen) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      const el = e.target as HTMLElement | null;
+      const tag = el?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el?.isContentEditable) return;
+      openScreen(false);
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [screenOpen, openScreen]);
+
   const pending = useMemo(() => todayPendingTasks(ds), [ds, revision]);
   const records = useMemo(() => todayRecords(ds), [ds, revision]);
   const todayTotal = useMemo(
@@ -135,7 +150,7 @@ export function TimerScreen() {
         onChange={(e) => setTask(e.target.value || null)}
         style={{ display: todayTasks.length ? 'block' : 'none' }}
       >
-        <option value="">未指定任务</option>
+        <option value="">{t('timer.untitled')}</option>
         {todayTasks.map((t) => (
           <option key={t.id} value={t.id}>{t.title}</option>
         ))}
@@ -153,7 +168,9 @@ export function TimerScreen() {
 
   return (
     <div className={`timer-screen${isMac ? ' macos' : ''}`} ref={rootRef}>
-      <div className="timer-bg" style={{ backgroundImage: `url(${resolveWallpaper(settings.wallpaper)})` }} />
+      {/* url() 必须加引号：Vite 内联的 SVG data URI 内含单引号（xmlns='...'），
+          未加引号的 url(...) 是非法 CSS，整条 background-image 会被解析器丢弃（背景全丢） */}
+      <div className="timer-bg" style={{ backgroundImage: `url("${resolveWallpaper(settings.wallpaper)}")` }} />
 
       {wasRestored && (
         <div className="timer-recover">
@@ -165,7 +182,7 @@ export function TimerScreen() {
 
       <div className="timer-top">
         {taskSelector}
-        <button className="timer-close" onClick={() => openScreen(false)} title="收起"><X size={16} /></button>
+        <button className="timer-close" onClick={() => openScreen(false)} title={t('timer.collapse')}><X size={16} /></button>
       </div>
 
       {feedback && (
@@ -180,7 +197,7 @@ export function TimerScreen() {
           </span>
           <span className={`timer-count tabular${warn ? ' warn' : ''}`}>{formatClock(ms)}</span>
           <span className="timer-sub">
-            {state.mode === 'stopwatch' ? '已专注' : '剩余'} · 本轮已完成 {todayPomodoroCount(ds)} 个番茄
+            {state.mode === 'stopwatch' ? t('timer.elapsed') : t('timer.remaining')} · {t('timer.thisRound', { n: todayPomodoroCount(ds) })}
           </span>
         </div>
 
@@ -230,7 +247,7 @@ export function TimerScreen() {
                       key={r.id}
                       className="timeline-bar"
                       style={{ left: `${left}%`, width: `${width}%`, top: 0, bottom: 0 }}
-                      title={`${formatHM(r.start_at)}–${formatHM(r.end_at)} · ${r.duration_min}分钟`}
+                      title={`${formatHM(r.start_at)}–${formatHM(r.end_at)} · ${t('record.duration', { n: r.duration_min })}`}
                     />
                   );
                 })}
@@ -242,7 +259,8 @@ export function TimerScreen() {
 
       <div className="timer-bottom">
         <button className="timer-cta" onClick={onCta}>
-          {state.running && state.phase === 'focus' ? <Pause size={15} /> : <Play size={15} />}
+          {/* 图标跟随 running：休息中按钮文案是「暂停」，图标却显示播放会自相矛盾 */}
+          {state.running ? <Pause size={15} /> : <Play size={15} />}
           {ctaLabel}
         </button>
 

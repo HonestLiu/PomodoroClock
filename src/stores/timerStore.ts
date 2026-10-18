@@ -52,6 +52,12 @@ interface TimerStoreState {
 
 let tickHandle: ReturnType<typeof setInterval> | null = null;
 let persistCounter = 0;
+// 结算单属主锁：阶段到期的归档 + 切段必须严格一次。tick 每 250ms 触发，
+// 而归档要走 IDB / Tauri IPC 往返，若不加锁，第二次 tick 会在首次 await 未完成时
+// 再次判定 isExpired → 重复写 focus_record（PRD §7.1 / 架构文档"单属主归档"）。
+let expiryBusy = false;
+// init 幂等：React StrictMode 下 effect 会双跑，重复 init 会在恢复路径重复归档。
+let inited = false;
 
 export const useTimerStore = create<TimerStoreState>((set, get) => ({
   settings: DEFAULT_SETTINGS,
@@ -67,6 +73,8 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
   rustRemaining: null,
 
   async init() {
+    if (inited) return;
+    inited = true;
     const [settings, saved] = await Promise.all([api.get_settings(), api.get_timer_state()]);
     const now = Date.now();
 
@@ -92,7 +100,9 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
       now,
       completedPomodoros: 0,
       screenOpen: restored.running || restored.phase !== 'idle',
-      wasRestored: saved.running || saved.phase !== 'idle',
+      // 仅在"已结算并停在下一个未开始阶段"时提示恢复。若会话仍在自己跑，提示条上的
+      // 「继续下一阶段」会 skip 掉正在进行的专注（不写记录），是破坏性误导。
+      wasRestored: !restored.running && restored.phase !== 'idle',
     });
     // 恢复计时后重新显示悬浮小窗
     if (restored.running || restored.phase !== 'idle') {
@@ -139,7 +149,18 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
     }
   },
 
-  setSettings(settings) { set({ settings }); },
+  setSettings(settings) {
+    set({ settings });
+    // 专注/休息时长被改动后，未开始的会话要按新时长重算剩余，否则 start() 会用
+    // 旧 paused_remaining_ms（旧时长）启动，设置里的时长改动不生效（PRD FR-S4）。
+    const { state } = get();
+    if (!state.running && state.phase === 'idle') {
+      const next = idlePhase(state, 'focus', Math.round(settings.focus_len_min * 60_000));
+      set({ state: next });
+      void api.set_timer_state(next);
+      emit('timer://state-changed', next);
+    }
+  },
   openScreen: (screenOpen) => set({ screenOpen }),
   clearRestored: () => set({ wasRestored: false }),
   setFeedback: (feedback) => set({ feedback }),
@@ -193,6 +214,7 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
     ));
     set({ state: next });
     void api.set_timer_state(next);
+    emit('timer://state-changed', next);  // 托盘「开始/暂停」文案依赖此事件
   },
 
   reset() {
@@ -200,6 +222,7 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
     const next = idlePhase({ ...state, phase: 'idle' }, 'focus', Math.round(settings.focus_len_min * 60_000));
     set({ state: next });
     void api.set_timer_state(next);
+    emit('timer://state-changed', next);
   },
 
   setTask(taskId) {
@@ -213,9 +236,12 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
     const next = idlePhase({ ...get().state, mode }, 'idle', Math.round(settings.focus_len_min * 60_000));
     set({ state: next });
     void api.set_timer_state(next);
+    emit('timer://state-changed', next);
   },
 
   async checkExpiry() {
+    // 单属主：结算过程中的 tick 必须直接返回，不能在 await 未完成时二次归档
+    if (expiryBusy) return;
     const { state } = get();
     const now = Date.now();
     if (!isExpired(state, now)) {
@@ -224,34 +250,40 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
       return;
     }
     persistCounter = 0;
-    const { settings } = get();
+    expiryBusy = true;
+    try {
+      const { settings } = get();
 
-    if (state.phase === 'focus') {
-      await finalizeFocus(state, settings);
-      const done = get().completedPomodoros + 1;
-      set({ completedPomodoros: done, feedback: tStatic('timer.feedback.focusDone') });
-      const breakDur = phaseDurationMs('break', state.mode, settings.focus_len_min, settings.break_len_min, settings.long_break_len_min, done, settings.long_break_every);
-      const next = settings.auto_start_next
-        ? startState(idlePhase(state, 'break', breakDur), breakDur, Date.now())
-        : idlePhase(state, 'break', breakDur);
-      set({ state: next });
-      await api.set_timer_state(next);
-      emit('timer://finished', { phase: 'focus', taskId: state.task_id });
-      void notify('focus_done', tStatic('notif.focusDoneTitle'), tStatic('notif.focusDoneBody'), settings);
-      playBell();
-      useUiStore.getState().setFloatVisible(true);
-    } else if (state.phase === 'break') {
-      set({ feedback: tStatic('timer.feedback.breakDone') });
-      const focusDur = phaseDurationMs('focus', state.mode, settings.focus_len_min, settings.break_len_min, settings.long_break_len_min, 0, settings.long_break_every);
-      const next = settings.auto_start_next
-        ? startState(idlePhase(state, 'focus', focusDur), focusDur, Date.now())
-        : idlePhase(state, 'focus', focusDur);
-      set({ state: next });
-      await api.set_timer_state(next);
-      emit('timer://finished', { phase: 'break', taskId: state.task_id });
-      void notify('break_done', tStatic('notif.breakDoneTitle'), tStatic('notif.breakDoneBody'), settings);
-      playBell();
-      useUiStore.getState().setFloatVisible(true);
+      if (state.phase === 'focus') {
+        await finalizeFocus(state, settings);
+        const done = get().completedPomodoros + 1;
+        set({ completedPomodoros: done, feedback: tStatic('timer.feedback.focusDone') });
+        const breakDur = phaseDurationMs('break', state.mode, settings.focus_len_min, settings.break_len_min, settings.long_break_len_min, done, settings.long_break_every);
+        const next = settings.auto_start_next
+          ? startState(idlePhase(state, 'break', breakDur), breakDur, Date.now())
+          : idlePhase(state, 'break', breakDur);
+        set({ state: next });
+        await api.set_timer_state(next);
+        emit('timer://finished', { phase: 'focus', taskId: state.task_id });
+        void notify('focus_done', tStatic('notif.focusDoneTitle'), tStatic('notif.focusDoneBody'), settings);
+        playBell();
+        useUiStore.getState().setFloatVisible(true);
+      } else if (state.phase === 'break') {
+        set({ feedback: tStatic('timer.feedback.breakDone') });
+        const focusDur = phaseDurationMs('focus', state.mode, settings.focus_len_min, settings.break_len_min, settings.long_break_len_min, 0, settings.long_break_every);
+        const next = settings.auto_start_next
+          ? startState(idlePhase(state, 'focus', focusDur), focusDur, Date.now())
+          : idlePhase(state, 'focus', focusDur);
+        set({ state: next });
+        await api.set_timer_state(next);
+        emit('timer://finished', { phase: 'break', taskId: state.task_id });
+        void notify('break_done', tStatic('notif.breakDoneTitle'), tStatic('notif.breakDoneBody'), settings);
+        playBell();
+        useUiStore.getState().setFloatVisible(true);
+      }
+    } finally {
+      // 归档/切段失败时不落锁，下一 tick 重试（至少一次语义），但绝不并发两次
+      expiryBusy = false;
     }
   },
 

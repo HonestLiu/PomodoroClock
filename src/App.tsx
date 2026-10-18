@@ -20,7 +20,7 @@ import { useTimerStore } from '@/stores/timerStore';
 import { useUiStore } from '@/stores/uiStore';
 import { useAuthStore, scheduleSyncPush } from '@/stores/authStore';
 import { api, on, isTauri } from '@/api';
-import { useI18nStore } from '@/i18n';
+import { useI18nStore, tStatic } from '@/i18n';
 
 export default function App() {
   const [booted, setBooted] = useState(false);
@@ -61,6 +61,32 @@ export default function App() {
     scheduleSyncPush();
   }, [settingsSig, booted]);
 
+  // 切换语言后清掉残留的同步提示：syncMessage 存的是「已渲染好的文案」，
+  // 不清掉会出现「英文界面挂着中文提示」的怪现象（提示本身是瞬时状态，清掉无害）。
+  const lang = useI18nStore((s) => s.lang);
+  useEffect(() => {
+    useAuthStore.getState().clearMessage();
+  }, [lang]);
+
+  // 云端昵称为空时，用本地昵称兜底写入一次（老用户迁移：把应用内既有昵称同步到 PocketBase）。
+  // 每个账号只尝试一次（localStorage 记住），避免用户主动清空昵称后又被回填。
+  const authStatus = useAuthStore((s) => s.status);
+  const cloudUser = useAuthStore((s) => s.user);
+  const localUserName = useDataStore((s) => s.user?.username ?? '');
+  useEffect(() => {
+    if (authStatus !== 'signedIn' || !cloudUser) return;
+    if (cloudUser.name && cloudUser.name.trim()) return;   // 云端已有昵称，以云端为准
+    const fallback = localUserName.trim();
+    if (!fallback) return;
+    const key = `nickname_backfill:${cloudUser.id}`;
+    if (localStorage.getItem(key)) return;
+    localStorage.setItem(key, '1');
+    void (async () => {
+      const ok = await useAuthStore.getState().updateNickname(fallback);
+      if (ok) useAuthStore.getState().clearMessage();   // 迁移不打扰用户，不显示「资料已更新」
+    })();
+  }, [authStatus, cloudUser, localUserName]);
+
   // 菜单栏托盘菜单事件（PRD §5.4 FR-P3）
   useEffect(() => {
     if (!isTauri()) return;
@@ -81,10 +107,10 @@ export default function App() {
     const updateToggle = () => {
       const s = useTimerStore.getState();
       const text = s.state.phase === 'break'
-        ? (s.state.running ? '暂停' : '开始休息')
+        ? (s.state.running ? tStatic('timer.cta.pause') : tStatic('timer.cta.startBreak'))
         : s.state.phase === 'focus'
-          ? (s.state.running ? '暂停' : '继续专注')
-          : '开始专注';
+          ? (s.state.running ? tStatic('timer.cta.pause') : tStatic('timer.cta.resume'))
+          : tStatic('timer.cta.start');
       void api.update_tray_toggle(text);
     };
     updateToggle();
@@ -95,8 +121,14 @@ export default function App() {
   // 全局快捷键：空格开始/暂停（PRD §9 可访问性）
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      if (e.repeat) return;        // 长按空格不重复 start/pause，否则会疯狂翻转
+      if (e.isComposing) return;   // 输入法组合中（中文候选词）不抢按键
+      const el = e.target as HTMLElement | null;
+      const tag = el?.tagName ?? '';
+      // 表单控件 / 按钮 / 链接 / 可编辑区自己消费空格与「/」：抢过来会让
+      // 聚焦按钮的 Space 变成"切换计时"而不是激活按钮（PRD §9 键盘可达）。
+      if (el && (el.isContentEditable || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
+        || tag === 'BUTTON' || tag === 'A' || tag === 'OPTION')) return;
       if (e.code === 'Space') {
         e.preventDefault();
         useTimerStore.getState().toggleRun();
@@ -117,7 +149,7 @@ export default function App() {
     return (
       <div className="app">
         <div style={{ display: 'grid', placeItems: 'center', height: '100%', color: 'var(--text-2)' }}>
-          正在加载…
+          {tStatic('app.loading')}
         </div>
       </div>
     );

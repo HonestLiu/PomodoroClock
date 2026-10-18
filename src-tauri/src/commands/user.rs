@@ -80,12 +80,14 @@ pub async fn pick_avatar(app: tauri::AppHandle) -> AppResult<Option<String>> {
     }
 }
 
-/// 注销账号：清理本地数据（PRD FR-S2）
+/// 退出登录：**会话级、可逆**，不碰本地数据。
+///
+/// 这里刻意不清理任何表：本地数据是断网时的真相来源（§8.8-5），
+/// 「换个账号登录」不该丢掉任务与专注记录。云端只同步 settings（configs.data），
+/// 所以保留本地数据也不会把 A 的任务泄漏给 B。
+/// 不可逆的「删除数据 / 注销」走 `clear_all_data`。
 #[tauri::command]
-pub fn logout(db: State<'_, Db>) -> AppResult<()> {
-    let mut conn = db.0.lock();
-    crate::db::clear_all(&mut conn)?;
-    crate::db::ensure_bootstrap(&conn)?;
+pub fn logout() -> AppResult<()> {
     Ok(())
 }
 
@@ -95,5 +97,7 @@ pub fn clear_all_data(db: State<'_, Db>) -> AppResult<()> {
     let mut conn = db.0.lock();
     crate::db::clear_all(&mut conn)?;
     crate::db::ensure_bootstrap(&conn)?;
+    // 与浏览器侧 clearToFactory() 一致：清库即标记已播种，防止重启回填演示数据。
+    crate::db::mark_demo_seeded(&conn)?;
     Ok(())
 }

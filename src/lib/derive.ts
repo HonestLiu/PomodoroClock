@@ -11,6 +11,7 @@ import type {
 import {
   addDays, endOfWeek, startOfDay, startOfWeek, toDateKey, todayKey,
 } from './date';
+import { tStatic } from '@/i18n';
 
 /** 一次派生所需的全部数据 */
 export interface Dataset {
@@ -106,8 +107,10 @@ export function searchLists(ds: Dataset, q: string) {
 }
 
 export function taskTitle(ds: Dataset, taskId: string | null): string {
-  if (!taskId) return '未指定任务';
-  return ds.tasks.find((t) => t.id === taskId)?.title ?? '未指定任务';
+  // 兜底文案走词表：英文界面下不再露出中文「未指定任务」
+  const fallback = tStatic('task.unspecified');
+  if (!taskId) return fallback;
+  return ds.tasks.find((t) => t.id === taskId)?.title ?? fallback;
 }
 
 // ── 专注记录 ────────────────────────────────────────────────────────────

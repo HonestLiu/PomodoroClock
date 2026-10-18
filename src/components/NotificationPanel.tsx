@@ -2,16 +2,17 @@
 
 import { useDataStore } from '@/stores/dataStore';
 import { useUiStore } from '@/stores/uiStore';
-import { useI18n } from '@/i18n';
+import { useI18n, type TFunc } from '@/i18n';
 
-function timeAgo(ts: number): string {
+/** 相对时间：文案由调用方传入的 t() 提供，避免在模块级硬编码中文 */
+function timeAgo(ts: number, t: TFunc): string {
   const diff = Date.now() - ts;
   const min = Math.floor(diff / 60_000);
-  if (min < 1) return '刚刚';
-  if (min < 60) return `${min} 分钟前`;
+  if (min < 1) return t('time.justNow');
+  if (min < 60) return t('time.minAgo', { n: min });
   const h = Math.floor(min / 60);
-  if (h < 24) return `${h} 小时前`;
-  return `${Math.floor(h / 24)} 天前`;
+  if (h < 24) return t('time.hourAgo', { n: h });
+  return t('time.dayAgo', { n: Math.floor(h / 24) });
 }
 
 export function NotificationPanel() {
@@ -42,7 +43,7 @@ export function NotificationPanel() {
               <div className="notif-body">
                 <div className="notif-title">{n.title}</div>
                 <div className="notif-text">{n.body}</div>
-                <div className="notif-time">{timeAgo(n.created_at)}</div>
+                <div className="notif-time">{timeAgo(n.created_at, t)}</div>
               </div>
             </div>
           ))}

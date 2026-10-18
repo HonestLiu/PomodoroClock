@@ -38,6 +38,14 @@ fn read_task(conn: &rusqlite::Connection, id: &str) -> AppResult<Task> {
 #[tauri::command]
 pub fn list_tasks(db: State<'_, Db>, args: Option<ListTasksArgs>) -> AppResult<Vec<Task>> {
     let conn = db.0.lock();
+    list_tasks_impl(&conn, args)
+}
+
+/// 可测试的查询实现：与浏览器侧 local.ts list_tasks 使用同一套过滤组合。
+pub fn list_tasks_impl(
+    conn: &rusqlite::Connection,
+    args: Option<ListTasksArgs>,
+) -> AppResult<Vec<Task>> {
     let a = args.unwrap_or_default();
 
     let mut sql = format!("SELECT {TASK_COLS} FROM tasks WHERE 1=1");
@@ -46,14 +54,26 @@ pub fn list_tasks(db: State<'_, Db>, args: Option<ListTasksArgs>) -> AppResult<V
     if let Some(list_id) = a.list_id {
         sql.push_str(" AND list_id = ?");
         binds.push(Value::Text(list_id));
+        // 与浏览器侧 tasksInList(listId) 对齐：只看清单、未显式指定 completed 时
+        // 默认只返回未完成任务（已完成的靠 completed=true 或「已完成」视图取）。
+        if a.completed.is_none() {
+            sql.push_str(" AND completed = 0");
+        }
     }
     if let Some(done) = a.completed {
         sql.push_str(" AND completed = ?");
         binds.push(Value::Integer(if done { 1 } else { 0 }));
     }
     if let Some(q) = a.search {
-        sql.push_str(" AND lower(title) LIKE ?");
-        binds.push(Value::Text(format!("%{}%", q.trim().to_lowercase())));
+        // 转义 LIKE 通配符，让搜索按字面量匹配（与浏览器侧 includes 一致）
+        let needle = q
+            .trim()
+            .to_lowercase()
+            .replace('\\', "\\\\")
+            .replace('%', "\\%")
+            .replace('_', "\\_");
+        sql.push_str(" AND lower(title) LIKE ? ESCAPE '\\'");
+        binds.push(Value::Text(format!("%{needle}%")));
     }
     if let Some(from) = a.due_from {
         sql.push_str(" AND due_date IS NOT NULL AND due_date >= ?");
@@ -111,7 +131,13 @@ pub fn create_task_impl(conn: &rusqlite::Connection, args: CreateTaskArgs) -> Ap
             params![l],
             |r| r.get(0),
         )?,
-        None => conn.query_row("SELECT COUNT(*) FROM tasks", [], |r| r.get(0))?,
+        // 未指定清单时只统计「未指定清单」分组，与浏览器侧
+        // d.tasks.filter(x => x.list_id === listId).length 对齐。
+        None => conn.query_row(
+            "SELECT COUNT(*) FROM tasks WHERE list_id IS NULL",
+            [],
+            |r| r.get(0),
+        )?,
     };
 
     conn.execute(
@@ -134,6 +160,14 @@ pub fn create_task_impl(conn: &rusqlite::Connection, args: CreateTaskArgs) -> Ap
 #[tauri::command]
 pub fn update_task(db: State<'_, Db>, id: String, patch: UpdateTaskPatch) -> AppResult<Task> {
     let conn = db.0.lock();
+    update_task_impl(&conn, &id, patch)
+}
+
+pub fn update_task_impl(
+    conn: &rusqlite::Connection,
+    id: &str,
+    patch: UpdateTaskPatch,
+) -> AppResult<Task> {
     if let Some(t) = &patch.title {
         super::require_non_empty("任务名称", t)?;
     }
@@ -158,7 +192,7 @@ pub fn update_task(db: State<'_, Db>, id: String, patch: UpdateTaskPatch) -> App
         conn.execute("UPDATE tasks SET sort_order = ?1 WHERE id = ?2", params![v, id])?;
     }
     conn.execute("UPDATE tasks SET updated_at = ?1 WHERE id = ?2", params![now, id])?;
-    read_task(&conn, &id)
+    read_task(conn, id)
 }
 
 /// 完成/未完成切换，写入 completed_at（PRD FR-T3）
@@ -188,9 +222,10 @@ pub fn reorder_tasks(db: State<'_, Db>, ids: Vec<String>) -> AppResult<()> {
 }
 
 pub fn reorder_tasks_impl(conn: &rusqlite::Connection, ids: &[String]) -> AppResult<()> {
-    let mut stmt = conn.prepare("UPDATE tasks SET sort_order = ?1, updated_at = ?2 WHERE id = ?3")?;
+    // 与浏览器侧重排一致：只改 sort_order，不刷新 updated_at（不是内容修改）。
+    let mut stmt = conn.prepare("UPDATE tasks SET sort_order = ?1 WHERE id = ?2")?;
     for (i, id) in ids.iter().enumerate() {
-        stmt.execute(params![i as i64, crate::db_now(), id])?;
+        stmt.execute(params![i as i64, id])?;
     }
     Ok(())
 }

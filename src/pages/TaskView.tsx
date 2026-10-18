@@ -1,7 +1,7 @@
 // 任务视图 / 分类视图 / 清单视图 —— PRD §5.1 FR-T1、§5.2
 // 页面标题 + 4 统计卡片 + 添加任务 + 任务列表 + 「显示已完成任务」
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { StatCards, countCard, minutesCard } from '@/components/StatCards';
 import { AddTask } from '@/components/AddTask';
@@ -31,6 +31,7 @@ export function TaskView() {
   const statsRevision = useStatsStore((s) => s.revision);
   const focusLenMin = useTimerStore((s) => s.settings.focus_len_min);
   const { t, dict } = useI18n();
+  const [moveMsg, setMoveMsg] = useState('');
 
   const key: SmartKey = route.name === 'list' ? 'tasks' : route.name;
   const listId = route.name === 'list' ? route.id : null;
@@ -82,6 +83,27 @@ export function TaskView() {
     void reorderTasks(ids);
   }
 
+  /** 键盘重排（拖拽的等价操作）：任务行上按 Alt + ↑/↓ */
+  function onListKeyDown(e: React.KeyboardEvent) {
+    if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+    const row = (e.target as HTMLElement).closest('.task-item') as HTMLElement | null;
+    const id = row?.dataset.taskId;
+    if (!id) return;
+    const ids = view.pending.map((x) => x.id);
+    const from = ids.indexOf(id);
+    const to = from + (e.key === 'ArrowUp' ? -1 : 1);
+    if (from < 0 || to < 0 || to >= ids.length) return;
+    e.preventDefault();
+    const [moved] = ids.splice(from, 1);
+    ids.splice(to, 0, moved);
+    void reorderTasks(ids);
+    const name = view.pending.find((x) => x.id === id)?.title ?? '';
+    setMoveMsg(t('a11y.moved', { name, n: to + 1 }));
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>(`[data-task-id="${id}"] .task-title`)?.focus();
+    });
+  }
+
   return (
     <div className="content">
       <h1 className="page-title">{title}</h1>
@@ -93,15 +115,20 @@ export function TaskView() {
         placeholder={t('task.add', { list: title })}
       />
 
-      <div className="task-list">
+      <div className="task-list" onKeyDown={onListKeyDown}>
         {view.pending.length === 0 && <div className="empty">{t('task.empty')}</div>}
         {view.pending.map((t) => <TaskItem key={t.id} task={t} onReorder={onReorder} />)}
       </div>
+      {/* 键盘重排的读屏播报（视觉隐藏） */}
+      <div className="sr-only" role="status" aria-live="polite">{moveMsg}</div>
 
       {(
         <>
-          <button className="show-completed" onClick={() => toggleShowCompleted(key)}>
-            {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          <button
+            className="show-completed" aria-expanded={expanded}
+            onClick={() => toggleShowCompleted(key)}
+          >
+            {expanded ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}
             {t('task.showCompleted')}
             <span style={{ color: 'var(--text-3)' }}>({view.done.length})</span>
           </button>

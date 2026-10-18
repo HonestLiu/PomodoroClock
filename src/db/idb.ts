@@ -108,7 +108,11 @@ export function initDB(): Promise<void> {
       memoryOnly = true;
       idb = null;
     }
-    data = buildSeed({ empty: true });
+    // 首次运行写入 §6.3 截图还原数据（与 db.rs 的 is_empty → seed_demo 同口径）。
+    // 只有在「本地完全没有任何既有记录」时才会走到这里；用户主动「删除数据」
+    // 或「重置」后写入的是带 demo_seeded 标记的空库，不会被重新播种。
+    data = buildSeed();
+    data.settings.push({ key: 'demo_seeded', value: '1' });
     await flush();
   })();
   return initPromise;
@@ -140,16 +144,21 @@ export async function flush(): Promise<void> {
   }
 }
 
+/** 清空业务数据：保留/重建默认用户，写入 demo_seeded 标记避免下次启动重新播种 */
+function clearToFactory(): void {
+  data = buildSeed({ empty: true });
+  data.settings.push({ key: 'demo_seeded', value: '1' });
+  scheduleSave();
+}
+
 /** 删除数据（PRD FR-S2「删除数据」）：清空业务表并重建默认用户 */
 export function wipeDB(): void {
-  data = buildSeed({ empty: true });
-  scheduleSave();
+  clearToFactory();
 }
 
 /** 全量重置为出厂（空数据，不再写入截图演示数据） */
 export function resetDB(): void {
-  data = buildSeed({ empty: true });
-  scheduleSave();
+  clearToFactory();
 }
 
 export function settingsMap(): Record<string, string> {

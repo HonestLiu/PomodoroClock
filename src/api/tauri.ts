@@ -63,7 +63,8 @@ export const tauriApi: Api = {
   mark_all_notifs_read: () => mutate('notifications', () => invoke('mark_all_notifs_read')),
 
   clear_all_data: () => mutate('all', () => invoke('clear_all_data')),
-  logout: () => mutate('all', () => invoke('logout')),
+  // 退出登录不改数据：只清前端会话，不应广播 data://changed（否则会触发一次无意义的全量重载）
+  logout: () => invoke('logout'),
 };
 
 /** 订阅 Rust→前端事件（PRD §8.5） */

@@ -112,13 +112,14 @@ pub fn get_goal_impl(conn: &rusqlite::Connection) -> AppResult<Goal> {
 }
 
 #[tauri::command]
-pub fn set_goal(db: State<'_, Db>, minutes: i64) -> AppResult<Goal> {
+pub fn set_goal(db: State<'_, Db>, minutes: f64) -> AppResult<Goal> {
     let conn = db.0.lock();
     set_goal_impl(&conn, minutes)
 }
 
-pub fn set_goal_impl(conn: &rusqlite::Connection, minutes: i64) -> AppResult<Goal> {
-    let m = minutes.max(0);
+pub fn set_goal_impl(conn: &rusqlite::Connection, minutes: f64) -> AppResult<Goal> {
+    // 与浏览器端 Math.max(0, Math.round(minutes)) 对齐：四舍五入后再夹紧
+    let m = minutes.round().max(0.0) as i64;
     conn.execute(
         "INSERT INTO goals (id, daily_target_min) VALUES ('default', ?1)
          ON CONFLICT(id) DO UPDATE SET daily_target_min = excluded.daily_target_min",
@@ -151,26 +152,62 @@ pub fn pomodoro_grid_impl(conn: &rusqlite::Connection, days: Option<i64>) -> App
     let dates = stmt
         .query_map(params![n], |r| r.get::<_, String>(0))?
         .collect::<Result<Vec<_>, _>>()?;
+    let wanted: std::collections::HashSet<&str> = dates.iter().map(|d| d.as_str()).collect();
 
+    // 按 rowid/插入顺序取记录，与浏览器侧遍历 getDB().focus_records 的顺序一致。
+    let modifier = format!("-{} day", n - 1);
     let mut stmt = conn.prepare(
-        "SELECT date(start_at/1000,'unixepoch','localtime') AS d,
-                CAST(strftime('%H', start_at/1000,'unixepoch','localtime') AS INTEGER) AS h,
-                SUM(duration_min), COUNT(*)
+        "SELECT date(start_at/1000,'unixepoch','localtime'), start_at, end_at
          FROM focus_records
          WHERE date(start_at/1000,'unixepoch','localtime') >= date('now','localtime',?1)
-         GROUP BY d, h",
+         ORDER BY rowid",
     )?;
-    let modifier = format!("-{} day", n - 1);
-    let cells = stmt
+    let records = stmt
         .query_map(params![modifier], |r| {
-            Ok(GridCell {
-                date: r.get(0)?,
-                hour: r.get(1)?,
-                minutes: r.get(2)?,
-                count: r.get(3)?,
-            })
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, i64>(1)?,
+                r.get::<_, i64>(2)?,
+            ))
         })?
         .collect::<Result<Vec<_>, _>>()?;
+
+    // 与浏览器侧 pomodoroGrid 逐字对齐：记录按分钟摊到每个经过的小时格，
+    // 每个格子的 count 是「落进该格的记录片段数」；日期固定取记录开始日
+    // （跨零点时仍归属开始日，与 TS 的 const dk = toDateKey(r.start_at) 一致）。
+    let mut clock = conn.prepare(
+        "SELECT CAST(strftime('%H', ?1/1000,'unixepoch','localtime') AS INTEGER),
+                strftime('%s', strftime('%Y-%m-%d %H:59:59', ?1/1000,'unixepoch','localtime'), 'utc') * 1000 + 999",
+    )?;
+    let mut cells: Vec<GridCell> = Vec::new();
+    let mut index: std::collections::HashMap<(String, i64), usize> = std::collections::HashMap::new();
+
+    for (date_key, start_at, end_at) in records {
+        if !wanted.contains(date_key.as_str()) {
+            continue;
+        }
+        let mut cursor = start_at;
+        let mut guard = 0;
+        while cursor < end_at && guard < 1000 {
+            guard += 1;
+            let (hour, hour_end): (i64, i64) =
+                clock.query_row(params![cursor], |r| Ok((r.get(0)?, r.get(1)?)))?;
+            let slice_end = end_at.min(hour_end);
+            let mins = ((slice_end - cursor) as f64 / 60_000.0).round().max(1.0) as i64;
+            let key = (date_key.clone(), hour);
+            match index.get(&key) {
+                Some(&i) => {
+                    cells[i].minutes += mins;
+                    cells[i].count += 1;
+                }
+                None => {
+                    index.insert(key, cells.len());
+                    cells.push(GridCell { date: date_key.clone(), hour, minutes: mins, count: 1 });
+                }
+            }
+            cursor = slice_end + 1;
+        }
+    }
 
     Ok(PomodoroGrid { dates, cells })
 }
@@ -180,10 +217,10 @@ pub fn pomodoro_grid_impl(conn: &rusqlite::Connection, days: Option<i64>) -> App
 pub fn get_task_durations(
     db: State<'_, Db>,
     period: String,
-    anchor_iso: String,
+    anchor_date: String,
 ) -> AppResult<TaskDurations> {
     let conn = db.0.lock();
-    task_durations_impl(&conn, &period, &anchor_iso)
+    task_durations_impl(&conn, &period, &anchor_date)
 }
 
 pub fn task_durations_impl(
@@ -197,7 +234,7 @@ pub fn task_durations_impl(
          FROM focus_records r LEFT JOIN tasks t ON t.id = r.task_id
          WHERE r.start_at BETWEEN {from_expr} AND {to_expr}
          GROUP BY r.task_id
-         ORDER BY SUM(r.duration_min) DESC"
+         ORDER BY SUM(r.duration_min) DESC, MIN(r.start_at) ASC"
     );
     let mut stmt = conn.prepare(&sql)?;
     let items = stmt
@@ -218,10 +255,10 @@ pub fn task_durations_impl(
 pub fn get_list_distribution(
     db: State<'_, Db>,
     period: String,
-    anchor_iso: String,
+    anchor_date: String,
 ) -> AppResult<ListDistribution> {
     let conn = db.0.lock();
-    list_distribution_impl(&conn, &period, &anchor_iso)
+    list_distribution_impl(&conn, &period, &anchor_date)
 }
 
 pub fn list_distribution_impl(
@@ -235,7 +272,7 @@ pub fn list_distribution_impl(
          FROM focus_records r LEFT JOIN lists l ON l.id = r.list_id
          WHERE r.start_at BETWEEN {from_expr} AND {to_expr}
          GROUP BY r.list_id
-         ORDER BY SUM(r.duration_min) DESC"
+         ORDER BY SUM(r.duration_min) DESC, MIN(r.start_at) ASC"
     );
     let mut stmt = conn.prepare(&sql)?;
     let raw = stmt

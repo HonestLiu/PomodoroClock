@@ -1,21 +1,27 @@
 // 设置弹窗 —— PRD §5.6 FR-S1/S2/S3（截图事实 S5）
 // 左侧 7 项导航：账号 / 高级版 / 通用 / 番茄钟 / 清单管理 / 外观 / 关于
+//
+// 账号页（S5）＝「软件账号」页：账号即 PocketBase 账号，一页两态——
+// 未登录：居中登录/注册卡（邮箱、密码[、确认密码]）＋ 下方「本地数据」；
+// 已登录：同一张卡变账号卡（头像/首字母、用户名/邮箱、已登录徽标、同步区、退出登录）＋「本地数据」。
+// 头像来自 PocketBase 的 users.avatar 文件字段（点头像更换，可移除）；其余资料（昵称等）不在此编辑。
 
 import { useEffect, useRef, useState } from 'react';
 import {
-  Camera, Crown, Info, ListChecks, Lock, Mail, Palette,
-  Settings as SettingsIcon, Sliders, Timer, User as UserIcon, X,
+  Camera, Crown, Info, ListChecks, Palette,
+  Settings as SettingsIcon, Sliders, User as UserIcon, X,
 } from 'lucide-react';
 import { useUiStore, type SettingsTab } from '@/stores/uiStore';
 import { useDataStore } from '@/stores/dataStore';
 import { useTimerStore } from '@/stores/timerStore';
 import { useAuthStore } from '@/stores/authStore';
-import { pbUpdateProfile, pbErrorMessage } from '@/lib/pb';
 import { api } from '@/api';
+import { pbAvatarFileUrl } from '@/lib/pb';
 import { NOISE_LABELS, type NoiseKind } from '@/lib/noise';
 import type { Settings } from '@/types';
 import type { ConfirmSpec } from './ConfirmDialog';
 import { useI18nStore, useI18n, type ZhKey } from '@/i18n';
+import { useModalA11y } from '@/components/useModalA11y';
 
 const TABS: Array<{ key: SettingsTab; labelKey: ZhKey; icon: typeof UserIcon }> = [
   { key: 'account', labelKey: 'settings.tab.account', icon: UserIcon },
@@ -29,85 +35,24 @@ const TABS: Array<{ key: SettingsTab; labelKey: ZhKey; icon: typeof UserIcon }> 
 
 export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): void }) {
   const ui = useUiStore();
-  const { user, lists, updateUser, pickAvatar, createList, renameList, deleteList } = useDataStore();
+  const { lists, createList, renameList, deleteList } = useDataStore();
   const setDefaultList = useDataStore((s) => s.setDefaultList);
   const timer = useTimerStore();
   const { t } = useI18n();
+  const modalRef = useRef<HTMLDivElement>(null);
 
   const [settings, setSettings] = useState<Settings>(timer.settings);
-  const [username, setUsername] = useState(user?.username ?? '');
-  const [email, setEmail] = useState(user?.email ?? '');
-  const [motto, setMotto] = useState(timer.settings.motto ?? '');
-  const [editingProfile, setEditingProfile] = useState(false);
-  const [editingPwd, setEditingPwd] = useState(false);
   const [newListName, setNewListName] = useState('');
   const [defaultListId, setDefaultListId] = useState<string | null>(null);
   const bgInputRef = useRef<HTMLInputElement>(null);
 
-  // 云同步（PocketBase）
-  const cloud = useAuthStore();
-  const [syncMode, setSyncMode] = useState<'login' | 'register'>('login');
-  const [syncEmail, setSyncEmail] = useState('');
-  const [syncPwd, setSyncPwd] = useState('');
-
-  async function doCloudAuth() {
-    if (!syncEmail.trim() || !syncPwd) return;
-    const ok = syncMode === 'login'
-      ? await cloud.login(syncEmail.trim(), syncPwd)
-      : await cloud.register(syncEmail.trim(), syncPwd);
-    if (ok) setSyncPwd('');
-  }
-
-  // 资料变更的提示（PB 账号字段报错时展示，不影响本地）
-  const [profileMsg, setProfileMsg] = useState<{ ok: boolean; text: string } | null>(null);
-
-  /** 保存资料：用户名写本地 users、邮箱写 PB 账号、座右铭写 settings（自动随配置同步云端） */
-  async function saveProfile() {
-    setProfileMsg(null);
-    try {
-      const name = username.trim();
-      const addr = email.trim();
-      if (name && name !== user?.username) await updateUser({ username: name });
-      if (addr && addr !== (user?.email ?? '')) {
-        await pbUpdateProfile({ email: addr });
-        await updateUser({ email: addr });
-        await cloud.init();               // 刷新 authStore 中的账号信息
-      }
-      const m = motto.trim();
-      if (m !== timer.settings.motto) {
-        const saved = await api.set_setting('motto', m);
-        timer.setSettings(saved);
-        setMotto(m);
-      }
-      setProfileMsg({ ok: true, text: t('account.saved') });
-      setEditingProfile(false);
-    } catch (e) {
-      setProfileMsg({ ok: false, text: pbErrorMessage(e) });
-    }
-  }
-
-  /** 密码修改：写入 PB 账号 */
-  async function changePassword(pwd: string) {
-    try {
-      await pbUpdateProfile({ password: pwd, passwordConfirm: pwd });
-      setProfileMsg({ ok: true, text: '密码已更新' });
-      setEditingPwd(false);
-    } catch (e) {
-      setProfileMsg({ ok: false, text: pbErrorMessage(e) });
-    }
-  }
+  useModalA11y(ui.settingsOpen, () => ui.closeAllOverlays(), modalRef, '.settings-nav button.active');
 
   useEffect(() => {
     void api.get_default_list().then(setDefaultListId);
   }, [ui.settingsTab]);
 
   useEffect(() => { setSettings(timer.settings); }, [timer.settings]);
-  useEffect(() => { setUsername(user?.username ?? ''); setEmail(user?.email ?? ''); }, [user]);
-  // 座右铭跟随配置（含云端拉取），但编辑中不覆盖用户正在输入的值
-  useEffect(() => {
-    if (!editingProfile) setMotto(timer.settings.motto ?? '');
-  }, [timer.settings.motto, editingProfile]);
-
   if (!ui.settingsOpen) return null;
 
   async function patch<K extends keyof Settings>(key: K, value: Settings[K]) {
@@ -119,241 +64,86 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
     if (key === 'daily_target_min') await api.set_goal(Number(value));
   }
 
+  const activeTab = TABS.find((x) => x.key === ui.settingsTab) ?? TABS[0];
+  const activeIdx = TABS.indexOf(activeTab);
+
+  /** 方向键在 7 个 tab 之间移动（role=tablist 的键盘约定） */
+  function onNavKey(e: React.KeyboardEvent) {
+    const delta = e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1
+      : e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? -1 : 0;
+    if (!delta) return;
+    e.preventDefault();
+    const next = TABS[(activeIdx + delta + TABS.length) % TABS.length];
+    ui.setSettingsTab(next.key);
+    const el = document.getElementById(`settings-tab-${next.key}`);
+    el?.focus();
+  }
+
   return (
     <div className="overlay" onClick={() => ui.closeAllOverlays()}>
-      <div className="modal settings-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal settings-modal"
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-title"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-head">
-          <h2>{t('settings.title')}</h2>
-          <button className="icon-btn" onClick={() => ui.closeAllOverlays()} aria-label="关闭"><X size={16} /></button>
+          <h2 id="settings-title">{t('settings.title')}</h2>
+          <button className="icon-btn" onClick={() => ui.closeAllOverlays()} aria-label={t('common.close')}>
+            <X size={16} aria-hidden />
+          </button>
         </div>
 
         <div className="settings-body">
-          <nav className="settings-nav">
+          <nav className="settings-nav" role="tablist" aria-label={t('settings.title')} onKeyDown={onNavKey}>
             {TABS.map((tab) => {
               const Icon = tab.icon;
+              const selected = ui.settingsTab === tab.key;
               return (
                 <button
                   key={tab.key}
-                  className={ui.settingsTab === tab.key ? 'active' : ''}
+                  id={`settings-tab-${tab.key}`}
+                  role="tab"
+                  aria-selected={selected}
+                  aria-controls={`settings-pane-${tab.key}`}
+                  tabIndex={selected ? 0 : -1}
+                  className={selected ? 'active' : ''}
                   onClick={() => ui.setSettingsTab(tab.key)}
                 >
-                  <Icon size={15} /> {t(tab.labelKey)}
+                  <Icon size={15} aria-hidden /> {t(tab.labelKey)}
                 </button>
               );
             })}
           </nav>
 
-          <div className="settings-pane">
-            {/* ── 账号（S5）—— PocketBase 为唯一账号体系 ── */}
-            {ui.settingsTab === 'account' && (cloud.status === 'signedIn' ? (
-              <>
-                {/* ── 个人资料卡 ── */}
-                <div className="section-title">{t('account.secProfile')}</div>
-                <div className="profile-card">
-                  <button className="profile-avatar" title={t('account.upload')} onClick={() => void pickAvatar()}>
-                    {user?.avatar_path
-                      ? <img src={user.avatar_path} alt="" />
-                      : <span>{(user?.username || 'U')[0].toUpperCase()}</span>}
-                    <span className="profile-avatar-edit"><Camera size={15} /></span>
-                  </button>
-
-                  <div className="profile-info">
-                    {editingProfile ? (
-                      <div className="profile-form">
-                        <input
-                          className="text-input" value={username} autoFocus
-                          placeholder={t('account.username')} onChange={(e) => setUsername(e.target.value)}
-                        />
-                        <input
-                          className="text-input" type="email" value={email}
-                          placeholder={t('account.email')} onChange={(e) => setEmail(e.target.value)}
-                        />
-                        <input
-                          className="text-input" value={motto} maxLength={60}
-                          placeholder={t('account.motto')} onChange={(e) => setMotto(e.target.value)}
-                        />
-                        <div className="profile-actions">
-                          <button
-                            className="btn primary"
-                            disabled={!username.trim() && !email.trim() && !motto.trim()}
-                            onClick={() => void saveProfile()}
-                          >
-                            {t('common.save')}
-                          </button>
-                          <button className="btn" onClick={() => { setEditingProfile(false); setMotto(timer.settings.motto ?? ''); }}>
-                            {t('common.cancel')}
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="profile-head">
-                        <div className="profile-name">{user?.username || t('account.untitled')}</div>
-                        <div className="profile-email">{user?.email || t('account.noEmail')}</div>
-                        <div className={motto ? 'profile-motto' : 'profile-motto empty'}>
-                          {motto || t('account.mottoEmpty')}
-                        </div>
-                        <button className="profile-edit" onClick={() => {
-                          setUsername(user?.username ?? ''); setEmail(user?.email ?? '');
-                          setMotto(timer.settings.motto ?? ''); setEditingProfile(true);
-                        }}>
-                          {t('account.editProfile')}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="section-title">{t('account.secSecurity')}</div>
-                <div className="field">
-                  <span className="field-label">{t('account.password')}</span>
-                  <div className="field-body">
-                    {editingPwd ? <PasswordForm onDone={() => setEditingPwd(false)} onSubmit={changePassword} /> : (
-                      <>
-                        <span style={{ flex: 1, color: 'var(--text-2)' }}>••••••••</span>
-                        <button className="btn" onClick={() => setEditingPwd(true)}>{t('account.changePassword')}</button>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {profileMsg && (
-                  <div className="field">
-                    <span className="field-label" aria-hidden />
-                    <div className="field-body">
-                      <span className="field-hint" style={{ color: profileMsg.ok ? 'var(--accent-blue)' : 'var(--accent-focus)' }}>
-                        {profileMsg.text}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                <div className="field" style={{ alignItems: 'flex-start' }}>
-                  <span className="field-label">{t('account.accountMgmt')}</span>
-                  <div className="field-body" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 10 }}>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      <button className="btn" onClick={() => { cloud.logout(); setSyncPwd(''); }}>
-                        {t('account.signOut')}
-                      </button>
-                      <button className="btn" onClick={() => void cloud.pushNow()}>{t('sync.push')}</button>
-                    </div>
-                    <button
-                      className="btn danger"
-                      onClick={() => onConfirm({
-                        title: '删除数据',
-                        message: '此操作将清空本地全部任务、清单、专注记录、通知与设置，且不可恢复。确定继续吗？',
-                        confirmText: '删除全部数据',
-                        danger: true,
-                        onConfirm: async () => { await api.clear_all_data(); await useDataStore.getState().reload(); },
-                      })}
-                    >
-                      删除数据
-                    </button>
-                    <button
-                      className="btn danger"
-                      onClick={() => onConfirm({
-                        title: '注销账号',
-                        message: '注销将退出当前账号并清理本地数据。确定继续吗？',
-                        confirmText: '注销账号',
-                        danger: true,
-                        onConfirm: async () => {
-                          cloud.logout();
-                          await api.logout();
-                          await useDataStore.getState().reload();
-                          ui.closeAllOverlays();
-                        },
-                      })}
-                    >
-                      注销账号
-                    </button>
-                  </div>
-                </div>
-
-                {/* 自动同步状态（登录后配置自动备份到云端） */}
-                <div className="field">
-                  <span className="field-label">{t('sync.title')}</span>
-                  <div className="field-body" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 6 }}>
-                    <span className="field-hint">{t('sync.auto')}</span>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                      <span className="field-hint" style={{ color: cloud.syncState === 'error' ? 'var(--accent-focus)' : 'var(--text-3)' }}>
-                        {cloud.syncState === 'busy' ? t('sync.syncing')
-                          : cloud.lastSyncAt ? t('sync.lastSync', { v: new Date(cloud.lastSyncAt).toLocaleTimeString() })
-                          : t('sync.ready')}
-                      </span>
-                      <button className="btn" disabled={cloud.syncState === 'busy'} onClick={() => void cloud.pushNow()}>{t('sync.push')}</button>
-                      <button className="btn" disabled={cloud.syncState === 'busy'} onClick={() => void cloud.pullNow()}>{t('sync.pull')}</button>
-                    </div>
-                    {cloud.syncMessage && (
-                      <span className="field-hint" style={{ color: cloud.syncState === 'error' ? 'var(--accent-focus)' : 'var(--text-3)' }}>
-                        {cloud.syncMessage}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </>
-            ) : (
-              /* 未登录：唯一登录入口（PocketBase） */
-              <>
-                <div className="login-wrap">
-                  <div className="login-card">
-                    <div className="login-logo"><Timer size={24} /></div>
-                    <h3 className="login-title">
-                      {syncMode === 'login' ? t('sync.greeting') : t('sync.joinGreeting')}
-                    </h3>
-                    <p className="login-sub">
-                      {syncMode === 'login' ? t('account.signInHint') : t('sync.joinHint')}
-                    </p>
-
-                    <label className="login-field">
-                      <Mail size={15} />
-                      <input
-                        type="email" placeholder={t('sync.email')} autoFocus
-                        value={syncEmail} onChange={(e) => setSyncEmail(e.target.value)}
-                      />
-                    </label>
-                    <label className="login-field">
-                      <Lock size={15} />
-                      <input
-                        type="password" placeholder={t('sync.password')}
-                        value={syncPwd} onChange={(e) => setSyncPwd(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') void doCloudAuth(); }}
-                      />
-                    </label>
-
-                    <button
-                      className="btn primary login-submit"
-                      disabled={cloud.syncState === 'busy' || !syncEmail.trim() || !syncPwd}
-                      onClick={() => void doCloudAuth()}
-                    >
-                      {cloud.syncState === 'busy' ? '…' : syncMode === 'login' ? t('sync.login') : t('sync.register')}
-                    </button>
-
-                    <button className="login-switch" onClick={() => setSyncMode(syncMode === 'login' ? 'register' : 'login')}>
-                      {syncMode === 'login' ? t('sync.toRegister') : t('sync.toLogin')}
-                    </button>
-
-                    {cloud.syncMessage && (
-                      <div className={cloud.syncState === 'error' ? 'login-msg error' : 'login-msg ok'}>
-                        {cloud.syncMessage}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </>
-            ))}
+          <div
+            className="settings-pane"
+            role="tabpanel"
+            id={`settings-pane-${activeTab.key}`}
+            aria-labelledby={`settings-tab-${activeTab.key}`}
+          >
+            {/* ── 账号（S5）：软件账号 = PocketBase 账号，一页两态 ── */}
+            {ui.settingsTab === 'account' && <AccountPane onConfirm={onConfirm} />}
 
             {/* ── 高级版（占位，规格定义） ── */}
             {ui.settingsTab === 'premium' && (
               <div style={{ textAlign: 'center', padding: '28px 0' }}>
-                <Crown size={34} style={{ color: 'var(--accent-focus)' }} />
-                <h3 style={{ margin: '14px 0 6px', fontSize: 17 }}>升级高级版</h3>
+                <Crown size={34} style={{ color: 'var(--accent-focus)' }} aria-hidden />
+                <h3 style={{ margin: '14px 0 6px', fontSize: 17 }}>{t('premium.upgrade')}</h3>
                 <p className="field-hint" style={{ maxWidth: 380, margin: '0 auto 18px', lineHeight: 1.7 }}>
-                  解锁无限清单、云端同步、高级报表与自定义背景。本期为占位页，订阅流程未实现。
+                  {t('premium.desc')}
                 </p>
                 <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-                  {[['月度', '¥18/月'], ['年度', '¥168/年'], ['终身', '¥398']].map(([n, p]) => (
-                    <div key={n} className="panel" style={{ width: 132 }}>
-                      <div className="panel-title">{n}</div>
-                      <div style={{ fontSize: 20, fontWeight: 600, marginTop: 6, color: 'var(--accent-focus)' }}>{p}</div>
+                  {([
+                    [t('premium.monthly'), t('premium.priceMonthly')],
+                    [t('premium.yearly'), t('premium.priceYearly')],
+                    [t('premium.lifetime'), t('premium.priceLifetime')],
+                  ] as const).map(([name, price]) => (
+                    <div key={name} className="panel" style={{ width: 132 }}>
+                      <div className="panel-title">{name}</div>
+                      <div style={{ fontSize: 20, fontWeight: 600, marginTop: 6, color: 'var(--accent-focus)' }}>{price}</div>
                     </div>
                   ))}
                 </div>
@@ -364,71 +154,83 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
             {ui.settingsTab === 'general' && (
               <>
                 <div className="field">
-                  <span className="field-label">语言 / Language</span>
+                  <span className="field-label">{t('appearance.lang')}</span>
                   <div className="field-body">
-                    <select className="text-input" value={settings.language}
+                    <select
+                      className="text-input" value={settings.language} aria-label={t('appearance.lang')}
                       onChange={(e) => {
                         const lang = e.target.value as Settings['language'];
                         void patch('language', lang);
                         useI18nStore.getState().setLang(lang as 'zh' | 'en');
-                      }}>
+                      }}
+                    >
                       <option value="zh">简体中文</option>
                       <option value="en">English</option>
                     </select>
                   </div>
                 </div>
                 <div className="field">
-                  <span className="field-label">主题</span>
+                  <span className="field-label">{t('appearance.theme')}</span>
                   <div className="field-body">
-                    <select className="text-input" value={settings.theme}
-                      onChange={(e) => void patch('theme', e.target.value as Settings['theme'])}>
-                      <option value="light">浅色</option>
-                      <option value="dark">深色</option>
+                    <select
+                      className="text-input" value={settings.theme} aria-label={t('appearance.theme')}
+                      onChange={(e) => void patch('theme', e.target.value as Settings['theme'])}
+                    >
+                      <option value="light">{t('appearance.light')}</option>
+                      <option value="dark">{t('appearance.dark')}</option>
                     </select>
                   </div>
                 </div>
                 <div className="field">
-                  <span className="field-label">开机自启</span>
+                  <span className="field-label">{t('general.autostart')}</span>
                   <div className="field-body">
                     <label className="switch">
-                      <input type="checkbox" checked={settings.autostart}
-                        onChange={(e) => void patch('autostart', e.target.checked)} />
+                      <input
+                        type="checkbox" checked={settings.autostart} aria-label={t('general.autostart')}
+                        onChange={(e) => void patch('autostart', e.target.checked)}
+                      />
                       <span className="track" />
                     </label>
-                    <span className="field-hint">需 tauri-plugin-autostart（未打包）</span>
+                    <span className="field-hint">{t('general.autostartHint')}</span>
                   </div>
                 </div>
                 <div className="field">
-                  <span className="field-label">悬浮番茄小窗</span>
+                  <span className="field-label">{t('general.float')}</span>
                   <div className="field-body">
                     <label className="switch">
-                      <input type="checkbox" checked={ui.floatVisible}
-                        onChange={(e) => ui.setFloatVisible(e.target.checked)} />
+                      <input
+                        type="checkbox" checked={ui.floatVisible} aria-label={t('general.float')}
+                        onChange={(e) => ui.setFloatVisible(e.target.checked)}
+                      />
                       <span className="track" />
                     </label>
-                    <span className="field-hint">右下角常驻计时小窗</span>
+                    <span className="field-hint">{t('general.floatHint')}</span>
                   </div>
                 </div>
                 <div className="field">
                   <span className="field-label">{t('notif.inApp')}</span>
                   <div className="field-body">
                     <label className="switch">
-                      <input type="checkbox" checked={settings.notify_enabled}
-                        onChange={(e) => void patch('notify_enabled', e.target.checked)} />
+                      <input
+                        type="checkbox" checked={settings.notify_enabled} aria-label={t('notif.inApp')}
+                        onChange={(e) => void patch('notify_enabled', e.target.checked)}
+                      />
                       <span className="track" />
                     </label>
-                    <span className="field-hint">铃铛面板内提醒</span>
+                    <span className="field-hint">{t('notif.inAppHint')}</span>
                   </div>
                 </div>
                 <div className="field">
                   <span className="field-label">{t('notif.system')}</span>
                   <div className="field-body">
                     <label className="switch">
-                      <input type="checkbox" checked={settings.system_notify}
-                        onChange={(e) => void patch('system_notify', e.target.checked)} />
+                      <input
+                        type="checkbox" checked={settings.system_notify} aria-label={t('notif.system')}
+                        onChange={(e) => void patch('system_notify', e.target.checked)}
+                      />
                       <span className="track" />
                     </label>
-                    <span className="field-hint">桌面系统通知（macOS/Windows）</span>
+                    <span className="field-hint">{t('notif.systemHint')}</span>
                   </div>
                 </div>
               </>
@@ -443,11 +245,13 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
                 <NumField label={t('pomodoro.longBreakEvery')} value={settings.long_break_every} suffix={t('pomodoro.poms')} onChange={(v) => void patch('long_break_every', v)} />
                 <NumField label={t('pomodoro.dailyGoal')} value={settings.daily_target_min} suffix={t('pomodoro.minutes')} onChange={(v) => void patch('daily_target_min', v)} />
                 <div className="field">
-                  <span className="field-label">自动开始下一轮</span>
+                  <span className="field-label">{t('pomodoro.autoNext')}</span>
                   <div className="field-body">
                     <label className="switch">
-                      <input type="checkbox" checked={settings.auto_start_next}
-                        onChange={(e) => void patch('auto_start_next', e.target.checked)} />
+                      <input
+                        type="checkbox" checked={settings.auto_start_next} aria-label={t('pomodoro.autoNext')}
+                        onChange={(e) => void patch('auto_start_next', e.target.checked)}
+                      />
                       <span className="track" />
                     </label>
                   </div>
@@ -464,42 +268,50 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
                     <div className="field-body">
                       <input
                         className="text-input" defaultValue={l.name}
+                        aria-label={t('lists.namePlaceholder')}
                         onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== l.name) void renameList(l.id, v); }}
                       />
                       <button
                         className="btn"
+                        aria-pressed={defaultListId === l.id}
                         style={defaultListId === l.id ? { color: 'var(--accent-focus)', borderColor: 'var(--accent-focus)' } : undefined}
                         onClick={() => void setDefaultList(defaultListId === l.id ? null : l.id).then(() => setDefaultListId(defaultListId === l.id ? null : l.id))}
                       >
-                        {defaultListId === l.id ? '已设默认' : '设为默认'}
+                        {defaultListId === l.id ? t('lists.default') : t('lists.setDefault')}
                       </button>
                       <button
                         className="btn danger"
                         onClick={() => onConfirm({
-                          title: '删除清单',
-                          message: `确定删除清单「${l.name}」吗？清单内任务将变为未指定清单。`,
-                          confirmText: '删除',
+                          title: t('lists.delete'),
+                          message: t('lists.deleteMsg', { name: l.name }),
+                          confirmText: t('common.delete'),
                           danger: true,
                           onConfirm: async () => { await deleteList(l.id); },
                         })}
                       >
-                        删除
+                        {t('common.delete')}
                       </button>
                     </div>
                   </div>
                 ))}
                 <div className="field">
-                  <span className="field-label">新建清单</span>
+                  <span className="field-label">{t('lists.new')}</span>
                   <div className="field-body">
                     <input
-                      className="text-input" placeholder="清单名称" value={newListName}
+                      className="text-input" placeholder={t('lists.namePlaceholder')} value={newListName}
+                      aria-label={t('lists.namePlaceholder')}
                       onChange={(e) => setNewListName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key !== 'Enter') return;
+                        const v = newListName.trim();
+                        if (v) { void createList(v); setNewListName(''); }
+                      }}
                     />
                     <button
                       className="btn primary"
                       onClick={() => { const v = newListName.trim(); if (v) { void createList(v); setNewListName(''); } }}
                     >
-                      创建
+                      {t('lists.create')}
                     </button>
                   </div>
                 </div>
@@ -510,27 +322,32 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
             {ui.settingsTab === 'appearance' && (
               <>
                 <div className="field">
-                  <span className="field-label">主题</span>
+                  <span className="field-label">{t('appearance.theme')}</span>
                   <div className="field-body">
-                    <select className="text-input" value={settings.theme}
-                      onChange={(e) => void patch('theme', e.target.value as Settings['theme'])}>
-                      <option value="light">浅色</option>
-                      <option value="dark">深色</option>
+                    <select
+                      className="text-input" value={settings.theme} aria-label={t('appearance.theme')}
+                      onChange={(e) => void patch('theme', e.target.value as Settings['theme'])}
+                    >
+                      <option value="light">{t('appearance.light')}</option>
+                      <option value="dark">{t('appearance.dark')}</option>
                     </select>
                   </div>
                 </div>
                 <div className="field">
-                  <span className="field-label">专注背景</span>
+                  <span className="field-label">{t('appearance.wallpaper')}</span>
                   <div className="field-body">
-                    <select className="text-input" value={settings.wallpaper}
-                      onChange={(e) => void patch('wallpaper', e.target.value)}>
-                      <option value="waves">海浪</option>
-                      {settings.wallpaper.startsWith('custom:') && <option value={settings.wallpaper}>自定义图片</option>}
+                    <select
+                      className="text-input" value={settings.wallpaper} aria-label={t('appearance.wallpaper')}
+                      onChange={(e) => void patch('wallpaper', e.target.value)}
+                    >
+                      <option value="waves">{t('noise.waves')}</option>
+                      {settings.wallpaper.startsWith('custom:') && <option value={settings.wallpaper}>{t('appearance.custom')}</option>}
                     </select>
                     <input
                       ref={bgInputRef}
                       type="file"
                       accept="image/*"
+                      aria-label={t('appearance.upload')}
                       style={{ display: 'none' }}
                       onChange={(e) => {
                         const file = e.target.files?.[0];
@@ -545,18 +362,20 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
                         e.target.value = '';
                       }}
                     />
-                    <button className="btn" onClick={() => bgInputRef.current?.click()}>上传</button>
+                    <button className="btn" onClick={() => bgInputRef.current?.click()}>{t('appearance.upload')}</button>
                     {settings.wallpaper.startsWith('custom:') && (
-                      <button className="btn" onClick={() => void patch('wallpaper', 'waves')}>恢复默认</button>
+                      <button className="btn" onClick={() => void patch('wallpaper', 'waves')}>{t('appearance.reset')}</button>
                     )}
-                    <span className="field-hint">支持 JPG / PNG / SVG</span>
+                    <span className="field-hint">{t('appearance.wallpaperHint')}</span>
                   </div>
                 </div>
                 <div className="field">
-                  <span className="field-label">白噪音</span>
+                  <span className="field-label">{t('appearance.noise')}</span>
                   <div className="field-body">
-                    <select className="text-input" value={settings.noise}
-                      onChange={(e) => void patch('noise', e.target.value)}>
+                    <select
+                      className="text-input" value={settings.noise} aria-label={t('appearance.noise')}
+                      onChange={(e) => void patch('noise', e.target.value)}
+                    >
                       {(Object.keys(NOISE_LABELS) as NoiseKind[]).map((k) => (
                         <option key={k} value={k}>{NOISE_LABELS[k]}</option>
                       ))}
@@ -564,21 +383,25 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
                   </div>
                 </div>
                 <div className="field">
-                  <span className="field-label">专注时播放</span>
+                  <span className="field-label">{t('appearance.noiseFocus')}</span>
                   <div className="field-body">
                     <label className="switch">
-                      <input type="checkbox" checked={settings.noise_on_focus}
-                        onChange={(e) => void patch('noise_on_focus', e.target.checked)} />
+                      <input
+                        type="checkbox" checked={settings.noise_on_focus} aria-label={t('appearance.noiseFocus')}
+                        onChange={(e) => void patch('noise_on_focus', e.target.checked)}
+                      />
                       <span className="track" />
                     </label>
                   </div>
                 </div>
                 <div className="field">
-                  <span className="field-label">休息时播放</span>
+                  <span className="field-label">{t('appearance.noiseBreak')}</span>
                   <div className="field-body">
                     <label className="switch">
-                      <input type="checkbox" checked={settings.noise_on_break}
-                        onChange={(e) => void patch('noise_on_break', e.target.checked)} />
+                      <input
+                        type="checkbox" checked={settings.noise_on_break} aria-label={t('appearance.noiseBreak')}
+                        onChange={(e) => void patch('noise_on_break', e.target.checked)}
+                      />
                       <span className="track" />
                     </label>
                   </div>
@@ -591,10 +414,10 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
               <div style={{ padding: '10px 0' }}>
                 <h3 style={{ margin: '0 0 6px', fontSize: 16 }}>FocusPomodoro</h3>
                 <p className="field-hint" style={{ lineHeight: 1.8, margin: 0 }}>
-                  版本 1.0.0 · 番茄钟 × 任务管理桌面应用<br />
-                  技术栈：Tauri 2.x + React 19 + TypeScript + Vite<br />
-                  数据存储：本地优先（SQLite / IndexedDB）<br />
-                  本构建在离线环境下完成，未接入云端与更新服务。
+                  {t('about.tagline')}<br />
+                  {t('about.stack')}<br />
+                  {t('about.storage')}<br />
+                  {t('about.offline')}
                 </p>
               </div>
             )}
@@ -615,7 +438,7 @@ function NumField({
       <span className="field-label">{label}</span>
       <div className="field-body">
         <input
-          className="num-input" type="number" min={0} value={v}
+          className="num-input" type="number" min={0} value={v} aria-label={label}
           onChange={(e) => setV(e.target.value)}
           onBlur={() => { const n = Number(v); if (!Number.isNaN(n) && n !== value) onChange(n); }}
         />
@@ -625,16 +448,352 @@ function NumField({
   );
 }
 
-function PasswordForm({ onDone, onSubmit }: { onDone(): void; onSubmit(pwd: string): void }) {
-  const [a, setA] = useState('');
-  const [b, setB] = useState('');
-  const mismatch = a.length > 0 && b.length > 0 && a !== b;
+/** 账号页（S5）：软件账号 = PocketBase 账号。未登录→登录/注册卡；已登录→账号卡 + 同步区。 */
+function AccountPane({ onConfirm }: { onConfirm(spec: ConfirmSpec): void }) {
+  const { t } = useI18n();
+  const cloud = useAuthStore();
+  const signedIn = cloud.status === 'signedIn';
+  const busy = cloud.syncState === 'busy';
+
+  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [nick, setNick] = useState('');
+  // 已登录：就地编辑资料（昵称；邮箱 PB 不允许改）
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [nickDraft, setNickDraft] = useState('');
+  const [email, setEmail] = useState('');
+  const [pwd, setPwd] = useState('');
+  const [pwd2, setPwd2] = useState('');
+  // 已登录：就地修改密码（真实写 PB 账号）
+  const [editingPwd, setEditingPwd] = useState(false);
+  const [op, setOp] = useState('');
+  const [np1, setNp1] = useState('');
+  const [np2, setNp2] = useState('');
+  const pwdMismatch = np2.length > 0 && np1 !== np2;
+  // 退出登录后留在账号页，用一行提示代替「整个弹层消失」
+  const [notice, setNotice] = useState('');
+  // 头像：点圆形按钮 -> 隐藏的 file input（PB users.avatar 文件字段）
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const avatarName = typeof cloud.user?.avatar === 'string' ? cloud.user.avatar : '';
+  const avatarUrl = cloud.user && avatarName ? pbAvatarFileUrl(cloud.user, 96) : '';
+
+  const mismatch = mode === 'register' && pwd2.length > 0 && pwd !== pwd2;
+  const canSubmit = !!email.trim() && !!pwd && !mismatch && !busy;
+
+  /** 用户名回退：PB 的 name 可能为空 → 用 email 的 @ 前缀 */
+  const email0 = cloud.user?.email ?? '';
+  const name = (cloud.user?.name ?? '').trim() || email0.split('@')[0] || t('account.untitled');
+  const initial = (name || '?')[0]?.toUpperCase() ?? '?';
+
+  const syncLabel = busy
+    ? t('sync.syncing')
+    : cloud.lastSyncAt
+      ? t('sync.lastSync', { v: new Date(cloud.lastSyncAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) })
+      : t('sync.ready');
+
+  async function submit() {
+    if (!canSubmit) return;
+    setNotice('');
+    const ok = mode === 'login'
+      ? await cloud.login(email.trim(), pwd)
+      : await cloud.register(email.trim(), pwd, nick.trim());
+    if (ok) { setPwd(''); setPwd2(''); setNick(''); }
+  }
+
+  /** 已登录改密码：交给 authStore（内部走 PB，<8 位/不一致各有提示） */
+  async function savePwd() {
+    if (!op || !np1 || pwdMismatch) return;
+    // PB 的 users 集合强制校验 oldPassword，必须带当前密码
+    const ok = await cloud.changePassword(op, np1);
+    if (ok) { setOp(''); setNp1(''); setNp2(''); setEditingPwd(false); }
+  }
+
+  /** 已登录改昵称：写 PB users.name（32 字符上限与非法值由 authStore 校验并播报） */
+  async function saveProfile() {
+    const v = nickDraft.trim();
+    if (v === (cloud.user?.name ?? '').trim()) { setEditingProfile(false); return; }
+    const ok = await cloud.updateNickname(v);
+    if (ok) setEditingProfile(false);
+  }
+
+  function closeProfile() {
+    setEditingProfile(false);
+    setNickDraft('');
+  }
+
+  /** 退出登录：可逆的低风险操作，不二次确认；也不关闭设置弹层（原地切回登录卡并提示） */
+  async function signOut() {
+    setEditingPwd(false); setOp(''); setNp1(''); setNp2('');
+    setMode('login'); setEmail(''); setPwd(''); setPwd2('');
+    setNotice(t('account.signedOut'));
+    cloud.logout();
+    await api.logout();
+    await useDataStore.getState().reload();
+  }
+
+  /** 选图 -> 上传。无论成败都清空 input.value，否则同一张图第二次不触发 change */
+  async function onPickAvatar(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploading(true);
+    try { await cloud.uploadAvatar(file); } finally { setUploading(false); }
+  }
+
+  async function removeAvatar() {
+    setUploading(true);
+    try { await cloud.removeAvatar(); } finally { setUploading(false); }
+  }
+
+  /** 忘记密码：只在真正发信成功时看到成功文案（authStore 已写好 syncMessage） */
+  async function forgot() {
+    if (!email.trim()) return;
+    setNotice('');
+    await cloud.sendResetEmail(email.trim());
+  }
+
   return (
     <>
-      <input className="text-input" type="password" placeholder="新密码" value={a} onChange={(e) => setA(e.target.value)} autoFocus />
-      <input className="text-input" type="password" placeholder="确认密码" value={b} onChange={(e) => setB(e.target.value)} />
-      <button className="btn primary" disabled={!a || mismatch} onClick={() => { if (a) onSubmit(a); }}>保存</button>
-      <button className="btn" onClick={onDone}>取消</button>
+      <div className={`account-card${signedIn ? ' signed-in' : ''}`}>
+        {signedIn ? (
+          <>
+            <div className="account-head">
+              <button
+                type="button"
+                className="account-avatar"
+                onClick={() => avatarInputRef.current?.click()}
+                aria-label={t('account.avatarChange')}
+                title={t('account.avatarChange')}
+                aria-busy={uploading || undefined}
+                disabled={uploading}
+              >
+                {avatarUrl ? <img src={avatarUrl} alt="" /> : initial}
+                <span className="account-avatar-edit" aria-hidden>
+                  {uploading ? <span className="account-avatar-loading">{t('account.avatarUploading')}</span> : <Camera size={16} aria-hidden />}
+                </span>
+              </button>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/png,image/jpeg"
+                hidden
+                onChange={(e) => void onPickAvatar(e)}
+              />
+              <div className="account-id">
+                <div className="account-name-row">
+                  <div className="account-name" title={name}>{name}</div>
+                  <button
+                    type="button" className="account-edit"
+                    aria-expanded={editingProfile}
+                    onClick={() => {
+                      if (editingProfile) { closeProfile(); return; }
+                      setNickDraft((cloud.user?.name ?? '').trim());
+                      setEditingProfile(true);
+                    }}
+                  >
+                    {t('account.editProfile')}
+                  </button>
+                </div>
+                <div className="account-email" title={email0}>{email0}</div>
+                <div className="account-avatar-hint">{t('account.avatarHint')}</div>
+              </div>
+              <span className="account-badge">
+                <span className="account-dot" aria-hidden />
+                {t('account.signedIn')}
+              </span>
+            </div>
+
+            {editingProfile && (
+              <div className="account-profile-form" role="group" aria-label={t('account.editProfile')}>
+                <label className="account-field">
+                  <span className="account-field-label">{t('account.nickname')}</span>
+                  <input
+                    className="text-input" type="text" maxLength={32} autoComplete="nickname"
+                    value={nickDraft} aria-label={t('account.nickname')} placeholder={t('account.nicknameHint')}
+                    onChange={(e) => setNickDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void saveProfile();
+                      if (e.key === 'Escape') closeProfile();
+                    }}
+                  />
+                </label>
+                <span className="account-email-locked">{t('account.emailLocked')}</span>
+                <div className="account-pwd-actions">
+                  <button className="btn primary" disabled={busy} onClick={() => void saveProfile()}>
+                    {t('common.save')}
+                  </button>
+                  <button className="btn" onClick={closeProfile}>{t('common.cancel')}</button>
+                </div>
+              </div>
+            )}
+
+            <div className="account-sync">
+              <div className="account-sync-title">{t('sync.section')}</div>
+              <div
+                className={`account-sync-state${cloud.syncState === 'error' ? ' error' : ''}`}
+                role="status" aria-live="polite"
+              >
+                {cloud.syncMessage || syncLabel}
+              </div>
+              <div className="account-sync-actions">
+                <button className="btn" disabled={busy} onClick={() => void cloud.pushNow()}>{t('sync.push')}</button>
+                <button className="btn" disabled={busy} onClick={() => void cloud.pullNow()}>{t('sync.pull')}</button>
+              </div>
+              <p className="account-hint">{t('sync.autoHint')}</p>
+            </div>
+
+            {editingPwd && (
+              <div className="account-pwd-form">
+                <label className="account-field">
+                  <span className="account-field-label">{t('sync.oldPwd')}</span>
+                  <input
+                    className="text-input" type="password" autoComplete="current-password"
+                    value={op} aria-label={t('sync.oldPwd')}
+                    onChange={(e) => setOp(e.target.value)}
+                  />
+                </label>
+                <label className="account-field">
+                  <span className="account-field-label">{t('sync.newPwd')}</span>
+                  <input
+                    className="text-input" type="password" autoComplete="new-password"
+                    value={np1} aria-label={t('sync.newPwd')}
+                    onChange={(e) => setNp1(e.target.value)}
+                  />
+                </label>
+                <label className="account-field">
+                  <span className="account-field-label">{t('sync.passwordConfirm')}</span>
+                  <input
+                    className="text-input" type="password" autoComplete="new-password"
+                    value={np2} aria-label={t('sync.passwordConfirm')}
+                    onChange={(e) => setNp2(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && np1 && !pwdMismatch) void savePwd(); }}
+                  />
+                </label>
+                {pwdMismatch && <span className="account-error" role="alert">{t('sync.pwdMismatch')}</span>}
+                <div className="account-pwd-actions">
+                  <button className="btn primary" disabled={!op || !np1 || pwdMismatch || busy} onClick={() => void savePwd()}>
+                    {t('common.save')}
+                  </button>
+                  <button className="btn" onClick={() => { setEditingPwd(false); setOp(''); setNp1(''); setNp2(''); }}>
+                    {t('common.cancel')}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="account-foot">
+              {avatarName && (
+                <button className="account-avatar-remove" disabled={uploading} onClick={() => void removeAvatar()}>
+                  {t('account.avatarRemove')}
+                </button>
+              )}
+              <button className="btn" onClick={() => { setEditingPwd((v) => !v); setOp(''); setNp1(''); setNp2(''); }}>
+                {t('sync.changePwd')}
+              </button>
+              <button className="btn" onClick={() => void signOut()}>
+                {t('account.signOut')}
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="account-form-wrap">
+            <div className="account-logo" aria-hidden>F</div>
+            <h3 className="account-title">{t('account.title')}</h3>
+            <p className="account-subtitle">{t('account.subtitle')}</p>
+
+            <div className="account-form">
+              {mode === 'register' && (
+                <label className="account-field">
+                  <span className="account-field-label">{t('account.nickname')}</span>
+                  <input
+                    className="text-input" type="text" maxLength={32} autoComplete="nickname"
+                    value={nick} aria-label={t('account.nickname')} placeholder={t('account.nicknameHint')}
+                    onChange={(e) => setNick(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') void submit(); }}
+                  />
+                </label>
+              )}
+              <label className="account-field">
+                <span className="account-field-label">{t('sync.email')}</span>
+                <input
+                  className="text-input" type="email" autoComplete="username"
+                  value={email} aria-label={t('sync.email')} placeholder="you@example.com"
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </label>
+              <label className="account-field">
+                <span className="account-field-label">{t('sync.password')}</span>
+                <input
+                  className="text-input" type="password"
+                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                  value={pwd} aria-label={t('sync.password')}
+                  onChange={(e) => setPwd(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') void submit(); }}
+                />
+              </label>
+              {mode === 'register' && (
+                <label className="account-field">
+                  <span className="account-field-label">{t('sync.passwordConfirm')}</span>
+                  <input
+                    className="text-input" type="password" autoComplete="new-password"
+                    value={pwd2} aria-label={t('sync.passwordConfirm')}
+                    onChange={(e) => setPwd2(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') void submit(); }}
+                  />
+                </label>
+              )}
+              {mismatch && <span className="account-error" role="alert">{t('sync.pwdMismatch')}</span>}
+
+              <button className="btn primary account-submit" disabled={!canSubmit} onClick={() => void submit()}>
+                {busy ? t('sync.syncing') : mode === 'login' ? t('sync.login') : t('sync.register')}
+              </button>
+              <div className="account-links">
+                <button
+                  type="button" className="account-switch"
+                  onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setPwd2(''); }}
+                >
+                  {mode === 'login' ? t('account.switchToRegister') : t('account.switchToLogin')}
+                </button>
+                {mode === 'login' && (
+                  <button type="button" className="account-switch" onClick={() => void forgot()}>
+                    {t('sync.forgot')}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {notice && !cloud.syncMessage && (
+              <div className="login-msg info" role="status">{notice}</div>
+            )}
+            {cloud.syncMessage && (
+              <div className={cloud.syncState === 'error' ? 'login-msg error' : 'login-msg ok'} role="status">
+                {cloud.syncMessage}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 本地数据：两态都有，删除的是本地库 */}
+      <div className="account-local-data">
+        <div className="account-local-head">{t('account.localData')}</div>
+        <p className="account-hint">{t('account.deleteDataHint')}</p>
+        <button
+          className="btn danger"
+          onClick={() => onConfirm({
+            title: t('confirm.deleteDataTitle'),
+            message: signedIn
+              ? `${t('confirm.deleteDataMsg')}\n${t('account.deleteDataCloudWarn')}`
+              : t('confirm.deleteDataMsg'),
+            confirmText: t('confirm.deleteAll'),
+            danger: true,
+            onConfirm: async () => { await api.clear_all_data(); await useDataStore.getState().reload(); },
+          })}
+        >
+          {t('account.deleteData')}
+        </button>
+        {signedIn && <p className="account-hint warn">{t('account.deleteDataCloudWarn')}</p>}
+      </div>
     </>
   );
 }

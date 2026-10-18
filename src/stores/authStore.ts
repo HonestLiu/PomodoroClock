@@ -4,15 +4,16 @@
 import { create } from 'zustand';
 import {
   currentUser, pbLogin, pbLogout, pbRefreshAuth, pbRegister, pbErrorMessage, collectionExists,
-  CONFIGS, type PbUser,
+  pbUpdateProfile, pbRequestPasswordReset, pbUploadAvatar, pbDeleteAvatar, pbUpdateName, CONFIGS, type PbUser,
 } from '@/lib/pb';
 import {
-  applyRemote, pushConfig, pullConfig, readMeta, subscribeConfig,
+  applyRemote, pushConfig, pullConfig, readMeta, resolveDirection, subscribeConfig,
   type ConfigRecord, type SyncMeta,
 } from '@/lib/sync';
 import { api } from '@/api';
 import { useTimerStore } from '@/stores/timerStore';
 import type { Settings } from '@/types';
+import { tStatic } from '@/i18n';
 
 export type AuthStatus = 'unknown' | 'signedOut' | 'signedIn';
 export type SyncState = 'idle' | 'busy' | 'ok' | 'error';
@@ -28,12 +29,22 @@ interface AuthState {
   /** 启动流程：校验登录态 -> 拉取云端 -> 订阅实时 */
   init(): Promise<void>;
   login(email: string, password: string): Promise<boolean>;
-  register(email: string, password: string): Promise<boolean>;
+  register(email: string, password: string, name?: string): Promise<boolean>;
   logout(): void;
   pushNow(): Promise<boolean>;
   pullNow(): Promise<boolean>;
   /** 云端来了更新（由 realtime 触发），跑裁决后应用 */
   acceptRemote(rec: ConfigRecord): Promise<void>;
+  /** 改密码（已登录）：必须带当前密码（PB users 集合强制 oldPassword） */
+  changePassword(oldPassword: string, newPassword: string): Promise<boolean>;
+  /** 上传头像：先做客户端类型/大小校验，失败只落在 syncMessage，不抛给 UI */
+  uploadAvatar(file: File): Promise<boolean>;
+  /** 移除头像（PB 侧把 avatar 置空字符串） */
+  removeAvatar(): Promise<boolean>;
+  /** 改昵称：trim 后超过 32 字符直接拒绝（服务端上限 255，客户端刻意更严） */
+  updateNickname(name: string): Promise<boolean>;
+  /** 发重置密码邮件（未登录可用） */
+  sendResetEmail(email: string): Promise<boolean>;
   clearMessage(): void;
 }
 
@@ -45,10 +56,10 @@ let unsubRealtime: (() => void) | null = null;
 async function backendHint(): Promise<string> {
   try {
     const ok = await collectionExists(CONFIGS);
-    if (!ok) return '云端缺少 configs 集合，配置同步暂不可用；请按指引在 PocketBase 后台创建（见说明）。';
+    if (!ok) return tStatic('sync.missingCollection');
     return '';
   } catch {
-    return '云端不可用；登录与本地功能正常，配置同步暂不可用。';
+    return tStatic('sync.backendDown');
   }
 }
 
@@ -81,11 +92,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       );
     } catch {
       // 无法连接 PB / 网络异常：当未登录，本地照常工作
-      set({ status: 'signedOut', user: null, syncMessage: '云端不可用，已使用本地数据' });
+      set({ status: 'signedOut', user: null, syncMessage: tStatic('sync.unavailable') });
     }
   },
 
   async login(email, password) {
+    const invalid = validateCredentials(email, password);
+    if (invalid) {
+      set({ syncState: 'error', syncMessage: invalid });
+      return false;
+    }
     set({ syncState: 'busy', syncMessage: '' });
     try {
       const u = await pbLogin(email, password);
@@ -105,10 +121,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  async register(email, password) {
+  async register(email, password, name) {
+    const invalid = validateCredentials(email, password);
+    if (invalid) {
+      set({ syncState: 'error', syncMessage: invalid });
+      return false;
+    }
     set({ syncState: 'busy', syncMessage: '' });
     try {
-      const u = await pbRegister(email, password);
+      const u = await pbRegister(email, password, name);
       set({ status: 'signedIn', user: u, meta: readMeta(u.id), syncState: 'idle' });
       // 注册后立刻把本地配置推上去，避免空云端覆盖本地
       await get().pushNow();
@@ -131,7 +152,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ syncState: 'busy', syncMessage: '' });
     try {
       const meta = await pushConfig();
-      set({ syncState: 'ok', syncMessage: '已推送到云端', lastSyncAt: Date.now(), meta });
+      set({ syncState: 'ok', syncMessage: tStatic('sync.pushed'), lastSyncAt: Date.now(), meta });
       return true;
     } catch (e) {
       set({ syncState: 'error', syncMessage: pbErrorMessage(e) });
@@ -150,7 +171,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         syncState: 'ok',
         meta,
         lastSyncAt: Date.now(),
-        syncMessage: dir === 'pull' ? '已从云端更新' : dir === 'push' ? '云端较旧，保持本地' : '无需更新',
+        syncMessage: dir === 'pull' ? tStatic('sync.pulled')
+          : dir === 'push' ? tStatic('sync.keepLocal') : tStatic('sync.none'),
       });
       if (dir === 'pull') await refreshSettings();
       return true;
@@ -168,23 +190,134 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await applyRemote(rec);
       await refreshSettings();
       const meta = me ? readMeta(me.id) : null;
-      set({ syncState: 'ok', syncMessage: '已同步云端更新', lastSyncAt: Date.now(), meta });
+      set({ syncState: 'ok', syncMessage: tStatic('sync.applied'), lastSyncAt: Date.now(), meta });
     } catch (e) {
       set({ syncState: 'error', syncMessage: pbErrorMessage(e) });
     }
   },
 
   clearMessage() { set({ syncMessage: '' }); },
+
+  async changePassword(oldPassword, newPassword) {
+    if (newPassword.length < 8) {
+      set({ syncState: 'error', syncMessage: tStatic('err.pwdShort') });
+      return false;
+    }
+    if (!oldPassword) {
+      set({ syncState: 'error', syncMessage: tStatic('err.oldPwdRequired') });
+      return false;
+    }
+    set({ syncState: 'busy', syncMessage: '' });
+    try {
+      const u = await pbUpdateProfile({ oldPassword, password: newPassword, passwordConfirm: newPassword });
+      // PB 在改密码后立刻作废该用户的所有既有 token（实测改完用旧 token auth-refresh 返回 401）。
+      // 所以必须当场用新密码换一枚新 token，否则刷新/重启就会被当成掉线。
+      const email = (u.email ?? currentUser()?.email ?? '').trim();
+      try {
+        const fresh = await pbLogin(email, newPassword);
+        set({ user: fresh, status: 'signedIn', syncState: 'ok', syncMessage: tStatic('sync.pwdChanged') });
+      } catch {
+        // 换 token 失败不要谎报成功：清会话让用户用新密码重新登录
+        get().logout();
+        set({ syncState: 'ok', syncMessage: tStatic('sync.pwdChangedRelogin') });
+      }
+      return true;
+    } catch (e) {
+      set({ syncState: 'error', syncMessage: pbErrorMessage(e) });
+      return false;
+    }
+  },
+
+  async uploadAvatar(file) {
+    if (!get().user) return false;
+    if (!AVATAR_TYPES.includes(file.type)) {
+      set({ syncState: 'error', syncMessage: tStatic('err.avatarType') });
+      return false;
+    }
+    if (file.size > AVATAR_MAX_BYTES) {
+      set({ syncState: 'error', syncMessage: tStatic('err.avatarTooLarge') });
+      return false;
+    }
+    set({ syncState: 'busy', syncMessage: tStatic('account.avatarUploading') });
+    try {
+      const u = await pbUploadAvatar(file);
+      set({ user: u, syncState: 'ok', syncMessage: tStatic('account.avatarUpdated') });
+      return true;
+    } catch {
+      // 后端细节（网络/文件类型/上限）不暴露给用户，只给可操作的提示
+      set({ syncState: 'error', syncMessage: tStatic('err.avatarFailed') });
+      return false;
+    }
+  },
+
+  async removeAvatar() {
+    if (!get().user) return false;
+    set({ syncState: 'busy', syncMessage: '' });
+    try {
+      const u = await pbDeleteAvatar();
+      set({ user: u, syncState: 'ok', syncMessage: tStatic('account.avatarRemoved') });
+      return true;
+    } catch {
+      set({ syncState: 'error', syncMessage: tStatic('err.avatarFailed') });
+      return false;
+    }
+  },
+
+  async updateNickname(name) {
+    const nickname = name.trim();
+    if ([...nickname].length > NICKNAME_MAX_CHARS) {
+      set({ syncState: 'error', syncMessage: tStatic('err.nicknameTooLong') });
+      return false;
+    }
+    if (!get().user) return false;
+    set({ syncState: 'busy', syncMessage: '' });
+    try {
+      const u = await pbUpdateName(nickname);
+      set({ user: u, syncState: 'ok', syncMessage: tStatic('account.profileSaved') });
+      return true;
+    } catch (e) {
+      set({ syncState: 'error', syncMessage: pbErrorMessage(e) });
+      return false;
+    }
+  },
+
+  async sendResetEmail(email) {
+    const e = email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e)) {
+      set({ syncState: 'error', syncMessage: tStatic('err.email') });
+      return false;
+    }
+    set({ syncState: 'busy', syncMessage: '' });
+    try {
+      await pbRequestPasswordReset(e);
+      set({ syncState: 'ok', syncMessage: tStatic('sync.resetSent') });
+      return true;
+    } catch (err) {
+      set({ syncState: 'error', syncMessage: pbErrorMessage(err) });
+      return false;
+    }
+  },
 }));
 
-/** 收到远端记录后的裁决（复用 resolveDirection） */
+/** 昵称：客户端上限 32 字符（按码点计，emoji 不被算成 2 个）；服务端 users.name 上限 255 */
+const NICKNAME_MAX_CHARS = 32;
+
+/** 头像：只允许 JPG/PNG，客户端先卡 2 MB（服务端 PB 默认上限另算，见文档） */
+const AVATAR_TYPES = ['image/png', 'image/jpeg'];
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+
+/** 提交前先做本地校验，避免把必然失败的请求打到云端（PB 默认密码最短 8 位） */
+function validateCredentials(email: string, password: string): string | null {
+  const e = email.trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e)) return tStatic('err.email');
+  if (password.length < 8) return tStatic('err.pwdShort');
+  return null;
+}
+
+/** 收到远端记录后的裁决：与拉取共用同一套三步裁决，避免实时与轮询结论不一致 */
 function resolveAfterRemote(local: SyncMeta | null, rec: ConfigRecord): 'pull' | 'none' {
   const remote: SyncMeta = { rev: rec.rev ?? 0, updated: rec.updated ?? '', device: rec.device ?? '' };
-  // 本地 meta 缺失时，若远端有内容就拉取
-  if (!local) return 'pull';
-  if (remote.rev > local.rev) return 'pull';
-  if (remote.rev === local.rev && remote.updated !== local.updated) return 'none';
-  return 'none';
+  return resolveDirection(local, remote) === 'pull' ? 'pull' : 'none';
 }
 
 /** 云端拉取后刷新本地 settings 到各 store（timer / data） */

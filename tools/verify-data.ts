@@ -4,7 +4,12 @@ import {
   computeStats, categoryFocusMinutes, categoryTaskCount, completedGroups,
   pomodoroGrid, taskDurations, listDistribution, dailyFocusMap, todayPendingTasks,
 } from '@/db/queries';
-import { formatMinutes } from '@/lib/date';
+import { formatMinutes, setDateLocale } from '@/lib/date';
+
+// 本脚本断言的是 PRD §7.2 的中文口径字符串，必须与运行环境语言无关：
+// i18n/store 在模块加载时会按 detectLang() 初始化（Node 里 navigator.language 通常是 en-US），
+// 会把 date 层的格式化切成 "8h 59m"，导致断言假失败，故在此显式固定中文。
+setDateLocale('zh');
 
 let failures = 0;
 function check(label: string, actual: unknown, expected: unknown) {

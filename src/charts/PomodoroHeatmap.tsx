@@ -6,6 +6,7 @@
 import { useMemo, useState } from 'react';
 import type { GridCell } from '@/types';
 import { relativeDayLabel } from '@/lib/date';
+import { useI18n } from '@/i18n';
 
 const CELL_W = 26;
 const CELL_H = 15;
@@ -15,6 +16,7 @@ const TOP = 18;
 const HOURS = 24;
 
 export function PomodoroHeatmap({ dates, cells }: { dates: string[]; cells: GridCell[] }) {
+  const { t } = useI18n();
   const [tip, setTip] = useState<{ x: number; y: number; text: string } | null>(null);
   const todayKey = dates[0];
 
@@ -31,7 +33,10 @@ export function PomodoroHeatmap({ dates, cells }: { dates: string[]; cells: Grid
 
   return (
     <div className="heatmap">
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="番茄记录图">
+      <svg
+        viewBox={`0 0 ${width} ${height}`} role="img"
+        aria-label={`${t('heatmap.aria')} · ${dates.length}×${HOURS}`}
+      >
         {/* X 轴刻度：每 2 小时 */}
         {Array.from({ length: HOURS / 2 }, (_, i) => i * 2).map((h) => (
           <text key={h} className="heat-label" x={LEFT + h * (CELL_W + GAP)} y={11}>
@@ -74,7 +79,9 @@ export function PomodoroHeatmap({ dates, cells }: { dates: string[]; cells: Grid
                       setTip({
                         x: r.left + r.width / 2,
                         y: r.top - 6,
-                        text: `${relativeDayLabel(d)} ${h}:00 · ${cell.minutes}分钟 · ${cell.count}个番茄`,
+                        text: t('heatmap.cellTip', {
+                          date: relativeDayLabel(d), h, min: cell.minutes, n: cell.count,
+                        }),
                       });
                     }}
                     onMouseLeave={() => setTip(null)}

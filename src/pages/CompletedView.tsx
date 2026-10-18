@@ -40,7 +40,7 @@ export function CompletedView() {
       <h1 className="page-title">{t('nav.completed')}</h1>
       <StatCards cards={cards} />
 
-      {groups.length === 0 && <div className="empty">{t('report.noneThisPeriod')}</div>}
+      {groups.length === 0 && <div className="empty">{t('completed.empty')}</div>}
 
       {groups.map((g) => {
         const total = g.records.reduce((a, r) => a + r.duration_min, 0);
@@ -55,7 +55,7 @@ export function CompletedView() {
             {g.records.map((r) => (
               <div className="record-item" key={r.id}>
                 <span className="record-title">{taskTitle(ds, r.task_id)}</span>
-                <span className="record-dur">{r.duration_min}分钟</span>
+                <span className="record-dur">{t('record.duration', { n: r.duration_min })}</span>
                 <span className="record-range">
                   {formatHM(r.start_at)} – {formatHM(r.end_at)}
                 </span>

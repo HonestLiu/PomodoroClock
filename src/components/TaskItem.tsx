@@ -10,6 +10,7 @@ import { useDataStore } from '@/stores/dataStore';
 import { useTimerStore } from '@/stores/timerStore';
 import { useUiStore } from '@/stores/uiStore';
 import { Menu, type MenuItem } from './Menu';
+import { useI18n } from '@/i18n';
 
 /** 小番茄图标（FR：每完成一个番茄累计一个） */
 function TomatoIcon({ size = 13 }: { size?: number }) {
@@ -41,6 +42,7 @@ export function TaskItem({ task, onReorder }: {
   const highlight = useUiStore((s) => s.highlight);
   const clearHighlight = useUiStore((s) => s.clearHighlight);
   const setDraggingTask = useUiStore((s) => s.setDraggingTask);
+  const { t } = useI18n();
 
   const [dragOver, setDragOver] = useState(false);
 
@@ -79,24 +81,24 @@ export function TaskItem({ task, onReorder }: {
     label: l.name,
     value: l.id,
   }));
-  moveItems.push({ key: '_none', label: '未指定清单', value: '__none__' });
+  moveItems.push({ key: '_none', label: t('task.noneList'), value: '__none__' });
 
   const menuItems: MenuItem[] = [
     {
       key: 'toggle',
-      label: task.completed === 1 ? '标记为未完成' : '标记为已完成',
+      label: task.completed === 1 ? t('task.uncomplete') : t('task.complete'),
       icon: <Check size={13} />,
       onSelect: () => { void toggleTask(task.id); close(); },
     },
     {
       key: 'edit',
-      label: '编辑任务',
+      label: t('task.edit'),
       icon: <ListTodo size={13} />,
       onSelect: () => { setEditingTask(task.id); close(); },
     },
     {
       key: 'move',
-      label: '移到清单',
+      label: t('task.moveToList'),
       icon: <FolderPlus size={13} />,
       children: moveItems,
       onSelect: (value) => {
@@ -107,7 +109,7 @@ export function TaskItem({ task, onReorder }: {
     },
     {
       key: 'copy',
-      label: '复制任务',
+      label: t('task.copy'),
       icon: <Copy size={13} />,
       onSelect: () => {
         void createTask({
@@ -122,15 +124,15 @@ export function TaskItem({ task, onReorder }: {
     },
     {
       key: 'delete',
-      label: '删除任务',
+      label: t('task.delete'),
       danger: true,
       icon: <Trash2 size={13} />,
       onSelect: () => {
         close();
         askConfirm({
-          title: '删除任务',
-          message: `确定要删除「${task.title}」吗？该任务关联的专注记录将变为「未指定任务」。`,
-          confirmText: '删除',
+          title: t('task.deleteTitle'),
+          message: t('task.deleteMsg', { title: task.title }),
+          confirmText: t('common.delete'),
           danger: true,
           onConfirm: () => deleteTask(task.id),
         });
@@ -153,6 +155,7 @@ export function TaskItem({ task, onReorder }: {
 
   return (
     <div
+      data-task-id={task.id}
       className={`task-item${task.completed ? ' done' : ''}${menu ? ' menu-open' : ''}${flash ? ' highlight' : ''}${dragOver ? ' drag-target' : ''}${onReorder ? ' draggable-row' : ''}`}
       draggable={!!onReorder && task.completed === 0}
       onDragStart={onReorder ? onDragStart : undefined}
@@ -167,34 +170,42 @@ export function TaskItem({ task, onReorder }: {
     >
       <button
         className="task-play"
-        title="开始专注"
-        aria-label="开始专注"
+        title={t('timer.cta.start')}
+        aria-label={t('timer.cta.start')}
         onClick={startPomodoro}
         onPointerDown={(e) => e.stopPropagation()}
       >
-        <Play size={11} strokeWidth={2.5} />
+        <Play size={11} strokeWidth={2.5} aria-hidden />
       </button>
 
       <button
         className={`check${task.completed ? ' checked' : ''}`}
-        aria-label={task.completed ? '标记未完成' : '标记完成'}
+        aria-label={task.completed ? t('task.uncomplete') : t('task.complete')}
         onClick={(e) => { e.stopPropagation(); void toggleTask(task.id); }}
       >
-        {task.completed === 1 && <Check size={11} strokeWidth={3} />}
+        {task.completed === 1 && <Check size={11} strokeWidth={3} aria-hidden />}
       </button>
 
       <span
         className="task-title"
         role="button"
         tabIndex={0}
+        title={task.title}
         onClick={() => setEditingTask(task.id)}
-        onKeyDown={(e) => { if (e.key === 'Enter') setEditingTask(task.id); }}
+        onDoubleClick={() => setEditingTask(task.id)}
+        onKeyDown={(e) => {
+          // 键盘等价操作：Enter / Space 打开编辑（Space 是按钮的标准激活键）
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setEditingTask(task.id);
+          }
+        }}
       >
         {task.title}
       </span>
 
       {pomodoroCount > 0 && (
-        <span className="task-pomos" title={`已完成 ${pomodoroCount} 个番茄`}>
+        <span className="task-pomos" title={t('task.pomoDone', { n: pomodoroCount })}>
           {Array.from({ length: pomodoroCount }).map((_, i) => (
             <TomatoIcon key={i} />
           ))}
@@ -210,10 +221,11 @@ export function TaskItem({ task, onReorder }: {
 
       <button
         className="task-more"
-        title="更多操作"
+        title={t('menu.label')}
+        aria-label={t('menu.label')}
         onClick={(e) => { e.stopPropagation(); openAt(e.currentTarget.getBoundingClientRect().right - 12, e.currentTarget.getBoundingClientRect().bottom + 4); }}
       >
-        <MoreHorizontal size={16} />
+        <MoreHorizontal size={16} aria-hidden />
       </button>
 
       {menu && <Menu x={menu.x} y={menu.y} items={menuItems} onClose={close} />}

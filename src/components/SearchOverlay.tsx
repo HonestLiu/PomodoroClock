@@ -66,19 +66,27 @@ export function SearchOverlay() {
 
   return (
     <div className="search-overlay" onClick={() => openSearch(false)}>
-      <div className="search-panel" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="search-panel" role="dialog" aria-modal="true" aria-label={t('search.placeholder')}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="search-input-row">
-          <Search size={17} />
+          <Search size={17} aria-hidden />
           <input
             autoFocus
             value={q}
+            aria-label={t('a11y.searchInput')}
             placeholder={t('search.placeholder2')}
             onChange={(e) => { setQ(e.target.value); setSel(0); }}
           />
           <span style={{ fontSize: 11, color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{t('search.hint')}</span>
         </div>
 
-        <div className="search-results">
+        <div className="sr-only" role="status" aria-live="polite">
+          {q.trim() ? t('a11y.searchResults', { n: entries.length }) : ''}
+        </div>
+
+        <div className="search-results" role="listbox" aria-label={t('search.placeholder')}>
           {!q.trim() && <div className="empty">{t('search.empty')}</div>}
           {q.trim() && !hasResults && <div className="empty">{t('search.noResult')}</div>}
 
@@ -89,10 +97,11 @@ export function SearchOverlay() {
               <button
                 key={e.id}
                 className={`search-hit${sel === idx ? ' active' : ''}`}
+                role="option" aria-selected={sel === idx}
                 onMouseEnter={() => setSel(idx)}
                 onClick={() => goTo(e)}
               >
-                <ListTodo size={14} style={{ color: 'var(--text-2)' }} />
+                <ListTodo size={14} style={{ color: 'var(--text-2)' }} aria-hidden />
                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(e as { title: string }).title}</span>
               </button>
             );
@@ -105,10 +114,11 @@ export function SearchOverlay() {
               <button
                 key={e.id}
                 className={`search-hit${sel === idx ? ' active' : ''}`}
+                role="option" aria-selected={sel === idx}
                 onMouseEnter={() => setSel(idx)}
                 onClick={() => goTo(e)}
               >
-                <FolderOpen size={14} style={{ color: 'var(--text-2)' }} />
+                <FolderOpen size={14} style={{ color: 'var(--text-2)' }} aria-hidden />
                 <span style={{ flex: 1 }}>{(e as { name: string }).name}</span>
               </button>
             );

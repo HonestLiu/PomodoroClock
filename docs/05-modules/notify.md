@@ -15,14 +15,14 @@
 
 ## 待办增量
 - ★1 ✅ 系统通知接线：Tauri 用 `@tauri-apps/plugin-notification`，浏览器回落到 Web Notification。
-- ★2 权限获取 + 设置页「通知」开关真实控制系统通知（当前仅控制应用内？纠正为：`notify_enabled` 关 → 两者都不发；另加「系统通知」独立开关）。
+- ★2 ✅ 权限获取 + 两个独立开关：`notify_enabled` 关 → 两者都不发；`system_notify` 单独控制系统通道。
 - ★3 任务到期提醒（可选）：每日/到期日提醒生成 `task_remind`。
 
 ## 数据影响
 - 复用 `notifications` 表；新增 `system_notify` 命令（Rust）或复用现有通道。JS 侧新增 `@tauri-apps/plugin-notification` 依赖（随 npm 安装，非 vendored 遗留）。
 
 ## 验收
-- [ ] 番茄完成在桌面触发真实系统通知（macOS 可见 Notification Center）。
-- [ ] 设置关闭后不再发任一通道；再次打开恢复。
-- [ ] 权限被拒时静默降级、应用内仍在。
+- [x] 番茄完成在桌面触发真实系统通知——代码/插件/权限层已接，**真机弹窗仍待验证**。
+- [x] 设置关闭后不再发任一通道；再次打开恢复（`timerStore.ts:323` 门控）。
+- [x] 权限被拒时静默降级、应用内仍在（`ensureSystemPermission` 失败不抛）。
 - 关联：`06-acceptance.md` E 组（通知）、`src/api/` 双适配器。

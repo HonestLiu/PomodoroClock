@@ -116,6 +116,8 @@ pub struct Settings {
     pub noise_on_focus: bool,
     pub noise_on_break: bool,
     pub wallpaper: String,
+    /// 座右铭：浏览器侧 Settings 有该键，Rust 侧此前缺字段会把远端配置静默丢弃
+    pub motto: String,
 }
 
 impl Default for Settings {
@@ -137,6 +139,7 @@ impl Default for Settings {
             noise_on_focus: false,
             noise_on_break: false,
             wallpaper: "waves".into(),
+            motto: String::new(),
         }
     }
 }
@@ -163,14 +166,32 @@ pub struct CreateTaskArgs {
     pub notes: Option<String>,
 }
 
+/// 区分「字段缺席」与「显式 null」：缺席 -> None，null -> Some(None)。
+/// serde 默认把 JSON null 解成外层 None，会让「把 list_id / due_date 清空」
+/// 在桌面端变成静默无效。
+fn double_option<'de, T, D>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    T: Deserialize<'de>,
+    D: serde::Deserializer<'de>,
+{
+    Option::<T>::deserialize(deserializer).map(Some)
+}
+
+/// 更新补丁：前端 `src/api/types.ts` 的 `UpdateTaskPatch` 用 **snake_case**
+/// （list_id / due_date / est_pomodoros / sort_order），此前这里用 camelCase
+/// 反序列化，未知键被 serde 忽略，导致这些字段的修改在桌面端全部丢失。
+/// 显式接受 snake_case 为主口径，并保留 camelCase 别名兼容旧调用方。
 #[derive(Debug, Default, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct UpdateTaskPatch {
     pub title: Option<String>,
+    #[serde(default, alias = "listId", deserialize_with = "double_option")]
     pub list_id: Option<Option<String>>,
+    #[serde(default, alias = "dueDate", deserialize_with = "double_option")]
     pub due_date: Option<Option<String>>,
+    #[serde(default, alias = "estPomodoros")]
     pub est_pomodoros: Option<f64>,
     pub notes: Option<String>,
+    #[serde(default, alias = "sortOrder")]
     pub sort_order: Option<i64>,
 }
 

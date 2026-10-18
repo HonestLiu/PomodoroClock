@@ -2,11 +2,13 @@
 // 用 :root 变量取色，适配浅/深主题；无第三方图表库，纯 SVG。
 
 import { useMemo, useState } from 'react';
-import { relativeDayLabel } from '@/lib/date';
+import { formatShortDate, relativeDayLabel } from '@/lib/date';
+import { useI18n } from '@/i18n';
 
 export interface TrendPoint { dateKey: string; minutes: number; }
 
 export function TrendChart({ data, goalMin = 0 }: { data: TrendPoint[]; goalMin?: number }) {
+  const { t } = useI18n();
   const [hover, setHover] = useState<number | null>(null);
   const W = 560, H = 150, PAD = { l: 34, r: 8, t: 12, b: 20 };
 
@@ -40,7 +42,7 @@ export function TrendChart({ data, goalMin = 0 }: { data: TrendPoint[]; goalMin?
 
   return (
     <div style={{ position: 'relative' }}>
-      <svg viewBox={`0 0 ${W} ${H}`} className="trend-chart" role="img" aria-label="近 30 天专注趋势">
+      <svg viewBox={`0 0 ${W} ${H}`} className="trend-chart" role="img" aria-label={t('trend.aria')}>
         <defs>
           <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="var(--accent-blue)" stopOpacity="0.32" />
@@ -90,18 +92,28 @@ export function TrendChart({ data, goalMin = 0 }: { data: TrendPoint[]; goalMin?
           if (!show) return null;
           return (
             <text key={`l${i}`} x={p.x} y={H - 4} textAnchor="middle" className="heat-label">
-              {relativeDayLabel(p.dateKey).replace('月', '/').replace('日', '').slice(0, 6)}
+              {formatShortDate(p.dateKey)}
             </text>
           );
         })}
       </svg>
 
       <div style={{ display: 'flex', gap: 14, fontSize: 11.5, color: 'var(--text-2)', marginTop: 4, flexWrap: 'wrap' }}>
-        <span>近 {data.length} 天合计 <b style={{ color: 'var(--accent-focus)' }}>{total} 分钟</b></span>
-        <span>日均 {avg} 分钟</span>
-        {goalMin > 0 && <span><span style={{ color: 'var(--accent-focus)' }}>┄</span> 目标 {goalMin} 分钟</span>}
+        <span>
+          {t('trend.sum', { n: data.length })}
+          <b style={{ color: 'var(--accent-focus)' }}>{t('trend.total', { n: total })}</b>
+        </span>
+        <span>{t('trend.avg', { n: avg })}</span>
+        {goalMin > 0 && (
+          <span>
+            <span style={{ color: 'var(--accent-focus)' }}>┄</span> {t('trend.goal', { n: goalMin })}
+          </span>
+        )}
         {hover !== null && pts[hover] && (
-          <span><b style={{ color: 'var(--text-1)' }}>{relativeDayLabel(pts[hover].dateKey)}</b> {pts[hover].minutes} 分钟</span>
+          <span>
+            <b style={{ color: 'var(--text-1)' }}>{relativeDayLabel(pts[hover].dateKey)}</b>{' '}
+            {t('trend.hover', { n: pts[hover].minutes })}
+          </span>
         )}
       </div>
     </div>

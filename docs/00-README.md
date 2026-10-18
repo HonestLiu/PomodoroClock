@@ -29,3 +29,4 @@
 - 浏览器版：`npm run dev`（IndexedDB 适配器）
 - 桌面版：`npm run tauri dev` / `npm run tauri build`
 - 发布包：`src-tauri/target/release/bundle/macos/FocusPomodoro.app(.dmg)`（macOS）
+- 一键验收：`bash tools/check-all.sh [--with-shots|--skip-build]`（tsc → 红线 → 种子口径 → cargo test → build → 可选截图 7 检查；跑法与前置条件见 `README.md` §验证）

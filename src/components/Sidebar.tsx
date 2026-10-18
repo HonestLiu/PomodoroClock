@@ -9,6 +9,8 @@ import {
 import { useUiStore } from '@/stores/uiStore';
 import { useDataStore } from '@/stores/dataStore';
 import { useStatsStore } from '@/stores/statsStore';
+import { useAuthStore } from '@/stores/authStore';
+import { pbAvatarFileUrl } from '@/lib/pb';
 import { categoryFocusMinutes, categoryTaskCount, tasksInList, type Dataset } from '@/lib/derive';
 import { formatMinutesShort } from '@/lib/date';
 import { useI18n, type ZhKey } from '@/i18n';
@@ -34,11 +36,19 @@ export function Sidebar() {
   const draggingTaskId = useUiStore((s) => s.draggingTaskId);
   const setDraggingTask = useUiStore((s) => s.setDraggingTask);
   const statsRevision = useStatsStore((s) => s.revision);
+  // 身份跟随云端账号：登录后侧边栏显示的就是云端那个账号，避免「设置里 foo@bar.com、侧边栏 honestliu」的割裂
+  const cloudUser = useAuthStore((s) => s.user);
+  // 云端头像优先（PB users.avatar），否则回退本地头像文件，最后首字母
+  const cloudAvatarUrl = cloudUser && typeof cloudUser.avatar === 'string' && cloudUser.avatar
+    ? pbAvatarFileUrl(cloudUser, 72)
+    : '';
   const todayFocusMin = useStatsStore((s) => s.stats?.today_focus_min ?? 0);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const [dragId, setDragId] = useState<string | null>(null);
   const { t } = useI18n();
+  const displayName =
+    cloudUser?.name?.trim() || cloudUser?.email?.split('@')[0] || user?.username || t('account.untitled');
   const [overId, setOverId] = useState<string | null>(null);
 
   // 依赖 tasks / revision 触发重算（统计口径实时聚合）
@@ -90,21 +100,40 @@ export function Sidebar() {
 
   const activeKey = ui.route.name === 'list' ? null : ui.route.name;
 
+  /** 键盘重排清单：焦点在清单行上按 Alt + ↑/↓，与拖拽等效 */
+  function moveList(id: string, dir: -1 | 1) {
+    const ids = listRows.map((l) => l.id);
+    const from = ids.indexOf(id);
+    const to = from + dir;
+    if (from < 0 || to < 0 || to >= ids.length) return;
+    const next = [...ids];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    void reorderLists(next);
+  }
+
   return (
     <aside className="sidebar">
-      <button className="account" onClick={() => ui.openSettings('account')}>
+      <button
+        className="account" aria-haspopup="dialog"
+        aria-label={`${t('settings.tab.account')}：${displayName}`}
+        onClick={() => ui.openSettings('account')}
+      >
         <span className="avatar">
-          {user?.avatar_path
-            ? <img src={user.avatar_path} alt="" />
-            : (user?.username?.[0]?.toUpperCase() ?? 'U')}
+          {cloudAvatarUrl
+            ? <img src={cloudAvatarUrl} alt="" />
+            : user?.avatar_path
+              ? <img src={user.avatar_path} alt="" />
+              : (displayName[0]?.toUpperCase() ?? 'U')}
         </span>
-        <span className="account-name">{user?.username || t('account.untitled')}</span>
+        <span className="account-name" title={displayName}>{displayName}</span>
       </button>
 
       <div className="search-box">
-        <Search size={14} />
+        <Search size={14} aria-hidden />
         <input
           placeholder={t('search.placeholder')}
+          aria-label={t('a11y.searchInput')}
           value=""
           onFocus={() => ui.openSearch(true)}
           readOnly
@@ -119,9 +148,10 @@ export function Sidebar() {
             <button
               key={n.key}
               className={`nav-item${active ? ' active' : ''}`}
+              aria-current={active ? 'page' : undefined}
               onClick={() => ui.navigate({ name: n.key })}
             >
-              <Icon size={15} style={{ color: DOT_COLORS[n.key], flex: '0 0 auto' }} />
+              <Icon size={15} style={{ color: DOT_COLORS[n.key], flex: '0 0 auto' }} aria-hidden />
               <span className="nav-label">{t(n.labelKey)}</span>
               {n.key !== 'completed' && <span className="nav-time">{formatMinutesShort(n.minutes)}</span>}
               <span className="nav-count">{n.count}</span>
@@ -144,9 +174,16 @@ export function Sidebar() {
           >
             <button
               className={`list-row${ui.route.name === 'list' && ui.route.id === l.id ? ' active' : ''}`}
+              aria-current={ui.route.name === 'list' && ui.route.id === l.id ? 'page' : undefined}
+              title={t('a11y.reorderHint')}
               onClick={() => ui.navigate({ name: 'list', id: l.id })}
+              onKeyDown={(e) => {
+                if (!e.altKey) return;
+                if (e.key === 'ArrowUp') { e.preventDefault(); moveList(l.id, -1); }
+                if (e.key === 'ArrowDown') { e.preventDefault(); moveList(l.id, 1); }
+              }}
             >
-              <span className={"list-grip"} aria-hidden><GripVertical size={12} /></span>
+              <span className="list-grip" aria-hidden><GripVertical size={12} /></span>
               <span className="dot" style={{ background: '#B4B2AD' }} />
               <span className="nav-label" style={{ flex: 1 }}>{l.name}</span>
               {draggingTaskId && <span className="list-move-hint">{t('list.dropToMove')}</span>}
@@ -160,6 +197,7 @@ export function Sidebar() {
             className="new-list-input"
             autoFocus
             placeholder={t('list.placeholder')}
+            aria-label={t('list.placeholder')}
             value={name}
             onChange={(e) => setName(e.target.value)}
             onBlur={submitList}
@@ -170,7 +208,7 @@ export function Sidebar() {
           />
         ) : (
           <button className="list-row" onClick={() => setCreating(true)}>
-            <Plus size={14} style={{ color: 'var(--text-2)' }} />
+            <Plus size={14} style={{ color: 'var(--text-2)' }} aria-hidden />
             <span style={{ color: 'var(--text-2)' }}>{t('sidebar.createList')}</span>
           </button>
         )}

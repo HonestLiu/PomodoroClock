@@ -29,10 +29,18 @@ pub fn run() {
             // SQLite 位于 app_data_dir/focus.db（PRD §8.6）
             let dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dir)?;
-            let conn = db::open(&dir.join("focus.db"))?;
+            let mut conn = db::open(&dir.join("focus.db"))?;
 
-            // 迁移后初始化默认用户；不再写入截图演示数据，报表/清单展示真实数据（PRD §6.2 / §8.8-3）
+            // 迁移后初始化默认用户 / 每日目标 / 计时状态（PRD §6.2）
             db::ensure_bootstrap(&conn)?;
+
+            // 首启还原 PRD §6.3 截图数据（与浏览器侧 buildSeed 同一种子）。
+            // 守卫：只有「空库 + 从未播种」才写；删除数据/注销会写 demo_seeded=1，
+            // 避免用户清库后每次启动又被重新播种。
+            if db::is_empty(&conn)? && !db::demo_seeded(&conn)? {
+                db::seed_demo(&mut conn)?;
+                db::mark_demo_seeded(&conn)?;
+            }
 
             app.manage(db::Db(parking_lot::Mutex::new(conn)));
 
