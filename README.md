@@ -112,7 +112,7 @@ Rust 侧不重复结算，保证一次番茄恰好归档一条记录。
 ## 验证
 
 ```bash
-# 一键验收（推荐）：tsc → 红线 → 种子口径 → cargo test → build → 可选截图 8 检查
+# 一键验收（推荐，共 7 步）：tsc → 红线 → 种子口径 → 计时口径 → cargo test → build → 可选截图 13 检查
 bash tools/check-all.sh              # 静态/构建检查
 bash tools/check-all.sh --with-shots # 追加 Playwright 截图验收（自动起 preview）
 bash tools/check-all.sh --skip-build # 只查类型与测试
@@ -120,22 +120,24 @@ bash tools/check-all.sh --skip-build # 只查类型与测试
 # 单项执行
 npx esbuild tools/verify-data.ts --bundle --platform=node --format=esm \
   --alias:@=./src --outfile=/tmp/verify.mjs && node /tmp/verify.mjs   # §7.2 数据口径
+npx tsx tools/verify-timer.ts                                       # 三模式计时口径（20 项）
 ./tools/check-runtime-parity.sh                                     # UI 不得直连存储
 cd src-tauri && cargo test --test queries                           # Rust 统计口径（16 项）
 ```
 
-覆盖项：6 张统计卡片、侧边栏角标、已完成视图分组、番茄记录图、专注时间详情、
+覆盖项：6 张统计卡片、侧边栏角标（含已完成/记录两个口径）、记录视图分组、已完成任务归档分组、番茄记录图、专注时间详情、
 清单分布、每日目标日历、今日面板。
 
 `tools/shoot.mjs` 用于截图比对：先 `npm run build && npx vite preview --port 4173`，再 `node tools/shoot.mjs`；
 直接跑 `bash tools/check-all.sh --with-shots` 则会在 4173 无服务时自动起 preview。
 **注意 4173 预览的是 `dist/`**——改完源码不重新 `vite build`，预览与截图仍是旧产物（此坑已踩）。
-它按结构选择器（不依赖中英文文案）依次截 S1–S5、深色主题（S1/S4/S5）与英文界面，并做 8 项自动检查（含白噪音弹窗结构与封面可解码）
-（首屏渲染、账号页结构断言（`.account-card`/`.account-form` 含邮箱密码框与提交按钮/`.account-local-data` 含删除按钮，旧 `.profile-avatar/.profile-edit/.profile-form`、`.cloud-card` 须为 0、未登录无 `.account-sync`）、悬浮窗/专注页壁纸非 `none`、深色低对比度、英文残留、console/pageerror）；
+它按结构选择器（不依赖中英文文案）依次截 S1–S5、深色主题（S1/S4/S5）与英文界面，并做 9 项自动检查（含白噪音弹窗结构、计时模式菜单与起始值）
+（首屏渲染、账号页结构断言（`.acct-section` ≥ 2、邮箱/密码框、`.acct-row-actions .btn.primary`、`.acct-link`、`.btn.danger`，旧 `.account-card`/`.profile-*`/`.cloud-card` 须为 0、未登录无 `.acct-badge`/`.acct-avatar`）、白噪音弹窗、计时模式菜单三项一行与起始值、悬浮窗/专注页壁纸非 `none`、深色低对比度、英文残留、console/pageerror）；
 产物写入 `SHOT_DIR`（默认 `/tmp/shots`），有 console 错误或断言失败时退出码非 0。
 `APP_URL`、`SHOT_DIR` 可用环境变量覆盖；仅 Playwright 导入路径与本机 Chrome 路径
 （`tools/shoot.mjs` 顶部的 `CHROME` 常量）为硬编码，换机器需改这两处。
 `tools/extract-noise-covers.sh` 从 `src/assets/noise/*.mp3` 的 ID3 内嵌封面重抠弹窗封面图（换音频后重跑；缺图会让 `tools/shoot.mjs` 直接失败）。
+`tools/verify-timer.ts` 是三模式计时的纯函数自检（20 项，`npx tsx` 直跑，`check-all.sh` 第 4 步）。
 `tools/link-bins.mjs`、`tools/vendor-deps.mjs` 为依赖/打包辅助脚本，不参与验收。
 
 ---

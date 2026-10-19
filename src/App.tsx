@@ -8,7 +8,8 @@ import { FloatWindow } from '@/components/FloatWindow';
 import { NotificationPanel } from '@/components/NotificationPanel';
 import { SearchOverlay } from '@/components/SearchOverlay';
 import { TaskView } from '@/pages/TaskView';
-import { CompletedView } from '@/pages/CompletedView';
+import { RecordsView } from '@/pages/RecordsView';
+import { DoneView } from '@/pages/DoneView';
 import { ReportModal } from '@/modals/ReportModal';
 import { SettingsModal } from '@/modals/SettingsModal';
 import { TimerScreen } from '@/modals/TimerScreen';
@@ -209,7 +210,10 @@ export default function App() {
       <div className="shell">
         <Sidebar />
         <main className="main">
-          {route.name === 'completed' ? <CompletedView /> : <TaskView />}
+          {/* 记录=专注归档；已完成=任务归档；其余（含清单视图）走任务视图 */}
+          {route.name === 'records' ? <RecordsView />
+            : route.name === 'completed' ? <DoneView />
+              : <TaskView />}
         </main>
       </div>
 

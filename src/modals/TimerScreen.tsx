@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Maximize2, Minimize2, Pause, Play, SkipForward, Timer as TimerIcon, Volume2, VolumeX, X,
+  Maximize2, Minimize2, Pause, Play, SkipForward, Square, Timer as TimerIcon, Volume2, VolumeX, X,
 } from 'lucide-react';
 import wallpaper from '@/assets/wallpapers/waves.svg';
 import { useTimerStore } from '@/stores/timerStore';
@@ -33,7 +33,7 @@ const MODE_KEYS: Record<TimerMode, string> = {
 export function TimerScreen() {
   const {
     state, settings, screenOpen, openScreen, toggleRun, skip, setTask, setMode,
-    displayMs, durationFor, wasRestored, clearRestored, feedback, setFeedback,
+    displayMs, durationFor, wasRestored, clearRestored, feedback, setFeedback, stop,
   } = useTimerStore();
   const { tasks, lists, records: allRecords, revision } = useDataStore();
 
@@ -88,7 +88,8 @@ export function TimerScreen() {
 
   const ms = displayMs();
   const fallback = durationFor(state.phase === 'idle' ? 'focus' : state.phase);
-  const warn = state.phase === 'focus' && state.running && ms <= 10_000 && ms > 0;
+  // 倒计时剩余 10 秒开始闪烁提醒（正计时是「已用时长」，没有临近结束的概念，不能套用）
+  const warn = state.mode !== 'stopwatch' && state.phase === 'focus' && state.running && ms <= 10_000 && ms > 0;
   const progress = fallback > 0 ? Math.min(1, Math.max(0, 1 - ms / fallback)) : 0;
 
   const currentTask = tasks.find((t) => t.id === state.task_id);
@@ -247,11 +248,18 @@ export function TimerScreen() {
       </div>
 
       <div className="timer-bottom">
-        <button className="timer-cta" onClick={onCta}>
-          {/* 图标跟随 running：休息中按钮文案是「暂停」，图标却显示播放会自相矛盾 */}
-          {state.running ? <Pause size={15} /> : <Play size={15} />}
-          {ctaLabel}
-        </button>
+        {/* 正计时（stopwatch）运行中：主按钮改为「停止」→ 写 focus_record 并结束；其余模式保持 开始/暂停 */}
+        {state.mode === 'stopwatch' && state.running ? (
+          <button className="timer-cta" onClick={stop}>
+            <Square size={11} fill="currentColor" strokeWidth={0} />
+            {t('timer.cta.stop')}
+          </button>
+        ) : (
+          <button className="timer-cta" onClick={onCta}>
+            {state.running ? <Pause size={15} /> : <Play size={15} />}
+            {ctaLabel}
+          </button>
+        )}
 
         <div className="timer-tools">
           <button className="timer-tool" onClick={() => void toggleFullscreen()}>
@@ -263,7 +271,7 @@ export function TimerScreen() {
               <TimerIcon size={13} /> {t(MODE_KEYS[state.mode])}
             </button>
             {modeOpen && (
-              <div className="seg" style={{ position: 'absolute', bottom: 42, left: 0, background: 'rgba(255,255,255,.9)' }}>
+              <div className="timer-mode-menu" role="menu">
                 {(Object.keys(MODE_KEYS) as TimerMode[]).map((m) => (
                   <button
                     key={m}

@@ -16,7 +16,38 @@ fn stats_match_screenshot_spec() {
 
     assert_eq!(s.total_focus_min, 539, "总专注 8小时59分钟");
     assert_eq!(s.today_focus_min, 20, "今日 20 分钟");
-    assert_eq!(s.week_focus_min, 539, "本周 = 总");
+
+    // 「本周 = 本周一 00:00 起」（PRD §7.2）。种子按「今天/-1/-2」生成，
+    // 今天是周一或周二时更早的种子日会落到上一周，本周**合法地**小于总时长。
+    // 因此窗口在此用另一种写法独立重述一遍（`(dow+6)%7` 回推本周一，而非生产实现的
+    // `'-6 days','weekday 1'`），而不是硬编码 539 —— 硬编码只在周三~周日成立。
+    let week_start: i64 = db
+        .query_row(
+            "SELECT strftime('%s', date('now','localtime','-'
+                || ((CAST(strftime('%w','now','localtime') AS INTEGER) + 6) % 7)
+                || ' days') || ' 00:00:00','utc') * 1000",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    let week_expected: i64 = db
+        .query_row(
+            "SELECT COALESCE(SUM(duration_min),0) FROM focus_records WHERE start_at >= ?1",
+            [week_start],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(s.week_focus_min, week_expected, "本周 = 本周一 00:00 起的记录之和");
+    // 本地星期几（0=周日）—— 测试自取，不依赖任何日期库
+    let dow: i64 = db
+        .query_row("SELECT CAST(strftime('%w','now','localtime') AS INTEGER)", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(
+        s.week_focus_min == s.total_focus_min,
+        dow > 2,
+        "种子三天应落在同一周（今天是周{}时跨周，本周<总）",
+        dow,
+    );
     assert_eq!(s.total_done_tasks, 0, "总完成任务 0");
     assert_eq!(s.today_done_tasks, 0);
     assert_eq!(s.focus_days, 3, "专注天数 3");

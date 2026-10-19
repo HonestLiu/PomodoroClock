@@ -25,6 +25,27 @@
 - **拖拽排序**（★）：`[handles]` 拖拽在**当前视图内**重排 `sort_order`；拖到另一清单行上则移动并追加到该清单末尾。桌面端用指针拖拽；不要求对齐精确动画，但落点反馈必须可见。
   **键盘等价**：任务行聚焦后 `Alt+↑/↓` 上移/下移，结果经 `role="status"` 播报（`pages/TaskView.tsx`）。
 
+### 侧边栏两个「完成」入口（2026-10-19，用户需求）
+原「已完成」项展示的是**专注（番茄）记录**，与用户预期的「已完成任务汇总」不是一回事，
+故拆成两个常驻入口，`SmartKey` 相应拆键（`types.ts`）：
+
+| 入口 | 路由键 | 页面 | 角标 | 左侧时长 |
+| --- | --- | --- | --- | --- |
+| **已完成** | `completed` | `pages/DoneView.tsx` | 已完成任务数 | 这些任务关联的专注时长 |
+| **记录**（en: Sessions） | `records` | `pages/RecordsView.tsx`（原 CompletedView） | **已完成番茄数**（`focus_records` 条数） | 全部专注时长 |
+
+- 顺序（`Sidebar.tsx::NAV_MAIN` + `NAV_ARCHIVE`，共 7 项，2026-10-19 用户需求）：
+  主分类 今天 / 明天 / 本周 / 已计划 / 任务（带时长+角标）→ 分隔线 →
+  归档 **已完成** / **记录**（`.nav-archive`，纯导航，**不渲染时长与角标**——累积值随使用无限增长，没有导航价值）
+  → 有自定义清单时再补一条分隔线 → 清单夹 / 自定义清单。
+- **记录视图**：按 `focus_records.end_at` 日期倒序分组，行=任务名+时长+起止（FR-C1/C2）；统计栏 `RecordsStats`（统计在页面内看，不在侧边栏）。
+- **已完成视图**：`completedTaskGroups()`（`lib/derive.ts`）按 `completed_at` 日期倒序分组，行内复用 `TaskItem`
+  → 可**反勾选回待办**、编辑、删除；统计栏复用 `StatCards`（总/本周/今日完成 + 已专注时间，同样只在页面内）。
+- 两套口径的派生函数在 `lib/derive.ts` 与 `db/queries.ts` **各有一份**（后者供浏览器适配器 / `verify-data`），
+  改一侧必须同步另一侧（`tools/check-runtime-parity.sh` 只拦 UI 直连 db，不拦这里的语义漂移）。
+- `tasksForCategory` / `completedForCategory` 对 `records` 返回空集合（该视图不是任务集合），
+  `computeTaskCards` 对 `records` 返回全 0（记录页不复用任务统计卡）。
+
 ### 排序规则（★，需设计）
 - 排序持久化到 `tasks.sort_order`；同视图内序号连续化（重排后 `0..n-1`）。
 - 拖拽后立即局部更新 DOM + 一次性批量写库（避免每步一次 IPC）。

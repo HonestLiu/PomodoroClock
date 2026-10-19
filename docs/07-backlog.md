@@ -28,9 +28,9 @@
 | 20 | P2 | P3 | 白噪音按模式（`noise_on_focus/break` 已存设置、未接入播放） | settings/timer | S | — |
 | 21 | P2 | P3 | 关于页版本号动态 + 开源许可文本 | settings ★4 | S | — |
 | 22 | P2 | P3 | 应用内帮助 / 各页空态文案 | 全局 | S | — |
-| 23 | P2 | P2 | 正计时模式无「结束并记录」入口：正计时专注永不写 `focus_record`（有数据丢失后果，故与 #7 单列） | timer ★3 | S | 工具条结构按 PRD S3 固定，加按钮会破坏截图还原 |
+| 23 | P1 | ✅ 已修复 | ~~正计时模式无「结束并记录」入口~~ → 正计时运行中主按钮变「停止」，`timerStore.ts::stop()` 写 `focus_record`（不足 1 分钟不写并提示 `timer.feedback.tooShort`）（2026-10-18 落地） | timer ★3 | S | 已由 `tools/verify-timer.ts`（20 项）与 Playwright 实测覆盖 |
 | 24 | P2 | P3 | 壁纸/资源 data URI 必须 `url("…")` 带引号：Vite 内联 SVG 保留 `xmlns='http://…'` 单引号，未加引号会被 CSS 整条丢弃且无报错（曾致专注页/悬浮窗壁纸静默失效） | timer / 前端约定 | S | 已在 `03-architecture.md` §工程化约定留约定 |
-| 25 | P2 | — | **双引擎语义漂移（潜伏）**：`timer_engine.rs::remaining_ms` 正计时暂停返回 0（忽略 `paused_remaining_ms`），`timer/engine.ts::remainingMs` 返回冻结已用；Idle 时长取值路径也不同。当前副作用不可见（桌面 tick 广播仅显示用） | timer 双实现 | S | 改任一侧必须对照另一侧 |
+| 25 | P2 | — | **双引擎语义漂移（潜伏，部分已修）**：~~`timer_engine.rs::remaining_ms` 正计时暂停返回 0~~ → **已对齐**（现 `(running, start_at) ⇒ now-start_at`，否则回 `paused_remaining_ms`，与 `engine.ts::remainingMs` 一致）；Idle 时长取值路径仍不同（前端统一走 `timerStore.ts::idleDurationFor`，Rust 侧无对应 helper） | timer 双实现 | S | 改任一侧必须对照另一侧 |
 | 26 | P2 | — | **无 schema 迁移版本表**：`db.rs` 只有 `PRAGMA`，靠 `CREATE TABLE IF NOT EXISTS`；未来加列/改列需手写迁移且无版本判断 | 数据层 | M | 现有库已升 DB_VERSION=2（IDB） |
 | 27 | P2 | — | **删除清单不清 `focus_records.list_id`**：两端都只把 `tasks.list_id` 置 NULL（`commands/lists.rs::delete_list`、`api/local.ts::delete_list`），历史记录的 list_id 成悬空，报表落「未指定任务」 | 数据层 / 报表 | S | — |
 | 28 | P2 | — | **大小写折叠不一致**：SQLite `lower()` 只折 ASCII，JS `toLowerCase()` 折 Unicode（`commands/tasks.rs::list_tasks_impl` 用 `lower(title) LIKE`）→ 非 ASCII 拉丁字母搜索两端可能不一致（中文不受影响） | 数据层 | S | — |
@@ -45,7 +45,7 @@
 | 36 | P3 | — | **头像文件 URL 公开可读**：`GET /api/files/users/{recordId}/{filename}` 不带 Authorization 也返回 200（PB 文件字段默认行为），知道 recordId + 文件名即可访问。当前可接受（头像本就展示用）；若要求私有，需在 PB 侧改 file 字段保护/走代理签名 URL，代价是 `<img>` 不能直连 | 云同步 / 隐私 | M | 端到端实测确认 |
 
 ## 现状备注（2026-10-18 核验）
-- **#1–#6 属实**：任务更多菜单/右键（`TaskView.tsx`）、拖拽排序（`sort_order` 写回）、系统通知（`lib/systemNotify.ts` + `Cargo.toml` notification 插件 + `timerStore.ts:323` 门控，真机弹窗待验）、搜索回车定位（`SearchOverlay.tsx:38-59`）、清单拖拽+默认清单、会话恢复提示（`timerStore` 恢复后 `wasRestored`）。#14 导出/导入未实现（仅 `api/local.ts:399` 测试注释）；#15 未装插件（`Cargo.toml` 无 autostart）。
+- **#1–#6 属实**：任务更多菜单/右键（`TaskView.tsx`）、拖拽排序（`sort_order` 写回）、系统通知（`lib/systemNotify.ts` + `Cargo.toml` notification 插件 + `timerStore.ts::checkExpiry` 门控，真机弹窗待验）、搜索回车定位（`SearchOverlay.tsx:38-59`）、清单拖拽+默认清单、会话恢复提示（`timerStore` 恢复后 `wasRestored`）。#14 导出/导入未实现（仅 `api/local.ts:399` 测试注释）；#15 未装插件（`Cargo.toml` 无 autostart）。
 - **占位页按规格保留**：高级版/好友/成就均为 `PlaceholderModal.tsx`（注释指向 PRD FR-G3）；高级版 tab 有 ¥18/月、¥168/年、¥398 静态卡，文案明确"订阅流程未实现"；成就页用 `stats` 实时算 4 条进度（初次专注/坚持不懈/目标达成/任务达人），但**无解锁持久化**。故 #18 仍成立，且不应在验收里按"功能缺失"扣分。
 - **首启数据双端一致**：两端都先 `ensure_bootstrap`（默认用户/目标/计时状态），再写同一份 §6.3 演示数据（`db/seed.ts::buildSeed` / `db.rs::seed_demo`）并置 `demo_seeded=1`；仅「空库 + 未播种」才播种。「删除数据」「注销账号」都回到空业务表 + 默认用户 + 已播种标记，不重播种。详见 `04-data.md` §首启与清空。
 - **白噪音入口已统一为选择弹窗**：工具条与外观页都调 `uiStore.openNoise(true)`，播放状态收进 `stores/noiseStore.ts`；弹窗封面是 5 个 mp3 的 ID3 内嵌图（`tools/extract-noise-covers.sh` 重抠），换音频忘重跑会缺图——`tools/shoot.mjs` 会因封面未解码直接失败，故按「有自动化护栏的约定」处理，不单列风险行。按模式自动播放（`noise_on_focus/break`）仍未接线。

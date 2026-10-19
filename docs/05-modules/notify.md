@@ -23,6 +23,6 @@
 
 ## 验收
 - [x] 番茄完成在桌面触发真实系统通知——代码/插件/权限层已接，**真机弹窗仍待验证**。
-- [x] 设置关闭后不再发任一通道；再次打开恢复（`timerStore.ts:323` 门控）。
+- [x] 设置关闭后不再发任一通道；再次打开恢复（`timerStore.ts::checkExpiry` 门控）。
 - [x] 权限被拒时静默降级、应用内仍在（`ensureSystemPermission` 失败不抛）。
 - 关联：`06-acceptance.md` E 组（通知）、`src/api/` 双适配器。

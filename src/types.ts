@@ -128,8 +128,10 @@ export const DEFAULT_SETTINGS: Settings = {
   motto: '',
 };
 
-/** 侧边栏 / 路由使用的分类键 */
-export type SmartKey = 'today' | 'tomorrow' | 'week' | 'scheduled' | 'completed' | 'tasks';
+/** 侧边栏 / 路由使用的分类键
+ *  - `completed` = 已完成任务归档（所有 completed=1 的任务）
+ *  - `records`   = 专注记录（已完成番茄的归档，原「已完成」视图） */
+export type SmartKey = 'today' | 'tomorrow' | 'week' | 'scheduled' | 'completed' | 'records' | 'tasks';
 
 /** 系统内置「任务」清单的 id（种子创建，容纳所有演示任务）。
  *  侧边栏自定义清单区排除它，避免与顶部智能分类「任务」重复。 */

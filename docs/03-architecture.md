@@ -65,6 +65,18 @@ PRD §8.6/`01-vision.md` 把云同步列为非目标；当前实现作为**可�
 - **configs 关系约束**：`configs.user` 是关系字段，**删用户前必须先删其 configs 记录**，否则 `DELETE users` 返回 400；`users` 的 listRule 不公开，匿名无法枚举用户（测试残留账号只能按已知 id 删）。
 - **触发**：设置变更 `scheduleSyncPush` 防抖 1200ms 后推送；启动时 `useAuthStore.init()`（`App.tsx:48`）。
 
+## 计时三模式与结算归属（2026-10-18，来源：用户需求）
+
+用户要求专注界面同时提供「25:00→00:00 的倒计时」与「00:00 到无限大的正计时」；第三种沿用原有番茄钟。三种模式**共用同一状态机**（`phase: idle|focus|break` + 绝对时间戳），差别只在时长、到期判定与谁写记录——这样暂停/恢复、跨休眠补偿、崩溃恢复三条既有红线不必各写一遍。
+
+- **引擎层是纯函数分支**（`src/timer/engine.ts`，无副作用、可单测）：`phaseDurationMs`（`mode==='stopwatch'` 恒 0，其余按 `focus_len_min` / 长短休息计算）、`remainingMs` 与 `displayMs`（正计时返回「已用」，暂停时返回冻结值而非随 `now` 增长）、`isExpired`（`!running` 或 `mode==='stopwatch'` 恒 false，所以正计时永不到期）、`startState`（正计时恢复把已用时折算回 `start_at = now - paused_remaining_ms`，**暂停时长不计入专注时长**）。
+- **结算单属主仍在前端**：`stores/timerStore.ts::checkExpiry` 里番茄钟走「写 `focus_record` → 进休息循环」，`mode==='countdown'` 走单独分支——到期即停，反馈 `timer.feedback.countdownDone`、phase 回 `idle`、广播 `timer://finished`（payload 带 `mode:'countdown'`，托盘/侧栏据此区分）、系统通知 `countdown_done`、响铃，**不写记录、不进休息**。正计时永远走不到 `checkExpiry`，由用户点「停止」触发 `stop()`。
+- **「停止」与「不足 1 分钟」**：`stop()` 只对 `stopwatch` 生效（其余模式等价 `reset()`）；`finalizeFocus()` 改为返回 `boolean`——`round((end-start)/60000) < 1` 直接 `return false` 不落库，`stop()` 据此选文案 `timer.feedback.focusDone` / `timer.feedback.tooShort`（避免「点错了马上停」污染专注数据）。
+- **「未开始」显示的时长**：`timerStore.ts::idleDurationFor(mode, settings)` 是唯一入口（正计时 0、倒计时/番茄钟为专注时长），`setMode/setSettings/reset/stop/checkExpiry` 全改用它；此前各处硬编码 `focus_len_min`，导致切到正计时仍显示 25:00、且 `displayMs` 的 idle 回退也拿到错误 fallback。
+- **双引擎对齐**：`src-tauri/src/timer_engine.rs::remaining_ms` 的正计时分支持 `(running, start_at) → now-start_at`，否则回 `paused_remaining_ms`（原先暂停直接返回 0，菜单栏倒计时会归零，与前端不一致）；`07-backlog.md` #25 里这一条已勾掉，其余漂移项保留。
+- **菜单入口**：`.timer-mode-menu`（`position:absolute; bottom:44px`，矮屏 `@media (min-height:700px)` 抬到 `104px`，`white-space:nowrap` + `display:flex` 保证三项一行）——原复用 `.seg` 会被工具条窄宽度挤成竖排单字并压住主按钮。
+- **「剩余 10 秒闪烁」只对非正计时**（`TimerScreen.tsx` 的 `warn` 加 `mode !== 'stopwatch'` 守卫），`.timer-sub` 在正计时显示 `timer.elapsed`（已专注）而非 `timer.remaining`。
+
 ## 白噪音选择弹窗（2026-10，来源：用户设计稿）
 
 用户指名的 UI 改造：原来白噪音有两个零碎入口（计时页工具条的内嵌小浮层、设置→外观的 `<select>` 下拉），现统一为**一个选择弹窗**，外观按用户提供的设计稿实现（标题 + 音量滑杆 + 圆形封面列表 + 取消/确定）。**样式不在 PRD 规定范围内**，是用户追加的设计要求。

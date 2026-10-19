@@ -4,6 +4,92 @@
 
 ---
 
+## 2026-10-19 · 侧边栏「已完成」拆为「已完成（任务）」+「记录（番茄）」，归档项移入任务下方且去掉累积数字
+
+### 用户需求
+> 「已完成」页显示的貌似是已完成的番茄，不是我所想的已完成任务汇总；把当前「已完成」侧边栏项
+> 改成已完成番茄数项（名字自取、别用「已完成」、尽量简短），再新增一个「已完成」常驻项显示所有已完成任务。
+
+原「已完成」视图的数据源是 `focus_records`（S2 截图事实就是专注记录），确实不是任务归档——两者语义不同，拆开而非改一个。
+
+### 实现
+- **键拆分**：`SmartKey` 增加 `'records'`（`types.ts`）。`completed` 的语义收窄为「勾选完成的任务」，`records` = 专注归档。
+- **侧边栏分组**（`Sidebar.tsx::NAV_MAIN` + `NAV_ARCHIVE`）：7 项，顺序为
+  主分类 今天/明天/本周/已计划/任务 → `.nav-divider` → 归档 **已完成**/**记录**（`.nav-archive`）→ 有自定义清单时再一条 `.nav-divider` → 清单夹/自定义清单。
+  图标 `CheckCircle2` / `History`；`DOT_COLORS` 给已完成 `#5A9E8E`、记录 `#8A8A8A`。
+- **归档项不显示累积数字**（用户需求）：两项的 `.nav-time` / `.nav-count` **一律不渲染**——已专注时长与任务/番茄数只随使用单调增长，
+  久用后变成巨大数字，没有导航价值；完整统计收进页面内（`DoneView` 的 4 张统计卡、`RecordsView` 的 `RecordsStats`）。
+  （中途曾让两行都显示时长+角标，同日按用户反馈去掉，最终形态以本条为准。）
+- **口径函数仍保留**（`lib/derive.ts` / `db/queries.ts` 同步，供页面统计与 `verify-data` 校验）：
+  `categoryTaskCount('records')` = `focus_records.length`（已完成番茄数）、`categoryTaskCount('completed')` = 已完成任务数、
+  `categoryFocusMinutes('records')` = 全部专注时长——只是侧边栏不再消费它们。
+- **路由**（`App.tsx`）：`records` → `RecordsView`，`completed` → `DoneView`，其余（含清单）→ `TaskView`。
+- **页面**：`pages/CompletedView.tsx` → `pages/RecordsView.tsx`、`components/CompletedStats.tsx` → `components/RecordsStats.tsx`（`git mv` 保历史）；
+  新增 `pages/DoneView.tsx`（`completedTaskGroups()` 按 `completed_at` 倒序分组 + `TaskItem` 行内反勾选/编辑/删除 + `StatCards` 四卡）。
+- **派生防御**：`tasksForCategory` / `completedForCategory` 对 `records` 返回空集合，`computeTaskCards` 对 `records` 返回全 0（记录页不用任务统计卡）。
+- **i18n**：新增 `nav.records`（记录 / Sessions）、`records.empty`（还没有专注记录 / No focus sessions yet），zh/en 键集仍相等。
+
+### 缺陷修复
+- **自定义清单「已专注时间」恒等于总专注时间（用户反馈）**：清单视图把 key 压成 `'tasks'` 且 `isTasksSmart=false`，
+  `computeTaskCards` 没有清单入参，已专注时间落到 `tasksForCategory(ds,'tasks')`（**全部未完成任务**）分支 → 任何清单都显示全局总时长；
+  预计时间也误用「今日到期」口径（清单待办无到期日时恒为 0）。修：函数签名加 `listId`（`lib/derive.ts::computeTaskCards`），
+  清单视图的待办集合取 `tasksInList(ds, listId)`、已专注时间按**该清单全部任务（含已完成）的记录**汇总（与侧边栏 `listAggregate` 同口径）、
+  已完成数按清单过滤；`TaskView.tsx` 传入 `listId`。`verify-data.ts` 新增 10 条回归断言（内置清单 529/自定义清单 30 + 预计时间/待办/已完成 + 智能「任务」不被污染），
+  浏览器端到端（临时脚本）复核：空清单 0 分钟 → 注入本清单记录后 30 分钟、侧边栏 30m、全局视图仍 9小时29分钟。
+  - 注：历史 `focus_records.list_id` 冗余列**不参与**此统计（统计按 task_id → 当前任务清单归属，任务移清单后历史时长跟随任务，与 `listAggregate` 一致）；
+    报表环形图仍用冗余 `list_id`（按归档时清单）——两套口径都已存在，未在本次改动范围内统一。
+
+**验收脚本的日期相关假失败（本轮跑测暴露）**
+- **`verify-data.ts` 用 `toISOString()` 取「今天」**：那是 UTC，本地 00:00–08:00（UTC+8）之间取到昨天的键，`今天组条数` 必错 → 改 `toDateKey(new Date())`（`lib/date` 本地时区）。
+- **「本周」期望值硬编码 `8小时59分钟`**：种子按「今天/-1/-2」生成，**今天是周一或周二**时更早的种子日落到上一周，本周合法地小于总时长（本轮正撞上周一 10-19，故周一时必红）。
+  → 改为在测试内**独立**算一遍周一窗口（`(dow+6)%7` 回推），断言 `本周 == 窗口内记录之和`，另断言「本周==总」仅在非跨周日成立。
+- **`src-tauri/tests/queries.rs::stats_match_screenshot_spec` 同一根因**：`assert_eq!(week_focus_min, 539, "本周 = 总")` 在周一周二必失败 → 测试内用另一套 SQL 写法（`strftime('%w')` 回推）独立重述同一口径，`cargo test` 回到 16/16。
+
+### 验证
+- `bash tools/check-all.sh --with-shots` → **7/7 全绿**：tsc / 运行时红线 / 种子口径（含新增 6 条「已完成·记录」口径断言）/ `verify-timer` 20/20 / `cargo test` **16 passed** / build / 截图 **13 项断言**。
+- `tools/shoot.mjs`：`NAV` 序号更新为最终 7 项分组（tasks=4、completed=5、records=6）；
+  新增首屏「侧边栏分组」结构断言（主分类 5 项各有 2 个 meta 元素、归档 2 项 0 个、带 `.nav-archive` 类、分隔线 ≥1）；
+  新增 `S2-records`（记录视图，`.group-head` 3 + `.record-item` 22）与 `S2b-tasks-done`（已完成视图，空态 + 无 `.record-item`）；
+  断言只看**结构与高亮序号**、不碰任何文案（英文界面对照也要成立），截图断言 9 → **13 项**。
+
+### 防复发
+- 「已完成」一词在本仓已出现两种口径：**任务归档**（`tasks.completed`）与**番茄归档**（`focus_records`）。
+  新增视图/统计前先确认数据源；改任一侧的 `derive.ts` 必须同步 `db/queries.ts`（浏览器适配器 + `verify-data` 走后者）。
+- 验收断言里凡涉及「今天 / 本周」，一律用本地时区工具（`toDateKey` / 独立周一窗口），**禁止 `toISOString()` 与硬编码跨周恒等值**。
+
+---
+
+## 2026-10-18 · 专注界面三种计时模式（倒计时 / 正计时）+ 验收工具增强
+
+### 能力补齐（用户需求）
+用户要求专注界面同时提供「25:00→00:00 的倒计时」与「00:00 到无限大的正计时」，第三模式沿用原有番茄钟。三种模式**共用同一状态机**（`phase` + 绝对时间戳），差别只在时长、到期判定与结算归属。
+
+- **番茄钟 `pomodoro`**：行为未变 —— 25 分钟专注 → 写 `focus_record` → 进休息循环（`auto_start_next` 可配）。
+- **倒计时 `countdown`**：从 `focus_len_min` 递减到 00:00 **即停**：反馈「倒计时结束 ✓」、phase 回 `idle`（「准备开始」）、广播 `timer://finished`（payload 带 `mode:'countdown'`，托盘/侧栏据此区分）、系统通知 `countdown_done`、响铃；**不写 `focus_record`、不进入休息循环**。
+- **正计时 `stopwatch`**：从 00:00 往上、`isExpired` 恒 false（永不到期）；运行中主按钮变「停止」→ `timerStore.ts::stop()` 写记录（时长 = `round((now−start_at)/60000)`）；**不足 1 分钟不写**并提示「不足 1 分钟，未记录」（`finalizeFocus` 改返回 `boolean`）。暂停冻结已用时（`paused_remaining_ms`），恢复时 `start_at = now − 已用时`，**暂停时长不计入专注时长**。
+
+### 缺陷修复
+- **切模式后起始值错误**：`setMode` 把 idle 的 `paused_remaining_ms` 一律设成 `focus_len_min`，而 `engine.ts::displayMs` 只在该值为 null 时才回退 fallback → 切到正计时仍显示 25:00。修：新增 `timerStore.ts::idleDurationFor(mode, settings)`（正计时 0、其余 = 专注时长），`setMode/setSettings/reset/stop/checkExpiry` 全部改用它，不再硬编码 `Math.round(settings.focus_len_min*60_000)`；`displayMs` 的 idle 分支改为**一律**回退 fallback。
+- **模式菜单压住主按钮**：原复用 `.seg` 分段控件，在工具条窄宽度下被挤成竖排单字并覆盖主按钮。修：专用 `.timer-mode-menu`（`position:absolute; bottom:44px`、矮屏 `@media (min-height:700px)` 抬到 `104px`、`white-space:nowrap` + `display:flex`、`z-index:5`、白底 + 阴影，`button.active` 用 `--accent-focus`）。
+- **「剩余 10 秒」闪烁在正计时出现**：`TimerScreen.tsx` 的 `warn` 加 `state.mode !== 'stopwatch'` 守卫；`.timer-sub` 在正计时显示 `timer.elapsed`（已专注），其余显示 `timer.remaining`。
+- **双引擎漂移一项对齐**：`src-tauri/src/timer_engine.rs::remaining_ms` 的正计时分支改为 `(running, start_at) ⇒ now-start_at`，否则回 `paused_remaining_ms`（原先暂停直接返回 0，菜单栏倒计时会归零，与前端 `displayMs` 不一致）→ `07-backlog.md` #25 该条勾掉，其余漂移项保留。
+- **i18n**：新增 `timer.feedback.tooShort`；键集 zh/en 一致（**脚本核对键集相等、无缺/无重复**；本轮新增 1 键）。
+
+### 工程化
+- **新增 `tools/verify-timer.ts`**（纯函数自检，20 条断言）：三模式未开始时显示值、倒计时 `end_at` 与递减、到点才判到期、正计时 `end_at === null` 且永不到期、正计时暂停冻结 + 恢复不含暂停时长、倒计时暂停冻结剩余 + 恢复顺延、休息时长（5 分钟 / 每 4 个番茄 30 分钟长休息）、stopwatch 无阶段时长。跑法 `npx tsx tools/verify-timer.ts` → **20/20**。
+- **`tools/check-all.sh` 增加第 4 步**「计时模式口径（verify-timer.ts）」，现共 **7 步**：tsc → 一致性红线 → 种子口径 → 计时模式口径 → cargo test → 生产构建 → 截图验收。
+- **`tools/shoot.mjs` 9 项断言**（原 7 + 白噪音 + 本轮 2 项）：新增「计时模式菜单 3 项且一行排开（`.timer-mode-menu button` = 3、top 坐标差 < 2px）」「计时模式起始值正确（倒计时 25:00 / 正计时 00:00）」；账号页断言同步为当前结构（`.acct-section >= 2`、`.acct-row-actions .btn.primary`、`.acct-link`、`.btn.danger`，旧 `.account-card` 等必须为 0）。
+
+### 验证
+- `bash tools/check-all.sh --with-shots` → **7/7 全绿**（截图 9 项断言全绿、console 无错误）。
+- `npx tsx tools/verify-timer.ts` → **20/20**。
+- 浏览器临时脚本（未入仓）实测 **11/11**：倒计时到期提示且不写 `focus_record`、主按钮回「开始专注」、阶段回「准备开始」；正计时往上走、运行中主按钮「停止」、不足 1 分钟不写记录并提示。
+
+### 防复发
+- 三模式语义只在 `timer/engine.ts`（纯函数）与 `timerStore.ts::checkExpiry/stop/finalizeFocus` 三处分叉；改任一处必须同步 `tools/verify-timer.ts` 与 `timer_engine.rs`。
+
+---
+
 ## 2026-10-18 · 账号页重构为「软件账号中心」+ 真实改密码/重置密码 + PB 端到端实测
 
 ### 重要变更

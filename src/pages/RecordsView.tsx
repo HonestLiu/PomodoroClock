@@ -1,15 +1,16 @@
-// 已完成视图 —— PRD §5.3 FR-C1/C2（截图事实 S2）
-// 按完成日期倒序分组；组内每条 = 一次专注记录（任务名 / 时长 / 起止时间）
+// 记录视图 —— 专注（番茄）归档，PRD §5.3 FR-C1/C2（原「已完成」视图）
+// 按记录结束日期倒序分组；组内每条 = 一次专注记录（任务名 / 时长 / 起止时间）
+// 与「已完成」视图的区别：这里归档的是**番茄专注**，那边归档的是**勾选完成的任务**。
 
 import { useMemo } from 'react';
-import { CompletedStats } from '@/components/CompletedStats';
+import { RecordsStats } from '@/components/RecordsStats';
 import { useDataStore } from '@/stores/dataStore';
 import { useStatsStore } from '@/stores/statsStore';
 import { completedGroups, taskTitle, type Dataset } from '@/lib/derive';
 import { formatHM, formatMinutes, relativeDayLabel } from '@/lib/date';
 import { useI18n } from '@/i18n';
 
-export function CompletedView() {
+export function RecordsView() {
   const { tasks, lists, records } = useDataStore();
   const stats = useStatsStore((s) => s.stats);
   const revision = useStatsStore((s) => s.revision);
@@ -18,20 +19,19 @@ export function CompletedView() {
 
   const { t } = useI18n();
   const groups = useMemo(() => completedGroups(ds), [ds, revision]);
-  // 「已完成」专用统计栏（不复用统一任务统计卡）
-  const completedStats = {
-    doneTasks: tasks.filter((t) => t.completed === 1).length,
+  const recordStats = {
     records: records.length,
     focusMin: stats?.total_focus_min ?? 0,
+    weekMin: stats?.week_focus_min ?? 0,
     days: stats?.focus_days ?? 0,
   };
 
   return (
     <div className="content">
-      <h1 className="page-title">{t('nav.completed')}</h1>
-      <CompletedStats {...completedStats} />
+      <h1 className="page-title">{t('nav.records')}</h1>
+      <RecordsStats {...recordStats} />
 
-      {groups.length === 0 && <div className="empty">{t('completed.empty')}</div>}
+      {groups.length === 0 && <div className="empty">{t('records.empty')}</div>}
 
       {groups.map((g) => {
         const total = g.records.reduce((a, r) => a + r.duration_min, 0);

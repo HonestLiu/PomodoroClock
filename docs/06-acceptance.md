@@ -4,7 +4,8 @@
 
 ## A. 全局框架
 - [x] P0 自定义标题栏：红黄绿按钮位置/语义正确，可拖拽窗口
-- [x] P0 侧边栏 6 分类 + 账号区 + 搜索框 + 创建清单，当前项高亮
+- [x] P0 侧边栏 7 分类 + 账号区 + 搜索框 + 创建清单，当前项高亮〔脚本：`tools/shoot.mjs` 首屏结构断言〕
+- [x] P0 归档分组：「已完成」「记录」位于「任务」与自定义清单之间（分隔线分组），且不显示随使用累积的时长/角标；「已完成」= 任务归档、「记录」= 番茄归档（页面内部各自仍有完整统计）
 - [x] P0 顶栏 6 图标可点，铃铛角标显示未读数
 - [x] P1 悬浮番茄小窗常驻右下，可拖动、可播放/收起
 - [x] P2 清单可拖拽排序 + 默认清单
@@ -17,17 +18,19 @@
 - [x] P1 更多菜单 / 右键（删除、移到清单、复制）
 - [x] P1 拖拽排序（视图内重排 + 跨清单移动）——`tasks.md` ★2
 - [x] P0 今天/明天/本周/已计划筛选规则正确
-- [x] P0 已完成视图按日期分组，条目 = 任务名+时长+起止时间
+- [x] P0 记录视图按日期分组，条目 = 任务名+时长+起止时间（原「已完成」，2026-10-19 改名「记录」）
+- [x] P0 已完成视图为常驻项：按完成日期分组展示全部已完成任务，行内可反勾选/编辑/删除，空态有文案〔脚本：`tools/shoot.mjs` S2b〕
 
 ## C. 番茄钟
 - [x] P0 专注/休息状态机正确流转；倒计时 MM:SS
+- [x] P0 **三种计时模式**：番茄钟 / 倒计时 / 正计时——模式菜单三项且一行排开；起始值「倒计时 25:00 / 正计时 00:00」〔脚本：`tools/shoot.mjs` + `tools/verify-timer.ts`〕；倒计时到期提示「倒计时结束」且**不写** `focus_record`、不进休息；正计时「停止」写记录、**不足 1 分钟不写**并提示；正计时暂停后再停止，暂停时长不计入
 - [x] P0 专注结束写 focus_record，进入休息；休息结束回专注〔脚本：`cargo test --test queries`〕
 - [x] P0 任务选择框 + 右侧今日面板（专注时间/待完成/记录时间轴）
 - [x] P1 白噪音可开关；全屏可切换；工具条与设置页入口都打开**统一选择弹窗**（6 项：无 + 5 音色，5 张圆形封面可解码，含音量滑杆与取消/确定）
 - [x] P1 **系统通知**（tauri-plugin-notification）+ 系统/应用内通知双开关
 - [x] P1 小窗：海浪背景+任务名+番茄计数+播放键
 - [x] P1 关闭/重启后会话可恢复 + **恢复提示 UI**——`timer.md` ★1
-- [~] P2 倒计时/正计时模式完善——`timer.md` ★3
+- [x] P2 倒计时/正计时模式完善——`timer.md` ★3 已落地；剩「每模式独立时长」未做（现共用 `focus_len_min`）
 
 ## D. 报表
 - [x] P0 6 统计卡片数值正确（红/蓝配色一致）〔脚本〕
@@ -53,9 +56,9 @@
   - [x] 已移除**旧的本地**头像上传 / 旧的「编辑资料」整表单（昵称/邮箱/座右铭一起改） / 本地改密码 / 云同步独立区块；`tools/shoot.mjs` 断言 `.profile-avatar/.profile-edit/.profile-form`、`.cloud-card` 为 0（现头像走云端、昵称就地编辑，见上）
 - [x] P0 删除数据/注销账号有二次确认，且实际清库
 - [x] P1 番茄钟设置（专注/休息时长）影响实际计时
-- [x] P2 语言切换即时生效（i18n）〔脚本：英文界面无中文残留〕——词表 `src/i18n/`（zh/en 键集一致，约 326 键、由脚本核对键集一致），切换在外观页语言下拉（`patch('language')` + `setLang`），启动应用 `App.tsx:45`，首启跟随系统语言
+- [x] P2 语言切换即时生效（i18n）〔脚本：英文界面无中文残留〕——词表 `src/i18n/`（zh/en 键集一致，约 358 键、由脚本核对键集一致），切换在外观页语言下拉（`patch('language')` + `setLang`），启动应用 `App.tsx:45`，首启跟随系统语言
 - [x] P2 深色主题全屏核对——`App.tsx` 写 `data-theme`，`styles/global.css` 深色变量；5 屏已核对 + 低对比度扫描〔脚本：`tools/shoot.mjs`〕
-- [x] P2 系统通知开关——系统/应用内两个开关（通知页 `system_notify` 开关），`timerStore.ts:323` 门控；真机弹窗待验证
+- [x] P2 系统通知开关——系统/应用内两个开关（通知页 `system_notify` 开关），`timerStore.ts::checkExpiry` 门控；真机弹窗待验证
 - [x] P2 登录 + 云同步（PocketBase）——离线优先；冲突按 rev→updated→device 裁决；PB 不可达静默降级（`lib/sync.ts::resolveDirection`、`stores/authStore.ts`）；端到端 36/36 已实测（2026-10-18，含昵称读写与编辑资料，见 `08-changelog.md`）
 
 ## S. 搜索（附加，来自 `search.md`）
@@ -66,7 +69,7 @@
 - [x] P0 SQLite 迁移自动执行，数据持久化重启不丢
 - [x] P1 计时基于时间戳，误差 ≤ 1s
 - [~] P1 三平台至少两平台真机验证（macOS 通过；**Windows/Linux 待验证**）
-- [x] P1 单元/行为测试：`cargo test`（16 passed）+ `tools/verify-data.ts` + Playwright 截图【脚本：`tools/check-all.sh`】
+- [x] P1 单元/行为测试：`cargo test`（16 passed）+ `tools/verify-data.ts` + `tools/verify-timer.ts`（20 项计时口径）+ Playwright 截图【脚本：`tools/check-all.sh`】
 - [x] P0 **双运行时数据一致**：桌面版任务列表正确渲染（曾失效，已修复，见 `08-changelog.md`）
 - [x] P0 守卫 `tools/check-runtime-parity.sh` 纳入流程〔脚本：`check-all.sh` 第 2 步〕
 
@@ -81,9 +84,11 @@
 - [x] P2 焦点可见：`focus-visible` 覆盖 input/textarea/select/a/button/[tabindex]/[role=*]（`styles/global.css`）
 - [x] P2 开关键盘可达：`.switch input` 改视觉隐藏（原 `display:none` 完全不可达）
 - [x] P2 组件异常不白屏：`components/ErrorBoundary.tsx` 在 `main.tsx` 包裹根节点
-- [x] P2 一键验收：`bash tools/check-all.sh --with-shots` 6 项全绿〔脚本〕
-- [x] P2 账号页结构断言〔脚本：`tools/shoot.mjs`〕：必须存在 `.account-card` / `.account-form`（含 `input[type=email]`、`input[type=password]`、提交按钮）/ `.account-local-data` 与危险按钮；旧结构 `.profile-avatar`、`.profile-edit`、`.profile-form`、`.cloud-card` 必须为 0；未登录时不得出现 `.account-sync`
+- [x] P2 一键验收：`bash tools/check-all.sh --with-shots` **7 步全绿**〔脚本〕
+- [x] P2 账号页结构断言〔脚本：`tools/shoot.mjs`〕：`.acct-section` 至少 2 个（账号区 + 本地数据区）、`input[type="email"]`、`input[type="password"]`、`.acct-row-actions .btn.primary`、`.acct-link`、危险按钮 `.btn.danger`；未登录不得出现 `.acct-badge` / `.acct-avatar`；旧结构 `.profile-avatar`、`.profile-edit`、`.profile-form`、`.cloud-card`、`.account-card` 必须为 0（账号页已并入设置页统一 field 栅格）
 - [x] P2 白噪音弹窗结构断言〔脚本：`tools/shoot.mjs`〕：点工具条白噪音必须出现 `.noise-modal`；`.noise-item` 恰为 6（「无」+5 音色）、`.noise-thumb` 中 `<img>` 恰为 5 张且 `naturalWidth>0`（内嵌封面缺失会直接失败）、`.noise-slider` 与 `.noise-foot .btn.primary` 各 1；取消后弹窗关闭。截图 `S5c-noise-picker.png`（截图检查共 **8** 项）。
+- [x] P2 计时模式菜单断言〔脚本：`tools/shoot.mjs`〕：`.timer-mode-menu button` 数量 = 3 且 top 坐标差 < 2px（被挤成换行即失败）
+- [x] P2 计时模式起始值断言〔脚本：`tools/shoot.mjs`〕：切「倒计时」显示 25:00、切「正计时」显示 00:00
 - [x] P2 白噪音落库语义：选音色 + 拖音量 → 确定才写 `settings.noise`/`noise_volume`；取消回滚试听；选「无」只停播、不覆盖已存音色；重开弹窗回显上次值〔手测：雨声 80% → IndexedDB `noise=rain`、`noise_volume=0.8`；设置行提示「雨声 · 80%」〕
 - [x] P2 英文界面无中文残留（含专注全屏层；排除 §6.3 演示数据与语言自名）〔脚本：`tools/shoot.mjs`〕
 - [x] P2 深色主题低对比度扫描（深色 `--text-3` 已提到 4.17:1）〔脚本：`tools/shoot.mjs`〕
@@ -93,7 +98,8 @@
 每阶段收尾跑一条命令即可：
 
 ```bash
-bash tools/check-all.sh --with-shots   # tsc → 红线 → 种子口径 → cargo test → build → 截图 8 检查
+bash tools/check-all.sh --with-shots   # tsc → 红线 → 种子口径 → 计时模式口径 → cargo test → build → 截图 13 检查
+npx tsx tools/verify-timer.ts          # 单独跑计时口径自检（20 项）
 ```
 
 - `--skip-build` 只跑类型与测试；`--with-shots` 会在 4173 无服务时自动 `vite preview`。

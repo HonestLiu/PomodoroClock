@@ -83,6 +83,10 @@ export function displayMs(state: TimerState, now: number, fallbackMs: number): n
     // 暂停中：显示冻结的已用时，而不是随 now 继续增长
     return state.paused_remaining_ms ?? 0;
   }
-  if (state.phase === 'idle' && !state.running && state.paused_remaining_ms === null) return fallbackMs;
+  // ⚠️ 原先这里只有 `phase === 'idle' && paused_remaining_ms === null` 才回退
+  // 到 fallback，但 setMode() 把 idle 的 paused_remaining_ms 设成了 focus_len_min，
+  // 所以切换模式后显示的永远是「番茄钟 25:00」而不是目标的 00:00。
+  // 修：phase === 'idle' 一律回退（计时还没启动，显示目标时长才有意义）。
+  if (state.phase === 'idle' && !state.running) return fallbackMs;
   return remainingMs(state, now);
 }

@@ -17,7 +17,7 @@ import type { SmartKey } from '@/types';
 
 const TITLE_KEYS: Record<SmartKey, string> = {
   today: 'nav.today', tomorrow: 'nav.tomorrow', week: 'nav.week',
-  scheduled: 'nav.scheduled', completed: 'nav.completed', tasks: 'nav.tasks',
+  scheduled: 'nav.scheduled', completed: 'nav.completed', records: 'nav.records', tasks: 'nav.tasks',
 };
 
 export function TaskView() {
@@ -51,8 +51,10 @@ export function TaskView() {
   }, [ds, listId, key, statsRevision]);
 
   const cards = useMemo(() => {
-    const c = computeTaskCards(ds, key, focusLenMin, stats);
-    // 「任务」类目：已专注时间排除已完成任务的记录；已完成任务不统计（置 0）
+    // 清单视图把 listId 显式传进派生函数：各卡按**该清单**口径计算，
+    // 不能再靠 key='tasks' 走「全部未完成任务」分支（那会让已专注时间恒等于总专注时间）。
+    const c = computeTaskCards(ds, key, focusLenMin, stats, listId);
+    // 「任务」智能分类：已专注时间排除已完成任务的记录；已完成任务不统计（置 0）
     const focusedMin = isTasksSmart ? focusMinExcludingCompleted(ds) : c.focus_min;
     const doneCount = isTasksSmart ? 0 : c.done;
     return [

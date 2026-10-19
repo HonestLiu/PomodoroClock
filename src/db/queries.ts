@@ -36,6 +36,9 @@ export function tasksForCategory(key: SmartKey): Task[] {
         return t.completed === 0 && due !== null;
       case 'completed':
         return t.completed === 1;
+      // 「记录」视图展示专注记录而非任务（与 lib/derive.ts 同步）
+      case 'records':
+        return false;
       case 'tasks':
       default:
         return t.completed === 0;
@@ -188,6 +191,8 @@ export function computeTaskCards(key: SmartKey, focusLenMin: number) {
 /** 侧边栏每分类的已专注时长（PRD §7.2「分类已专注时长」） */
 export function categoryFocusMinutes(key: SmartKey): number {
   const db = getDB();
+  // 「记录」= 全部专注时长（与 lib/derive.ts::categoryFocusMinutes 同步）
+  if (key === 'records') return sum(db.focus_records.map((r) => r.duration_min));
   if (key === 'today') return computeStats().today_focus_min; // PRD 明确：今天 = 今日记录时长
   if (key === 'completed') {
     const ids = new Set(db.tasks.filter((t) => t.completed === 1).map((t) => t.id));
@@ -199,6 +204,8 @@ export function categoryFocusMinutes(key: SmartKey): number {
 
 /** 侧边栏任务数角标 */
 export function categoryTaskCount(key: SmartKey): number {
+  // 「记录」入口角标 = 已完成番茄数（专注记录条数）
+  if (key === 'records') return getDB().focus_records.length;
   return tasksForCategory(key).length;
 }
 

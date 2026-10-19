@@ -4,7 +4,7 @@
 import { useMemo, useState, type CSSProperties } from 'react';
 import {
   CalendarDays, CalendarClock, CheckCircle2, ChevronDown, ChevronRight, Folder, FolderPlus,
-  GripVertical, ListTodo, Plus, Search, Sun, Sunrise, User as UserIcon,
+  GripVertical, History, ListTodo, Plus, Search, Sun, Sunrise, User as UserIcon,
 } from 'lucide-react';
 import { useUiStore } from '@/stores/uiStore';
 import { useDataStore } from '@/stores/dataStore';
@@ -20,18 +20,29 @@ import { useI18n, type ZhKey } from '@/i18n';
 import type { SmartKey, TaskList } from '@/types';
 import { ALL_TASKS_LIST_ID } from '@/types';
 
-const NAV: Array<{ key: SmartKey; labelKey: ZhKey; icon: typeof Sun }> = [
+/** 侧边栏智能分类（PRD §5.2）。
+ *  主分类（带时长/角标）：今天 / 明天 / 本周 / 已计划 / 任务。
+ *  归档项（NAV_ARCHIVE）：`completed` = 已完成任务归档、`records` = 专注（番茄）归档，
+ *  两者口径不同不可合并；且**不显示时长与数量**——这些值只随使用单调增长，展示噪音大于信息量。 */
+type NavDef = { key: SmartKey; labelKey: ZhKey; icon: typeof Sun };
+
+const NAV_MAIN: NavDef[] = [
   { key: 'today', labelKey: 'nav.today', icon: Sun },
   { key: 'tomorrow', labelKey: 'nav.tomorrow', icon: Sunrise },
   { key: 'week', labelKey: 'nav.week', icon: CalendarDays },
   { key: 'scheduled', labelKey: 'nav.scheduled', icon: CalendarClock },
-  { key: 'completed', labelKey: 'nav.completed', icon: CheckCircle2 },
   { key: 'tasks', labelKey: 'nav.tasks', icon: ListTodo },
+];
+
+/** 归档项：居于「任务」与自定义清单之间，上下各一条分隔线；纯导航，无累积数字。 */
+const NAV_ARCHIVE: NavDef[] = [
+  { key: 'completed', labelKey: 'nav.completed', icon: CheckCircle2 },
+  { key: 'records', labelKey: 'nav.records', icon: History },
 ];
 
 const DOT_COLORS: Record<string, string> = {
   today: '#4A7DE0', tomorrow: '#7BA05B', week: '#D9A441',
-  scheduled: '#9B7BD4', completed: '#8A8A8A', tasks: '#E85D3F',
+  scheduled: '#9B7BD4', completed: '#5A9E8E', records: '#8A8A8A', tasks: '#E85D3F',
 };
 
 export function Sidebar() {
@@ -63,7 +74,7 @@ export function Sidebar() {
   const ds: Dataset = useMemo(() => ({ tasks, lists, records }), [tasks, lists, records]);
 
   const navMeta = useMemo(
-    () => NAV.map((n) => ({
+    () => NAV_MAIN.map((n) => ({
       ...n,
       minutes: categoryFocusMinutes(ds, n.key, todayFocusMin),
       count: categoryTaskCount(ds, n.key),
@@ -204,6 +215,7 @@ export function Sidebar() {
       </div>
 
       <nav className="nav">
+        {/* 主分类：时长 + 未完成任务角标 */}
         {navMeta.map((n) => {
           const Icon = n.icon;
           const active = activeKey === n.key;
@@ -216,13 +228,32 @@ export function Sidebar() {
             >
               <Icon size={15} style={{ color: DOT_COLORS[n.key], flex: '0 0 auto' }} aria-hidden />
               <span className="nav-label">{t(n.labelKey)}</span>
-              {n.key !== 'completed' && <span className="nav-time">{formatMinutesShort(n.minutes)}</span>}
+              <span className="nav-time">{formatMinutesShort(n.minutes)}</span>
               <span className="nav-count">{n.count}</span>
             </button>
           );
         })}
 
-        {/* 清单夹 + 顶层自定义清单：紧跟"任务"条目之后，分割线分隔（排除内置「任务」清单） */}
+        {/* 归档区：任务 ｜ 已完成 · 记录 ｜ 自定义清单（用户需求 2026-10-19） */}
+        <div className="nav-divider" role="separator" />
+        {NAV_ARCHIVE.map((n) => {
+          const Icon = n.icon;
+          const active = activeKey === n.key;
+          return (
+            <button
+              key={n.key}
+              className={`nav-item nav-archive${active ? ' active' : ''}`}
+              aria-current={active ? 'page' : undefined}
+              onClick={() => ui.navigate({ name: n.key })}
+            >
+              <Icon size={15} style={{ color: DOT_COLORS[n.key], flex: '0 0 auto' }} aria-hidden />
+              {/* 归档项刻意不渲染时长/数量：累积值随使用无限增长，没有导航价值 */}
+              <span className="nav-label">{t(n.labelKey)}</span>
+            </button>
+          );
+        })}
+
+        {/* 清单夹 + 顶层自定义清单：有内容时再补一条分割线（排除内置「任务」清单） */}
         {(customRows.length > 0 || foldersSorted.length > 0) && <div className="nav-divider" role="separator" />}
 
         {foldersSorted.map((f) => {

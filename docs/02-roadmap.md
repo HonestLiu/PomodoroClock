@@ -9,17 +9,18 @@
 |---|---|---|
 | 全局框架：标题栏/侧边栏/顶栏/悬浮小窗 | ✅ | 5 屏 UI 全部还原，双运行时可用 |
 | 任务 CRUD + 预估番茄 + 日期 + 勾选归档 | ✅ | 含编辑弹层、删除、显示已完成 |
-| 分类筛选（今天/明天/本周/已计划/已完成） | ✅ | 统计卡片口径对齐 §7.2 |
-| 番茄钟状态机 + 绝对时间戳计时 | ✅ | 专注⇄休息⇄暂停/跳过 |
+| 分类筛选（主：今天/明天/本周/已计划/任务；归档：已完成/记录） | ✅ | 统计卡片口径对齐 §7.2；归档项置于任务与自定义清单之间、不显示累积数字 |
+| 番茄钟状态机 + 绝对时间戳计时 | ✅ | 专注⇄休息⇄暂停/跳过；**三模式**见下 |
+| 计时三模式（番茄钟 / 倒计时 / 正计时） | ✅ 新增 | 倒计时到点即停不写记录；正计时「停止」写记录、不足 1 分钟不写；`timerStore.ts::idleDurationFor` 统一起始值 |
 | 报表（6 卡 / 热力图 / 明细 / 环形图 / 目标日历 / 趋势线 / 目标环） | ✅ | SVG 手写图表，口径与 S4 对齐；趋势与目标环见 `charts/TrendChart.tsx`、`ReportModal.tsx:139,223` |
 | 设置弹窗 7 导航 + 账号中心 + 二次确认 | ✅ | 账号页即软件账号（PB）；番茄钟设置影响计时 |
-| 通知（应用内面板 + 角标 25） | ✅ | 应用内面板 + 系统通知均已接线（`lib/systemNotify.ts`、`Cargo.toml` 的 notification 插件、`timerStore.ts:323` 门控、通知页 `system_notify` 开关）；真机弹窗待验证 |
+| 通知（应用内面板 + 角标 25） | ✅ | 应用内面板 + 系统通知均已接线（`lib/systemNotify.ts`、`Cargo.toml` 的 notification 插件、`timerStore.ts::checkExpiry` 门控、通知页 `system_notify` 开关）；真机弹窗待验证 |
 | 任务交互增强：更多菜单 / 右键 | ✅ | 移动/复制/删除/右键全可用（P1） |
 | 任务**拖拽排序** | ✅ | 视图内重排 + 跨清单移动（`tasks.md` ★2） |
 | 清单管理 | ✅ | 创建/重命名/删除 + **拖拽排序 + 默认清单**（P1） |
 | i18n（中/英） | ✅ | `src/i18n/`（zh/en 词表 + `useI18n`，键集一致）；切换入口在外观页语言下拉（`patch('language')` + `setLang`），启动应用 `App.tsx:45`，首启跟随 `navigator.language` |
 | 深色主题 | ✅ | `App.tsx:54` 写 `documentElement.dataset.theme`；CSS `:root[data-theme='dark']`（`styles/global.css:29`）；设置下拉 `SettingsModal.tsx:383` |
-| 番茄钟设置全量 | 🔶 部分 | 时长/自动下一轮/长休息均已接状态机（`timerStore.ts:262/274`）；**白噪音按模式**（`noise_on_focus/break`）仅存设置、未接入播放 |
+| 番茄钟设置全量 | 🔶 部分 | 时长/自动下一轮/长休息均已接状态机（`timerStore.ts::setSettings/setMode`）；**白噪音按模式**（`noise_on_focus/break`）仅存设置、未接入播放 |
 | 白噪音选择弹窗 | ✅ 新增 | 工具条白噪音与外观页「选择白噪音」统一打开全局弹窗（`components/NoisePicker.tsx`，`uiStore.noiseOpen`）：6 项（无 + 5 音色，圆形封面取自 mp3 ID3 内嵌图）+ 音量滑杆 + 取消/确定；试听在内存、确定才落库、取消回滚（`stores/noiseStore.ts`）。**样式来自用户提供的设计稿，超出 PRD 范围**；验收见 `06` C 组与 G 组脚本断言 |
 | 系统级设置：开机自启 | ⬜ | 开关已存（`SettingsModal.tsx:47`），但 `tauri-plugin-autostart` 未安装、无系统行为（`Cargo.toml` 无该依赖） |
 | 导出/导入 JSON | ⬜ | 规格预留，未实现 |
@@ -27,7 +28,7 @@
 | 成就/高级版/好友 | 🔶 占位 | 符合"规格定义占位"；成就页已按 stats 实时算 4 条进度（`PlaceholderModal.tsx:33-50`），无解锁持久化 |
 | 账号中心 + PocketBase 云同步 | ✅ 新增 | 设置→账号即软件账号：登录/注册、改密码（需当前密码）、忘记密码（重置邮件）、同步区、头像上传/移除（PB 文件字段）、昵称就地编辑（`users.name`，邮箱只读）、退出（**会话级、不清本地数据**）；离线优先、本地为真相源；冲突按 rev→updated→device 裁决，PB 不可达静默降级（详见 `03-architecture.md` §账户与云同步）；端到端 36/36 已实测 |
 | 可访问性（键盘/焦点/语义/错误兜底） | ✅ | 模态 Esc+焦点陷阱（`components/useModalA11y.ts`）、菜单全键盘、拖拽键盘替代（`Alt+↑/↓`）、设置 tablist、`ErrorBoundary`；验收见 `06` G 组 |
-| 一键验收 | ✅ | `tools/check-all.sh`（tsc/红线/种子/cargo 16/build/可选截图 8 检查）；`bash tools/check-all.sh --with-shots` 当前 6 项全绿 |
+| 一键验收 | ✅ | `tools/check-all.sh`（tsc/红线/种子/计时口径/cargo 16/build/可选截图 13 检查，共 7 步）；`bash tools/check-all.sh --with-shots` 当前 7 步全绿 |
 | 跨平台构建 | 🔶 部分 | macOS 真机构建通过；Windows/Linux 需真机验证 |
 
 > 结论：**P0/P1 已全绿，P2 完成大半**；当前主要缺口是数据迁移（导出/导入）、白噪音**按模式自动播放**（选择弹窗已落地）、开机自启与占位项实质化。
@@ -55,5 +56,5 @@ P1 已全部落地（见 `08-changelog.md`）。当前按性价比排序：
 2. 白噪音按模式（`noise_on_focus/break` 设置已在，只差播放接线）
 3. 应用内帮助 / 空态文案收尾
 4. 开机自启（需先加 `tauri-plugin-autostart` 依赖）
-5. 倒计时/正计时模式完善（时长设定 + 停止归档语义）
+5. ✅ 倒计时/正计时语义已落地（2026-10-18）；剩「每模式独立时长」与「白噪音按模式」
 6. 成就系统实质化与解锁持久化

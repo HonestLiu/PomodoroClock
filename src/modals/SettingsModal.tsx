@@ -557,13 +557,15 @@ function AccountPane({ onConfirm }: { onConfirm(spec: ConfirmSpec): void }) {
 
   return (
     <>
-      <div className={`account-card${signedIn ? ' signed-in' : ''}`}>
-        {signedIn ? (
-          <>
-            <div className="account-head">
+      {signedIn ? (
+        <>
+          {/* ── 个人资料 ── */}
+          <div className="acct-section">
+            <div className="section-title">{t('account.editProfile')}</div>
+            <div className="acct-profile">
               <button
                 type="button"
-                className="account-avatar"
+                className="acct-avatar"
                 onClick={() => avatarInputRef.current?.click()}
                 aria-label={t('account.avatarChange')}
                 title={t('account.avatarChange')}
@@ -571,8 +573,10 @@ function AccountPane({ onConfirm }: { onConfirm(spec: ConfirmSpec): void }) {
                 disabled={uploading}
               >
                 {avatarUrl ? <img src={avatarUrl} alt="" /> : initial}
-                <span className="account-avatar-edit" aria-hidden>
-                  {uploading ? <span className="account-avatar-loading">{t('account.avatarUploading')}</span> : <Camera size={16} aria-hidden />}
+                <span className="acct-avatar-edit" aria-hidden>
+                  {uploading
+                    ? <span className="account-avatar-loading">{t('account.avatarUploading')}</span>
+                    : <Camera size={13} aria-hidden />}
                 </span>
               </button>
               <input
@@ -582,11 +586,11 @@ function AccountPane({ onConfirm }: { onConfirm(spec: ConfirmSpec): void }) {
                 hidden
                 onChange={(e) => void onPickAvatar(e)}
               />
-              <div className="account-id">
-                <div className="account-name-row">
-                  <div className="account-name" title={name}>{name}</div>
+              <div className="acct-id">
+                <div className="acct-name-row">
+                  <span className="acct-name" title={name}>{name}</span>
                   <button
-                    type="button" className="account-edit"
+                    type="button" className="acct-link"
                     aria-expanded={editingProfile}
                     onClick={() => {
                       if (editingProfile) { closeProfile(); return; }
@@ -597,31 +601,34 @@ function AccountPane({ onConfirm }: { onConfirm(spec: ConfirmSpec): void }) {
                     {t('account.editProfile')}
                   </button>
                 </div>
-                <div className="account-email" title={email0}>{email0}</div>
-                <div className="account-avatar-hint">{t('account.avatarHint')}</div>
+                <span className="acct-email" title={email0}>{email0}</span>
               </div>
-              <span className="account-badge">
-                <span className="account-dot" aria-hidden />
-                {t('account.signedIn')}
-              </span>
+              <div className="acct-side">
+                <span className="acct-badge">
+                  <span className="acct-dot" aria-hidden />
+                  {t('account.signedIn')}
+                </span>
+              </div>
             </div>
 
             {editingProfile && (
-              <div className="account-profile-form" role="group" aria-label={t('account.editProfile')}>
-                <label className="account-field">
-                  <span className="account-field-label">{t('account.nickname')}</span>
-                  <input
-                    className="text-input" type="text" maxLength={32} autoComplete="nickname"
-                    value={nickDraft} aria-label={t('account.nickname')} placeholder={t('account.nicknameHint')}
-                    onChange={(e) => setNickDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') void saveProfile();
-                      if (e.key === 'Escape') closeProfile();
-                    }}
-                  />
-                </label>
-                <span className="account-email-locked">{t('account.emailLocked')}</span>
-                <div className="account-pwd-actions">
+              <div className="acct-form" role="group" aria-label={t('account.editProfile')}>
+                <div className="field">
+                  <span className="field-label">{t('account.nickname')}</span>
+                  <div className="field-body">
+                    <input
+                      className="text-input" type="text" maxLength={32} autoComplete="nickname"
+                      value={nickDraft} aria-label={t('account.nickname')} placeholder={t('account.nicknameHint')}
+                      onChange={(e) => setNickDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void saveProfile();
+                        if (e.key === 'Escape') closeProfile();
+                      }}
+                    />
+                  </div>
+                </div>
+                <p className="acct-hint">{t('account.emailLocked')}</p>
+                <div className="acct-form-actions">
                   <button className="btn primary" disabled={busy} onClick={() => void saveProfile()}>
                     {t('common.save')}
                   </button>
@@ -629,51 +636,46 @@ function AccountPane({ onConfirm }: { onConfirm(spec: ConfirmSpec): void }) {
                 </div>
               </div>
             )}
+          </div>
 
-            <div className="account-sync">
-              <div className="account-sync-title">{t('sync.section')}</div>
-              <div
-                className={`account-sync-state${cloud.syncState === 'error' ? ' error' : ''}`}
-                role="status" aria-live="polite"
-              >
-                {cloud.syncMessage || syncLabel}
-              </div>
-              <div className="account-sync-actions">
-                <button className="btn" disabled={busy} onClick={() => void cloud.pushNow()}>{t('sync.push')}</button>
-                <button className="btn" disabled={busy} onClick={() => void cloud.pullNow()}>{t('sync.pull')}</button>
-              </div>
-              <p className="account-hint">{t('sync.autoHint')}</p>
-            </div>
-
-            {editingPwd && (
-              <div className="account-pwd-form">
-                <label className="account-field">
-                  <span className="account-field-label">{t('sync.oldPwd')}</span>
-                  <input
-                    className="text-input" type="password" autoComplete="current-password"
-                    value={op} aria-label={t('sync.oldPwd')}
-                    onChange={(e) => setOp(e.target.value)}
-                  />
-                </label>
-                <label className="account-field">
-                  <span className="account-field-label">{t('sync.newPwd')}</span>
-                  <input
-                    className="text-input" type="password" autoComplete="new-password"
-                    value={np1} aria-label={t('sync.newPwd')}
-                    onChange={(e) => setNp1(e.target.value)}
-                  />
-                </label>
-                <label className="account-field">
-                  <span className="account-field-label">{t('sync.passwordConfirm')}</span>
-                  <input
-                    className="text-input" type="password" autoComplete="new-password"
-                    value={np2} aria-label={t('sync.passwordConfirm')}
-                    onChange={(e) => setNp2(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && np1 && !pwdMismatch) void savePwd(); }}
-                  />
-                </label>
-                {pwdMismatch && <span className="account-error" role="alert">{t('sync.pwdMismatch')}</span>}
-                <div className="account-pwd-actions">
+          {/* ── 账号安全 ── */}
+          <div className="acct-section">
+            <div className="section-title">{t('sync.changePwd')}</div>
+            {editingPwd ? (
+              <div className="acct-form" role="group" aria-label={t('sync.changePwd')}>
+                <div className="field">
+                  <span className="field-label">{t('sync.oldPwd')}</span>
+                  <div className="field-body">
+                    <input
+                      className="text-input" type="password" autoComplete="current-password"
+                      value={op} aria-label={t('sync.oldPwd')}
+                      onChange={(e) => setOp(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="field">
+                  <span className="field-label">{t('sync.newPwd')}</span>
+                  <div className="field-body">
+                    <input
+                      className="text-input" type="password" autoComplete="new-password"
+                      value={np1} aria-label={t('sync.newPwd')}
+                      onChange={(e) => setNp1(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="field">
+                  <span className="field-label">{t('sync.passwordConfirm')}</span>
+                  <div className="field-body">
+                    <input
+                      className="text-input" type="password" autoComplete="new-password"
+                      value={np2} aria-label={t('sync.passwordConfirm')}
+                      onChange={(e) => setNp2(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && np1 && !pwdMismatch) void savePwd(); }}
+                    />
+                  </div>
+                </div>
+                {pwdMismatch && <span className="acct-err" role="alert">{t('sync.pwdMismatch')}</span>}
+                <div className="acct-form-actions">
                   <button className="btn primary" disabled={!op || !np1 || pwdMismatch || busy} onClick={() => void savePwd()}>
                     {t('common.save')}
                   </button>
@@ -682,120 +684,158 @@ function AccountPane({ onConfirm }: { onConfirm(spec: ConfirmSpec): void }) {
                   </button>
                 </div>
               </div>
-            )}
-
-            <div className="account-foot">
-              {avatarName && (
-                <button className="account-avatar-remove" disabled={uploading} onClick={() => void removeAvatar()}>
-                  {t('account.avatarRemove')}
-                </button>
-              )}
-              <button className="btn" onClick={() => { setEditingPwd((v) => !v); setOp(''); setNp1(''); setNp2(''); }}>
-                {t('sync.changePwd')}
-              </button>
-              <button className="btn" onClick={() => void signOut()}>
-                {t('account.signOut')}
-              </button>
-            </div>
-          </>
-        ) : (
-          <div className="account-form-wrap">
-            <div className="account-logo" aria-hidden>F</div>
-            <h3 className="account-title">{t('account.title')}</h3>
-            <p className="account-subtitle">{t('account.subtitle')}</p>
-
-            <div className="account-form">
-              {mode === 'register' && (
-                <label className="account-field">
-                  <span className="account-field-label">{t('account.nickname')}</span>
-                  <input
-                    className="text-input" type="text" maxLength={32} autoComplete="nickname"
-                    value={nick} aria-label={t('account.nickname')} placeholder={t('account.nicknameHint')}
-                    onChange={(e) => setNick(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') void submit(); }}
-                  />
-                </label>
-              )}
-              <label className="account-field">
-                <span className="account-field-label">{t('sync.email')}</span>
-                <input
-                  className="text-input" type="email" autoComplete="username"
-                  value={email} aria-label={t('sync.email')} placeholder="you@example.com"
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </label>
-              <label className="account-field">
-                <span className="account-field-label">{t('sync.password')}</span>
-                <input
-                  className="text-input" type="password"
-                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                  value={pwd} aria-label={t('sync.password')}
-                  onChange={(e) => setPwd(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') void submit(); }}
-                />
-              </label>
-              {mode === 'register' && (
-                <label className="account-field">
-                  <span className="account-field-label">{t('sync.passwordConfirm')}</span>
-                  <input
-                    className="text-input" type="password" autoComplete="new-password"
-                    value={pwd2} aria-label={t('sync.passwordConfirm')}
-                    onChange={(e) => setPwd2(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') void submit(); }}
-                  />
-                </label>
-              )}
-              {mismatch && <span className="account-error" role="alert">{t('sync.pwdMismatch')}</span>}
-
-              <button className="btn primary account-submit" disabled={!canSubmit} onClick={() => void submit()}>
-                {busy ? t('sync.syncing') : mode === 'login' ? t('sync.login') : t('sync.register')}
-              </button>
-              <div className="account-links">
-                <button
-                  type="button" className="account-switch"
-                  onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setPwd2(''); }}
-                >
-                  {mode === 'login' ? t('account.switchToRegister') : t('account.switchToLogin')}
-                </button>
-                {mode === 'login' && (
-                  <button type="button" className="account-switch" onClick={() => void forgot()}>
-                    {t('sync.forgot')}
+            ) : (
+              <div className="field">
+                <span className="field-label">{t('sync.changePwd')}</span>
+                <div className="field-body acct-row-actions">
+                  {avatarName && (
+                    <button className="acct-link" disabled={uploading} onClick={() => void removeAvatar()}>
+                      {t('account.avatarRemove')}
+                    </button>
+                  )}
+                  <button className="btn" onClick={() => { setEditingPwd(true); setOp(''); setNp1(''); setNp2(''); }}>
+                    {t('sync.changePwd')}
                   </button>
-                )}
-              </div>
-            </div>
-
-            {notice && !cloud.syncMessage && (
-              <div className="login-msg info" role="status">{notice}</div>
-            )}
-            {cloud.syncMessage && (
-              <div className={cloud.syncState === 'error' ? 'login-msg error' : 'login-msg ok'} role="status">
-                {cloud.syncMessage}
+                  <button className="btn" onClick={() => void signOut()}>
+                    {t('account.signOut')}
+                  </button>
+                </div>
               </div>
             )}
           </div>
-        )}
-      </div>
+
+          {/* ── 同步 ── */}
+          <div className="acct-section">
+            <div className="section-title">{t('sync.section')}</div>
+            <div className="field">
+              <span className="field-label">{t('sync.section')}</span>
+              <div className="field-body acct-row-actions">
+                <span className={`acct-readout${cloud.syncState === 'error' ? ' acct-err' : ''}`} role="status" aria-live="polite">
+                  {cloud.syncMessage || syncLabel}
+                </span>
+              </div>
+            </div>
+            <div className="field">
+              <span className="field-label">{t('sync.push')}</span>
+              <div className="field-body acct-row-actions">
+                <button className="btn" disabled={busy} onClick={() => void cloud.pushNow()}>{t('sync.push')}</button>
+                <button className="btn" disabled={busy} onClick={() => void cloud.pullNow()}>{t('sync.pull')}</button>
+              </div>
+            </div>
+            <p className="acct-hint">{t('sync.autoHint')}</p>
+          </div>
+        </>
+      ) : (
+        /* ── 未登录：登录/注册，融入同一套 field 栅格 ── */
+        <div className="acct-section">
+          <div className="section-title">{t('account.title')}</div>
+          <p className="acct-blurb">{t('account.subtitle')}</p>
+
+          {mode === 'register' && (
+            <div className="field">
+              <span className="field-label">{t('account.nickname')}</span>
+              <div className="field-body">
+                <input
+                  className="text-input" type="text" maxLength={32} autoComplete="nickname"
+                  value={nick} aria-label={t('account.nickname')} placeholder={t('account.nicknameHint')}
+                  onChange={(e) => setNick(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') void submit(); }}
+                />
+              </div>
+            </div>
+          )}
+          <div className="field">
+            <span className="field-label">{t('sync.email')}</span>
+            <div className="field-body">
+              <input
+                className="text-input" type="email" autoComplete="username"
+                value={email} aria-label={t('sync.email')} placeholder="you@example.com"
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="field">
+            <span className="field-label">{t('sync.password')}</span>
+            <div className="field-body">
+              <input
+                className="text-input" type="password"
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                value={pwd} aria-label={t('sync.password')}
+                onChange={(e) => setPwd(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') void submit(); }}
+              />
+            </div>
+          </div>
+          {mode === 'register' && (
+            <div className="field">
+              <span className="field-label">{t('sync.passwordConfirm')}</span>
+              <div className="field-body">
+                <input
+                  className="text-input" type="password" autoComplete="new-password"
+                  value={pwd2} aria-label={t('sync.passwordConfirm')}
+                  onChange={(e) => setPwd2(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') void submit(); }}
+                />
+              </div>
+            </div>
+          )}
+          {mismatch && <span className="acct-err" role="alert">{t('sync.pwdMismatch')}</span>}
+
+          <div className="field">
+            <span className="field-label" />
+            <div className="field-body acct-row-actions">
+              <button className="btn primary" disabled={!canSubmit} onClick={() => void submit()}>
+                {busy ? t('sync.syncing') : mode === 'login' ? t('sync.login') : t('sync.register')}
+              </button>
+              <button
+                type="button" className="acct-link"
+                onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setPwd2(''); }}
+              >
+                {mode === 'login' ? t('account.switchToRegister') : t('account.switchToLogin')}
+              </button>
+              {mode === 'login' && (
+                <button type="button" className="acct-link" onClick={() => void forgot()}>
+                  {t('sync.forgot')}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {notice && !cloud.syncMessage && (
+            <div className="login-msg info" role="status">{notice}</div>
+          )}
+          {cloud.syncMessage && (
+            <div className={cloud.syncState === 'error' ? 'login-msg error' : 'login-msg ok'} role="status">
+              {cloud.syncMessage}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 本地数据：两态都有，删除的是本地库 */}
-      <div className="account-local-data">
-        <div className="account-local-head">{t('account.localData')}</div>
-        <p className="account-hint">{t('account.deleteDataHint')}</p>
-        <button
-          className="btn danger"
-          onClick={() => onConfirm({
-            title: t('confirm.deleteDataTitle'),
-            message: signedIn
-              ? `${t('confirm.deleteDataMsg')}\n${t('account.deleteDataCloudWarn')}`
-              : t('confirm.deleteDataMsg'),
-            confirmText: t('confirm.deleteAll'),
-            danger: true,
-            onConfirm: async () => { await api.clear_all_data(); await useDataStore.getState().reload(); },
-          })}
-        >
-          {t('account.deleteData')}
-        </button>
-        {signedIn && <p className="account-hint warn">{t('account.deleteDataCloudWarn')}</p>}
+      <div className="acct-section">
+        <div className="section-title">{t('account.localData')}</div>
+        <div className="field">
+          <span className="field-label">{t('account.deleteData')}</span>
+          <div className="field-body acct-row-actions">
+            <button
+              className="btn danger"
+              onClick={() => onConfirm({
+                title: t('confirm.deleteDataTitle'),
+                message: signedIn
+                  ? `${t('confirm.deleteDataMsg')}\n${t('account.deleteDataCloudWarn')}`
+                  : t('confirm.deleteDataMsg'),
+                confirmText: t('confirm.deleteAll'),
+                danger: true,
+                onConfirm: async () => { await api.clear_all_data(); await useDataStore.getState().reload(); },
+              })}
+            >
+              {t('account.deleteData')}
+            </button>
+          </div>
+        </div>
+        <p className="acct-hint">{t('account.deleteDataHint')}</p>
+        {signedIn && <p className="acct-hint warn">{t('account.deleteDataCloudWarn')}</p>}
       </div>
     </>
   );

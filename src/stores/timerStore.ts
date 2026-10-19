@@ -39,6 +39,7 @@ interface TimerStoreState {
   toggleRun(): void;
   skip(): void;
   reset(): void;
+  stop(): void;
 
   setTask(taskId: string | null): void;
   setMode(mode: TimerMode): void;
@@ -155,7 +156,7 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
     // 旧 paused_remaining_ms（旧时长）启动，设置里的时长改动不生效（PRD FR-S4）。
     const { state } = get();
     if (!state.running && state.phase === 'idle') {
-      const next = idlePhase(state, 'focus', Math.round(settings.focus_len_min * 60_000));
+      const next = idlePhase(state, 'focus', idleDurationFor(state.mode, settings));
       set({ state: next });
       void api.set_timer_state(next);
       emit('timer://state-changed', next);
@@ -204,9 +205,19 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
     else get().resume();
   },
 
-  /** 跳过：不写记录，直接切换阶段（PRD §7.1） */
+  /** 跳过：不写记录，直接切换阶段（PRD §7.1）。
+   *  正计时（stopwatch）没有「休息」概念，skip 退化为重置到未开始；
+   *  倒计时（countdown）同理 —— 到期由 checkExpiry 自动处理，skip 只负责手动收尾。 */
   skip() {
     const { state, settings } = get();
+    // 只有番茄钟有「专注 → 休息」循环；倒计时与正计时跳过 = 重置到未开始
+    if (state.mode !== 'pomodoro') {
+      const next = idlePhase(state, 'idle', idleDurationFor(state.mode, settings));
+      set({ state: next });
+      void api.set_timer_state(next);
+      emit('timer://state-changed', next);
+      return;
+    }
     const nextPhase: TimerPhase = state.phase === 'focus' ? 'break' : 'focus';
     const next = idlePhase(state, nextPhase, phaseDurationMs(
       nextPhase, state.mode, settings.focus_len_min, settings.break_len_min,
@@ -217,9 +228,27 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
     emit('timer://state-changed', next);  // 托盘「开始/暂停」文案依赖此事件
   },
 
+  /** 正计时停止：写入 focus_record（时长 = now − start_at），再回到 idle。
+   *  番茄钟/倒计时不调这里（由 checkExpiry 自动结算）。 */
+  async stop() {
+    const { state, settings } = get();
+    if (state.mode !== 'stopwatch' || !state.running) {
+      get().reset();
+      return;
+    }
+    const recorded = await finalizeFocus(state, settings);
+    const next = idlePhase(state, 'idle', idleDurationFor('stopwatch', settings));
+    set({ state: next, feedback: tStatic(recorded ? 'timer.feedback.focusDone' : 'timer.feedback.tooShort') });
+    await api.set_timer_state(next);
+    emit('timer://state-changed', next);
+    playBell();
+    // 停止后手动刷新一次今日专注/任务列表（数据 store），否则侧边栏/面板要等下一次外部刷新
+    try { const { useDataStore } = await import('@/stores/dataStore'); useDataStore.getState().reload(); } catch { /* noop */ }
+  },
+
   reset() {
     const { state, settings } = get();
-    const next = idlePhase({ ...state, phase: 'idle' }, 'focus', Math.round(settings.focus_len_min * 60_000));
+    const next = idlePhase({ ...state, phase: 'idle' }, 'focus', idleDurationFor(state.mode, settings));
     set({ state: next });
     void api.set_timer_state(next);
     emit('timer://state-changed', next);
@@ -233,7 +262,7 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
 
   setMode(mode) {
     const { settings } = get();
-    const next = idlePhase({ ...get().state, mode }, 'idle', Math.round(settings.focus_len_min * 60_000));
+    const next = idlePhase({ ...get().state, mode }, 'idle', idleDurationFor(mode, settings));
     set({ state: next });
     void api.set_timer_state(next);
     emit('timer://state-changed', next);
@@ -254,6 +283,24 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
     try {
       const { settings } = get();
 
+      // 倒计时模式（countdown）到期后即停止，不写 focus_record、不自动进入休息，
+      // 这是用户明确要求的两种模式之一（25:00 → 00:00）；正计时（stopwatch）
+      // 天然不会到期（isExpired 恒为 false），这里不需要处理。
+      if (state.mode === 'countdown') {
+        set({ feedback: tStatic('timer.feedback.countdownDone') });
+        const next = idlePhase(state, 'idle', idleDurationFor('countdown', settings));
+        set({ state: next });
+        await api.set_timer_state(next);
+        emit('timer://finished', { phase: 'focus', taskId: state.task_id, mode: 'countdown' });
+        void notify('countdown_done', tStatic('notif.countdownDoneTitle'), tStatic('notif.countdownDoneBody'), settings);
+        playBell();
+        useUiStore.getState().setFloatVisible(true);
+        return;
+      }
+
+      // 只有番茄钟模式（phase === 'focus' 且非 countdown/stopwatch）才写记录进休息循环。
+      // countdown 上面已 return，stopwatch 的 isExpired 恒为 false（不会走到这里），
+      // 由「停止」按钮单独写记录。
       if (state.phase === 'focus') {
         await finalizeFocus(state, settings);
         const done = get().completedPomodoros + 1;
@@ -288,8 +335,19 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
   },
 
   durationFor(phase) {
-    const s = get().settings;
-    return phaseDurationMs(phase, get().state.mode, s.focus_len_min, s.break_len_min, s.long_break_len_min, get().completedPomodoros, s.long_break_every);
+    const { state, settings } = get();
+    // ⚠️ 原先这里没有处理 countdown（倒计时），phaseDurationMs 的 countdown 分支
+    // 只 return focus_len_min，导致切到「倒计时」后 start() 还是按 25 分钟起表，
+    // 和「番茄钟」毫无区别。修：countdown 走 focus_len_min 且不参与番茄钟自动休息；
+    // 正计时（stopwatch）返回 0（无限，不需要休息循环）。
+    if (state.mode === 'countdown') {
+      return phaseDurationMs(
+        'focus', 'countdown',
+        settings.focus_len_min, settings.break_len_min, settings.long_break_len_min,
+        get().completedPomodoros, settings.long_break_every,
+      );
+    }
+    return phaseDurationMs(phase, state.mode, settings.focus_len_min, settings.break_len_min, settings.long_break_len_min, get().completedPomodoros, settings.long_break_every);
   },
 
   displayMs() {
@@ -305,17 +363,29 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
   remainingMs() { return remainingMs(get().state, get().now); },
 }));
 
-/** FOCUS 倒计时结束 → 写入 focus_record（PRD §7.1 / FR-P5） */
-async function finalizeFocus(state: TimerState, settings: Settings) {
+/** 切换到「未开始」时应写入的目标时长：正计时 0（00:00 起）、倒计时与番茄钟为专注时长 */
+function idleDurationFor(mode: TimerMode, settings: Settings): number {
+  return phaseDurationMs(
+    'focus', mode, settings.focus_len_min, settings.break_len_min,
+    settings.long_break_len_min, 0, settings.long_break_every,
+  );
+}
+
+/** FOCUS 结束 → 写入 focus_record（PRD §7.1 / FR-P5）。
+ *  返回是否真的落库：正计时由用户随时停止，若不足 1 分钟就按 1 分钟记会把
+ *  「点错了马上停」污染成真实专注数据，所以不足 1 分钟直接放弃（PRD 记录粒度是分钟）。 */
+async function finalizeFocus(state: TimerState, settings: Settings): Promise<boolean> {
   const endAt = state.end_at ?? Date.now();
   const startAt = state.start_at ?? endAt - settings.focus_len_min * 60_000;
-  const durationMin = Math.max(1, Math.round((endAt - startAt) / 60_000));
+  const durationMin = Math.round((endAt - startAt) / 60_000);
+  if (durationMin < 1) return false;
   await api.create_focus_record({
     taskId: state.task_id,
     startAt,
     endAt,
     durationMin,
   });
+  return true;
 }
 
 async function notify(type: string, title: string, body: string, settings: Settings) {

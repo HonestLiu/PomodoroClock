@@ -15,8 +15,11 @@ const URL = process.env.APP_URL ?? 'http://localhost:4173/';
 const OUT = process.env.SHOT_DIR ?? '/tmp/shots';
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
-// 侧边栏导航序号（PRD §2.3 顺序固定：今天/明天/本周/已计划/已完成/任务）
-const NAV = { today: 0, tomorrow: 1, week: 2, scheduled: 3, completed: 4, tasks: 5 };
+// 侧边栏导航序号（Sidebar.tsx::NAV_MAIN + NAV_ARCHIVE）：
+//   主分类 今天/明天/本周/已计划/任务（带时长+角标）
+//   分隔线 → 归档区 已完成/记录（纯导航，无时长无角标）→ 分隔线 → 自定义清单
+// completed=已完成任务归档；records=专注（番茄）记录归档 —— 两个视图各自截图
+const NAV = { today: 0, tomorrow: 1, week: 2, scheduled: 3, tasks: 4, completed: 5, records: 6 };
 // 顶栏图标序号（TitleBar.tsx 渲染顺序：高级版/好友/通知/成就/报表/设置）
 const TB = { premium: 0, friends: 1, notify: 2, achievements: 3, report: 4, settings: 5 };
 // 设置左侧导航序号（SettingsModal.tsx TABS 顺序）
@@ -74,11 +77,57 @@ try {
   await page.waitForTimeout(600);
   await shot('S1-tasks');
 
-  // S2 已完成
+  // 侧边栏归档区结构（用户需求 2026-10-19）：
+  // 「已完成/记录」位于「任务」之下、自定义清单之上，且**不渲染**时长与角标
+  // （这两个值只随时间单调增长，展示噪音大于信息量）；主分类仍带两段数字。
+  const navStruct = await page.evaluate(() => {
+    const items = [...document.querySelectorAll('.nav .nav-item')];
+    const metaCount = (el) => el.querySelectorAll('.nav-time, .nav-count').length;
+    return {
+      total: items.length,
+      mainMeta: [0, 1, 2, 3, 4].map((i) => metaCount(items[i])),
+      archiveMeta: [5, 6].map((i) => metaCount(items[i])),
+      archiveClass: [5, 6].map((i) => items[i].classList.contains('nav-archive')),
+      dividers: document.querySelectorAll('.nav .nav-divider').length,
+    };
+  });
+  if (navStruct.total !== 7) fail(`侧边栏导航应为 7 项，实际 ${navStruct.total}`);
+  if (navStruct.mainMeta.some((n) => n !== 2)) fail(`主分类 5 项应各有「时长+角标」，实际 ${JSON.stringify(navStruct.mainMeta)}`);
+  else if (navStruct.archiveMeta.some((n) => n !== 0)) fail(`归档 2 项不应有时长/角标，实际 ${JSON.stringify(navStruct.archiveMeta)}`);
+  else if (navStruct.archiveClass.some((x) => !x)) fail('归档项缺少 .nav-archive 类');
+  else if (navStruct.dividers < 1) fail('归档区上方缺少分隔线（.nav-divider）');
+  else ok(`侧边栏分组正确（主分类 5 项带数字；归档 2 项纯文本；分隔线 ${navStruct.dividers} 条）`);
+
+  // 当前高亮的侧边栏序号（只断言结构与序号，不碰任何文案：文案走 i18n，两种语言都要成立）
+  const activeNavIndex = () => page.locator('.nav-item')
+    .evaluateAll((els) => els.findIndex((e) => e.classList.contains('active')));
+
+  // S2 记录（专注归档：按结束日期分组，组内为专注记录条目）
+  await nav(NAV.records).click();
+  await page.waitForTimeout(500);
+  await shot('S2-records');
+  const recIdx = await activeNavIndex();
+  const recGroups = await page.locator('.group-head').count();
+  const recItems = await page.locator('.record-item').count();
+  if (recIdx !== NAV.records) fail(`记录视图：高亮在第 ${recIdx} 项，应为第 ${NAV.records} 项（侧边栏序号与 shoot.mjs::NAV 失配）`);
+  else if (recGroups === 0 || recItems === 0) fail(`记录视图无分组/条目（.group-head ${recGroups}、.record-item ${recItems}）`);
+  else ok(`记录视图按日期分组（.group-head ${recGroups}、记录条目 ${recItems}）`);
+  notes.push(`S2 记录视图分组数：${recGroups}`);
+
+  // S2b 已完成（任务归档：按完成日期分组，行内是可交互的任务条目）
   await nav(NAV.completed).click();
   await page.waitForTimeout(500);
-  await shot('S2-completed');
-  notes.push(`S2 已完成视图分组数：${await page.locator('.record-group, .completed-group, .day-group').count()}`);
+  await shot('S2b-tasks-done');
+  const doneIdx = await activeNavIndex();
+  const doneItems = await page.locator('.task-item').count();
+  const doneGroups = await page.locator('.group-head').count();
+  const strayRecords = await page.locator('.record-item').count();
+  if (doneIdx !== NAV.completed) fail(`已完成视图：高亮在第 ${doneIdx} 项，应为第 ${NAV.completed} 项`);
+  else if (strayRecords) fail(`已完成视图混入了专注记录条目（.record-item ${strayRecords} 个）——两个视图串了`);
+  else if (doneItems && !doneGroups) fail(`已完成视图有任务行（${doneItems}）但缺少日期分组头`);
+  else if (!doneItems && !(await page.locator('.empty').count())) fail('已完成视图为空时必须有 .empty 空态文案');
+  else ok(`已完成视图结构正确（分组 ${doneGroups}、任务行 ${doneItems}、无 .record-item）`);
+  notes.push(`S2b 已完成视图：分组 ${doneGroups}、任务行 ${doneItems}`);
 
   // S5 设置（默认账号页）
   await nav(NAV.tasks).click();
@@ -86,38 +135,39 @@ try {
   await openSettings();
   await shot('S5-settings');
 
-  // 账号页结构自检：账号页 = 软件账号（PocketBase），未登录时是登录卡 + 本地数据区。
+  // 账号页结构自检：账号页 = 软件账号（PocketBase），沿用设置页统一的 field 栅格。
   // 只断言结构与控件类型，不断言任何具体文案（文案走 i18n，两种语言都要成立）。
   const acct = await page.evaluate(() => {
     const pane = document.querySelector('.settings-pane');
     if (!pane) return { err: 'pane 未渲染' };
     const q = (s) => pane.querySelectorAll(s).length;
     return {
-      card: q('.account-card'),
-      form: q('.account-form'),
-      email: q('.account-form input[type="email"]'),
-      pwd: q('.account-form input[type="password"]'),
-      submit: q('.account-form button'),
-      localData: q('.account-local-data'),
-      danger: q('.account-local-data .btn-danger, .account-local-data .btn.danger, .account-local-data button'),
-      // 旧的双层结构（本地假档案 + 云同步小尾巴）必须彻底消失
-      legacyProfile: q('.profile-avatar, .profile-edit, .profile-form, .cloud-card'),
-      sync: q('.account-sync'),
+      sections: q('.acct-section'),
+      email: q('input[type="email"]'),
+      pwd: q('input[type="password"]'),
+      submit: q('.acct-row-actions .btn.primary'),
+      switchLink: q('.acct-link'),
+      danger: q('.btn.danger'),
+      // 未登录不该出现「已登录」徽标 / 头像按钮
+      badge: q('.acct-badge'),
+      avatar: q('.acct-avatar'),
+      // 旧的双层结构（本地假档案 + 云同步小尾巴）与旧卡片版都必须彻底消失
+      legacy: q('.profile-avatar, .profile-edit, .profile-form, .cloud-card, .account-card'),
     };
   });
   const acctProblems = [];
   if (acct.err) acctProblems.push(acct.err);
-  if (!acct.card) acctProblems.push('缺少 .account-card 主卡片');
-  if (!acct.form) acctProblems.push('缺少 .account-form 登录表单');
-  if (!acct.email) acctProblems.push('登录表单缺 input[type=email]');
-  if (!acct.pwd) acctProblems.push('登录表单缺 input[type=password]');
-  if (!acct.submit) acctProblems.push('登录表单缺提交按钮（登录/注册）');
-  if (!acct.localData) acctProblems.push('缺少 .account-local-data 本地数据区');
-  if (!acct.danger) acctProblems.push('本地数据区缺删除数据按钮');
-  if (acct.legacyProfile) acctProblems.push(`旧的本地假档案/云同步小区块仍存在（${acct.legacyProfile} 个节点）`);
-  if (acct.sync) acctProblems.push('未登录时不应出现 .account-sync 同步区');
+  if (acct.sections < 2) acctProblems.push(`账号页区块不足（.acct-section ${acct.sections} 个，至少应有「账号」与「本地数据」）`);
+  if (!acct.email) acctProblems.push('缺少邮箱输入框');
+  if (!acct.pwd) acctProblems.push('缺少密码输入框');
+  if (!acct.submit) acctProblems.push('缺少登录/注册主按钮');
+  if (!acct.switchLink) acctProblems.push('缺少「去注册 / 忘记密码」文字入口');
+  if (!acct.danger) acctProblems.push('缺少删除数据按钮（.btn.danger）');
+  if (acct.badge) acctProblems.push('未登录时不应出现「已登录」徽标');
+  if (acct.avatar) acctProblems.push('未登录时不应出现头像上传按钮');
+  if (acct.legacy) acctProblems.push(`旧的本地假档案/云同步区块或旧卡片结构仍存在（${acct.legacy} 个节点）`);
   if (acctProblems.length) fail(`账号页结构不符：${acctProblems.join('；')}`);
-  else ok('账号页结构正确（账号卡 + 邮箱/密码/登录 + 本地数据区，旧假档案已移除）');
+  else ok('账号页结构正确（账号区 + 邮箱/密码/登录 + 本地数据区，旧假档案已移除）');
 
   // 白噪音选择弹窗（从外观页点开：结构 + 内嵌封面解码自检）
   await settingsTab(TAB.appearance).click();
@@ -194,6 +244,36 @@ try {
   if (timerBgImage === 'none' || timerBgImage == null) {
     fail(`专注界面壁纸未生效：.timer-bg background-image = ${timerBgImage ?? '(元素不存在)'}`);
   } else ok('专注界面壁纸已生效');
+
+  // 计时模式自检：菜单三项一行排开，且「倒计时」起始 25:00、「正计时」起始 00:00。
+  // 只断言数字与项数（文案走 i18n，两种语言都要成立）；切完复位到番茄钟。
+  const modeMenu = page.locator('.timer-mode-menu');
+  await page.locator('.timer-tool').filter({ hasText: /番茄钟|Pomodoro/ }).first().click();
+  await page.waitForSelector('.timer-mode-menu', { timeout: 5000 });
+  const modeItems = await modeMenu.locator('button').count();
+  // 三项必须横向排开（竖排会把中文挤成单字）
+  const modeBoxes = await modeMenu.locator('button').evaluateAll((bs) => bs.map((b) => b.getBoundingClientRect().top));
+  const sameRow = modeBoxes.length > 0 && Math.max(...modeBoxes) - Math.min(...modeBoxes) < 2;
+  if (modeItems !== 3) fail(`计时模式菜单应有 3 项（番茄钟/倒计时/正计时），实际 ${modeItems}`);
+  else if (!sameRow) fail('计时模式菜单被挤成换行，应一行排开（检查 .timer-mode-menu 的 white-space）');
+  else ok('计时模式菜单 3 项且一行排开');
+
+  const readClock = async () => (await page.locator('.timer-count').innerText()).trim();
+  await modeMenu.locator('button').nth(1).click();          // 倒计时
+  await page.waitForTimeout(200);
+  const cdClock = await readClock();
+  await page.locator('.timer-tool').filter({ hasText: /倒计时|Countdown/ }).first().click();
+  await page.waitForSelector('.timer-mode-menu');
+  await modeMenu.locator('button').nth(2).click();          // 正计时
+  await page.waitForTimeout(200);
+  const swClock = await readClock();
+  await page.locator('.timer-tool').filter({ hasText: /正计时|Stopwatch/ }).first().click();
+  await page.waitForSelector('.timer-mode-menu');
+  await modeMenu.locator('button').nth(0).click();          // 复位番茄钟
+  await page.waitForTimeout(200);
+  if (cdClock !== '25:00') fail(`倒计时未开始时应为 25:00，实际 ${cdClock}`);
+  else if (swClock !== '00:00') fail(`正计时未开始时应为 00:00，实际 ${swClock}`);
+  else ok('计时模式起始值正确（倒计时 25:00 / 正计时 00:00）');
 
   // 退出专注界面：优先点右上角「收起」，退化到 Esc。
   // 注意 .timer-screen 是整窗覆盖层，只要它还开着，后面所有点击都会被它拦截。

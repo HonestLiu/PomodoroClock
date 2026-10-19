@@ -36,7 +36,7 @@ focus_records ──(task_id 可空)──> tasks     notifications 独立   tim
 | theme / language / wallpaper | str | light/zh/waves | ✅ 已读入行为：`theme`→`data-theme`、`language`→词表切换、`wallpaper`→专注界面 |
 | noise | str | waves | ✅ 有 UI 写入（取值 `waves`/`rain`/`wind`/`woods`/`cozy`）：入口＝外观页「选择白噪音」与白噪音弹窗，弹窗**确定**才写；选「无」不覆盖已存值（`lib/noise.ts::NOISE_KINDS`、`components/NoisePicker.tsx::confirm`） |
 | noise_volume | float | 0.5 | ✅ 有 UI 写入（0–1 浮点，弹窗滑杆；确定时总是写） |
-| notify_enabled / system_notify | bool | true/true | ✅ 应用内 / 系统通知两个独立门控（`timerStore.ts:323`） |
+| notify_enabled / system_notify | bool | true/true | ✅ 应用内 / 系统通知两个独立门控（`timerStore.ts::checkExpiry`） |
 | noise_on_focus / noise_on_break | bool | false | 🔶 **只写未读**：设置页可改，计时器尚未据此自动播放 |
 | autostart | bool | false | 🔶 **只写未读**：`tauri-plugin-autostart` 未安装，无系统行为 |
 | motto | str | '' | 🔶 遗留字段：编辑资料入口已随账号页重构移除，当前无 UI 写入、无消费方（`types.ts` 仍留默认值） |
@@ -63,6 +63,8 @@ focus_records ──(task_id 可空)──> tasks     notifications 独立   tim
   - focus 已于关闭期间到期 → 补写该条记录并落到休息待开始。
   - break 到期 → 落到专注待开始。
 - 该规则在 `timerStore.init` 与 Rust `db::load_timer_state` 间语义一致（实际结算由前端单属主执行）。
+- `mode` 三值语义：`pomodoro`（专注→休息循环、写记录）、`countdown`（递减到点即停、**不写记录**）、`stopwatch`（从 0 增长、永不到期，用户「停止」才写记录且不足 1 分钟不写）。
+- `paused_remaining_ms` 随模式变化：番茄钟/倒计时「未开始」时 = 目标专注时长（故显示 25:00）；正计时「未开始」时 = 0（显示 00:00），暂停时 = 冻结的**已用时**。
 
 ## 演进规则（变更动线）
 1. 改表结构 → 在 `db.rs::SCHEMA`（SQLite 迁移 / `CREATE TABLE IF NOT EXISTS`）与 `db/idb.ts`/`db/store`（IndexedDB）**同时**改。

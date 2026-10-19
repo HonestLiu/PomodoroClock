@@ -694,130 +694,56 @@ input::-ms-reveal, input::-ms-clear { display: none; }
 
 
 /* ── 账号页（S5）：软件账号 = 云端账号，一页两态 ───────────── */
-.account-card {
-  display: flex; flex-direction: column; gap: 18px;
-  max-width: 460px; margin: 0 auto;
-  background: linear-gradient(180deg, var(--bg-card), var(--bg-sidebar) 150%);
-  border: 1px solid var(--border); border-radius: var(--radius-lg);
-  padding: 28px 26px 22px; box-shadow: var(--shadow-md);
+/* 采用应用统一的「分区标题 + field 行」栅格语言，与番茄钟/通用/外观等页一致：
+   左对齐、发丝分隔线、原生 30px 控件；不再用居中的浮层登录卡（渐变+投影+大标题）。 */
+.acct-section { padding-top: 4px; }
+.acct-section > .section-title:first-child { margin-top: 0; }
+
+/* 个人资料行：头像 + 姓名/邮箱 + 右侧状态 + 操作 */
+.acct-profile { display: flex; align-items: center; gap: 14px; padding: 14px 0 16px; border-bottom: 1px solid var(--border); }
+.acct-avatar {
+  position: relative; flex: 0 0 auto; width: 48px; height: 48px; border-radius: 50%;
+  overflow: hidden; border: 1px solid var(--border); padding: 0; cursor: pointer;
+  background: var(--bg-sidebar); color: var(--text-2);
+  display: grid; place-items: center; font-size: 18px; font-weight: 600; line-height: 1;
 }
-/* 未登录：登录/注册卡 */
-.account-form-wrap { display: flex; flex-direction: column; align-items: center; }
-.account-logo {
-  width: 54px; height: 54px; border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent-focus), var(--accent-blue));
-  color: #fff; display: grid; place-items: center;
-  font-size: 24px; font-weight: 700;
-  box-shadow: 0 6px 18px rgba(232, 93, 63, .32);
-  margin-bottom: 14px;
+.acct-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.acct-avatar:disabled { cursor: progress; }
+.acct-avatar:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
+.acct-avatar-edit {
+  position: absolute; inset: auto 0 0 0; height: 18px; display: grid; place-items: center;
+  background: rgba(0, 0, 0, .44); color: #fff; opacity: 0; transition: opacity .14s;
 }
-.account-title { margin: 0 0 6px; font-size: 17px; font-weight: 700; letter-spacing: -.02em; color: var(--text-1); text-align: center; }
-.account-subtitle { margin: 0 0 18px; max-width: 340px; font-size: 12.5px; line-height: 1.65; color: var(--text-2); text-align: center; }
-.account-form { display: flex; flex-direction: column; gap: 10px; width: 100%; }
-.account-field { display: flex; flex-direction: column; gap: 5px; }
-.account-field-label { font-size: 11.5px; color: var(--text-3); }
-/* .text-input 自带 flex:1（basis 0%）；放进 column 的 .account-field 后主轴变成纵向，
-   会以 0 为基底的 grow 抢占「无剩余高度」的空间，把 38px 高度压成内容行高 →
-   输入框变成长条细线。这里把 flex 改成不伸缩（basis auto 回落到 height），恢复 38px。 */
-.account-field .text-input { width: 100%; height: 38px; flex: 0 0 auto; }
-.account-submit { height: 38px; margin-top: 4px; font-size: 13.5px; font-weight: 600; }
-.account-switch {
-  align-self: center; margin-top: 2px; padding: 4px 6px;
-  font-size: 12.5px; color: var(--accent-blue);
+.acct-avatar:hover .acct-avatar-edit,
+.acct-avatar:focus-visible .acct-avatar-edit,
+.acct-avatar[aria-busy='true'] .acct-avatar-edit { opacity: 1; }
+.acct-id { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.acct-name-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.acct-name { font-size: 14px; font-weight: 600; color: var(--text-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acct-email { font-size: 12.5px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acct-side { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.acct-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); }
+.acct-dot { width: 6px; height: 6px; border-radius: 50%; background: #3f9d6a; }
+.acct-link {
+  padding: 3px 6px; font-size: 12.5px; color: var(--accent-blue);
   background: none; border: none; cursor: pointer; border-radius: var(--radius-sm);
 }
-.account-switch:hover { text-decoration: underline; }
-.account-error { font-size: 12px; color: var(--accent-focus); }
+.acct-link:hover { text-decoration: underline; }
+.acct-link:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
+.acct-hint { margin: 0; font-size: 11.5px; line-height: 1.6; color: var(--text-3); }
+.acct-hint.warn { color: var(--accent-focus); }
+.acct-err { font-size: 12px; color: var(--accent-focus); }
+/* 未登录：一句引导，替代原来的副标题段 */
+.acct-blurb { margin: 0 0 2px; font-size: 12.5px; line-height: 1.65; color: var(--text-2); }
 
-/* 已登录：账号卡 */
-.account-head { display: flex; align-items: center; gap: 14px; }
-.account-avatar {
-  position: relative; flex: 0 0 auto; width: 64px; height: 64px; border-radius: 50%;
-  overflow: hidden;
-  background: linear-gradient(135deg, var(--accent-focus), var(--accent-blue));
-  color: #fff; display: grid; place-items: center;
-  font-size: 24px; font-weight: 700;
-  /* 现在是个按钮：抹掉浏览器默认外观，保持与原 div 一致 */
-  border: 0; padding: 0; font-family: inherit;
-  cursor: pointer; -webkit-appearance: none; appearance: none;
-}
-.account-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.account-avatar:disabled { cursor: progress; }
-.account-avatar-edit {
-  position: absolute; inset: 0; display: grid; place-items: center;
-  background: rgba(0, 0, 0, 0.42); color: #fff;
-  opacity: 0; transition: opacity 0.15s;
-}
-.account-avatar:hover .account-avatar-edit,
-.account-avatar:focus-visible .account-avatar-edit,
-.account-avatar[aria-busy='true'] .account-avatar-edit { opacity: 1; }
-.account-avatar:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
-.account-avatar-loading {
-  padding: 0 4px; text-align: center;
-  font-size: 9px; line-height: 1.15; font-weight: 600; letter-spacing: 0;
-}
-.account-avatar-hint { font-size: 11px; line-height: 1.45; color: var(--text-3); }
-.account-avatar-remove {
-  margin-right: auto; border: 0; padding: 0; background: none;
-  font: inherit; font-size: 11.5px; color: var(--text-2); cursor: pointer;
-}
-.account-avatar-remove:hover { color: var(--accent-focus); text-decoration: underline; }
-.account-avatar-remove:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; border-radius: 3px; }
-.account-id { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.account-name-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.account-name-row .account-name { min-width: 0; }
-.account-edit {
-  flex: 0 0 auto; border: 0; padding: 0; background: none;
-  font: inherit; font-size: 11.5px; color: var(--text-2);
-  cursor: pointer; border-radius: 3px;
-}
-.account-edit:hover { color: var(--accent-blue); text-decoration: underline; }
-.account-edit:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
-/* 就地编辑资料（昵称；邮箱只读） */
-.account-profile-form {
-  display: flex; flex-direction: column; gap: 8px;
-  padding-top: 14px; border-top: 1px solid var(--border);
-}
-.account-profile-form .text-input { width: 100%; height: 38px; }
-.account-email-locked { font-size: 11px; line-height: 1.5; color: var(--text-3); }
-.account-card .account-name {
-  font-size: 17px; font-weight: 700; letter-spacing: -.02em; color: var(--text-1);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.account-card .account-email {
-  font-size: 12.5px; color: var(--text-2);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.account-badge {
-  display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto;
-  padding: 3px 10px; border: 1px solid var(--border); border-radius: 999px;
-  font-size: 11.5px; color: var(--text-2); white-space: nowrap;
-}
-.account-dot { width: 6px; height: 6px; border-radius: 50%; background: #3f9d6a; }
-.account-sync { display: flex; flex-direction: column; gap: 10px; padding-top: 16px; border-top: 1px solid var(--border); }
-.account-sync-title { font-size: 12px; font-weight: 600; color: var(--text-2); }
-.account-sync-state { font-size: 12.5px; color: var(--text-3); }
-.account-sync-state.error { color: var(--accent-focus); }
-.account-sync-actions { display: flex; gap: 8px; }
-.account-hint { margin: 0; font-size: 11.5px; line-height: 1.6; color: var(--text-3); }
-.account-hint.warn { color: var(--accent-focus); }
-.account-foot { display: flex; justify-content: flex-end; gap: 8px; padding-top: 14px; border-top: 1px solid var(--border); }
-/* 就地改密码（已登录） */
-.account-pwd-form { display: flex; flex-direction: column; gap: 8px; padding-top: 14px; border-top: 1px solid var(--border); }
-.account-pwd-form .text-input { width: 100%; height: 38px; }
-.account-pwd-actions { display: flex; gap: 8px; margin-top: 2px; }
-/* 未登录：注册/忘记密码两条文字链并排 */
-.account-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; margin-top: 4px; }
-
-/* 本地数据（两态通用） */
-.account-local-data {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
-  max-width: 460px; margin: 18px auto 0; padding: 16px 18px;
-  border: 1px solid var(--border); border-radius: var(--radius);
-  background: var(--bg-app);
-}
-.account-local-head { font-size: 12px; font-weight: 600; color: var(--text-2); }
-
+/* field 行内的右侧控件排布 */
+.acct-row-actions { display: flex; align-items: center; gap: 8px; }
+/* 行内展开的表单（改昵称 / 改密码）：与其它页 field 一致 */
+.acct-form { display: flex; flex-direction: column; gap: 10px; padding: 14px 0 4px; border-bottom: 1px solid var(--border); }
+.acct-form .field { border-bottom: none; padding: 0; }
+.acct-form .text-input { height: 30px; }
+.acct-form-actions { display: flex; gap: 8px; }
+.acct-readout { font-size: 13px; color: var(--text-1); }
 /* 登录/注册提示行（账号页与其它登录入口共用） */
 .login-msg {
   width: 100%; margin-top: 12px; padding: 8px 12px; border-radius: var(--radius-sm);
@@ -1335,3 +1261,37 @@ input::-ms-reveal, input::-ms-clear { display: none; }
   color: #fff;
 }
 .noise-foot .btn.primary:hover { filter: brightness(1.06); }
+
+/* 计时模式菜单（番茄钟 / 倒计时 / 正计时）—— 浮在工具条上方，三项必须一行排开，
+   否则会被工具条的窄宽度挤成竖排单字 */
+.timer-mode-menu {
+  position: absolute;
+  bottom: 44px;
+  left: 0;
+  z-index: 5;
+  display: flex;
+  white-space: nowrap;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .94);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .18);
+}
+/* 工具条上方紧邻的是主按钮（开始专注/暂停/停止），菜单再抬高一点避免压住它 */
+@media (min-height: 700px) {
+  .timer-mode-menu { bottom: 104px; }
+}
+.timer-mode-menu button {
+  flex: 0 0 auto;
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--text-2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.timer-mode-menu button:hover { color: var(--text-1); }
+.timer-mode-menu button.active { background: #fff; color: var(--accent-focus); font-weight: 600; }

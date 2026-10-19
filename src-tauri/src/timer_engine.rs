@@ -46,9 +46,11 @@ pub fn phase_duration_ms(
 /// 当前剩余毫秒
 pub fn remaining_ms(state: &TimerState, now: i64) -> i64 {
     if state.mode == "stopwatch" {
+        // 正计时：running 时返回「已用时长」，暂停/未开始时返回冻结值
+        // （原先暂停直接返回 0，会让菜单栏倒计时归零，与前端 displayMs 不一致）
         return match (state.running, state.start_at) {
             (true, Some(s)) => (now - s).max(0),
-            _ => 0,
+            _ => state.paused_remaining_ms.unwrap_or(0),
         };
     }
     if state.running {

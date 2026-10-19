@@ -41,6 +41,8 @@ export function tasksForCategory(ds: Dataset, key: SmartKey): Task[] {
       case 'week': return t.completed === 0 && due !== null && due >= today && due <= weekEnd;
       case 'scheduled': return t.completed === 0 && due !== null;
       case 'completed': return t.completed === 1;
+      // 「记录」视图展示的是专注记录而非任务，任务集合为空
+      case 'records': return false;
       case 'tasks':
       default: return t.completed === 0;
     }
@@ -73,6 +75,7 @@ export function completedForCategory(ds: Dataset, key: SmartKey): Task[] {
         case 'tomorrow':  return c >= tomorrowStart && c <= tomorrowStart + DAY_MS - 1;
         case 'week':      return c >= weekStart && c <= weekEnd;
         case 'scheduled': return t.due_date != null;
+        case 'records':   return false;
         case 'tasks':
         default:          return true;
       }
@@ -134,6 +137,27 @@ export function completedGroups(ds: Dataset): Array<{ dateKey: string; records: 
   return [...map.entries()]
     .sort((a, b) => (a[0] < b[0] ? 1 : -1))
     .map(([dateKey, records]) => ({ dateKey, records: records.sort((a, b) => a.start_at - b.start_at) }));
+}
+
+/**
+ * 「已完成」视图分组：已完成任务按 `completed_at` 的日期倒序归档（PRD §5.3）。
+ * 与 `completedGroups`（专注记录按 end_at 归档，「记录」视图）是两套口径：
+ * 一边是任务勾选完成，一边是番茄专注结束。
+ */
+export function completedTaskGroups(ds: Dataset): Array<{ dateKey: string; tasks: Task[] }> {
+  const map = new Map<string, Task[]>();
+  for (const t of ds.tasks) {
+    if (t.completed !== 1) continue;
+    const k = toDateKey(t.completed_at ?? t.updated_at);
+    const arr = map.get(k);
+    if (arr) arr.push(t); else map.set(k, [t]);
+  }
+  return [...map.entries()]
+    .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+    .map(([dateKey, tasks]) => ({
+      dateKey,
+      tasks: tasks.sort((a, b) => (b.completed_at ?? 0) - (a.completed_at ?? 0)),
+    }));
 }
 
 /** 今日已完成番茄数（悬浮小窗，PRD FR-G4） */
@@ -206,6 +230,8 @@ export function folderAggregate(ds: Dataset, folderId: string): { count: number;
 }
 
 export function categoryTaskCount(ds: Dataset, key: SmartKey): number {
+  // 「记录」入口的角标 = 已完成番茄数（专注记录条数），不是任务数
+  if (key === 'records') return ds.records.length;
   return tasksForCategory(ds, key).length;
 }
 
@@ -215,6 +241,8 @@ export function categoryTaskCount(ds: Dataset, key: SmartKey): number {
  */
 export function categoryFocusMinutes(ds: Dataset, key: SmartKey, todayFocusMin: number): number {
   const weekStart = startOfWeek(new Date()).getTime();
+  // 「记录」= 全部专注时长（该入口就是专注归档，不做任务过滤）
+  if (key === 'records') return sum(ds.records.map((r) => r.duration_min));
   if (key === 'today') return todayFocusMin; // PRD 明确：今天 = 今日记录时长
   if (key === 'week') return sum(ds.records.filter((r) => r.start_at >= weekStart).map((r) => r.duration_min));
   if (key === 'tasks') return focusMinExcludingCompleted(ds); // 任务：不考虑已完成任务的记录
@@ -229,27 +257,42 @@ export function categoryFocusMinutes(ds: Dataset, key: SmartKey, todayFocusMin: 
 // ── 统计卡片（PRD FR-T2） ───────────────────────────────────────────────
 
 export function computeTaskCards(
-  ds: Dataset, key: SmartKey, focusLenMin: number, stats: Stats | null,
+  ds: Dataset, key: SmartKey, focusLenMin: number, stats: Stats | null, listId: string | null = null,
 ) {
   const today = startOfDay(new Date()).getTime();
   const tomorrow = startOfDay(addDays(new Date(), 1)).getTime();
   const weekEnd = endOfWeek(new Date()).getTime();
   const dueTs = (t: Task): number | null => (t.due_date ? startOfDay(new Date(t.due_date)).getTime() : null);
 
-  const pendingTasks = tasksForCategory(ds, key);
+  // 「记录」视图不复用任务统计卡（页面自带记录统计栏），且不是任务集合，直接短路
+  if (key === 'records') return { est_min: 0, pending: 0, focus_min: 0, done: 0 };
+
+  // 清单视图（TaskView 在 listId 下把 key 压成 'tasks'）：待办集合必须是该清单的任务，
+  // 不能走 tasksForCategory(ds,'tasks')（那是全部未完成任务），否则「已专注时间」会恒等于总专注时间。
+  const pendingTasks = listId ? tasksInList(ds, listId) : tasksForCategory(ds, key);
   const pendingIds = new Set(pendingTasks.map((t) => t.id));
 
-  // 预计时间：该分类待办任务的预估番茄数 × 专注时长（任务视图按 PRD FR-T2 取今日到期）
-  const estMin = key === 'tasks'
-    ? sum(ds.tasks.filter((t) => t.completed === 0 && dueTs(t) === today).map((t) => t.est_pomodoros * focusLenMin))
-    : sum(pendingTasks.map((t) => t.est_pomodoros * focusLenMin));
+  // 预计时间：
+  //  - 清单视图：该清单全部待办的预估番茄数 × 专注时长；
+  //  - 「任务」智能分类按 PRD FR-T2 仅取今日到期；
+  //  - 其余分类：分类窗口内待办。
+  const estMin = listId
+    ? sum(pendingTasks.map((t) => t.est_pomodoros * focusLenMin))
+    : key === 'tasks'
+      ? sum(ds.tasks.filter((t) => t.completed === 0 && dueTs(t) === today).map((t) => t.est_pomodoros * focusLenMin))
+      : sum(pendingTasks.map((t) => t.est_pomodoros * focusLenMin));
 
   const completedTasks = ds.tasks.filter((t) => t.completed === 1);
   const completedIds = new Set(completedTasks.map((t) => t.id));
 
-  // 已专注时间：今日=今日记录；本周=本周记录；任务视图=全部；已完成=已完成任务相关；其余=该分类任务相关记录
+  // 已专注时间：
+  //  - 清单视图 = 该清单任务（含已完成）的全部记录，与侧边栏 listAggregate 同口径；
+  //  - 今日=今日记录；本周=本周记录；任务视图=全部；已完成=已完成任务相关；其余=该分类任务相关记录。
   let focusMin: number;
-  if (key === 'today') focusMin = stats?.today_focus_min ?? 0;
+  if (listId) {
+    const listTaskIds = new Set(ds.tasks.filter((t) => t.list_id === listId).map((t) => t.id));
+    focusMin = sum(ds.records.filter((r) => r.task_id && listTaskIds.has(r.task_id)).map((r) => r.duration_min));
+  } else if (key === 'today') focusMin = stats?.today_focus_min ?? 0;
   else if (key === 'week') focusMin = stats?.week_focus_min ?? 0;
   else if (key === 'tasks') focusMin = stats?.total_focus_min ?? 0;
   else if (key === 'completed') focusMin = sum(ds.records.filter((r) => r.task_id && completedIds.has(r.task_id)).map((r) => r.duration_min));
@@ -265,6 +308,9 @@ export function computeTaskCards(
     case 'tasks': done = stats?.today_done_tasks ?? 0; break;
     case 'completed': done = completedTasks.length; break;
     default: done = 0;
+  }
+  if (listId) {
+    done = ds.tasks.filter((t) => t.list_id === listId && t.completed === 1).length;
   }
 
   return {
