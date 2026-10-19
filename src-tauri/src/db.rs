@@ -51,6 +51,15 @@ CREATE TABLE IF NOT EXISTS tasks (
   notes         TEXT DEFAULT '',
   est_pomodoros REAL DEFAULT 0,
   due_date      TEXT DEFAULT NULL,
+  due_time      TEXT DEFAULT NULL,
+  url           TEXT NOT NULL DEFAULT '',
+  urgent        INTEGER NOT NULL DEFAULT 0,
+  repeat        TEXT NOT NULL DEFAULT 'none',
+  lead_remind   TEXT NOT NULL DEFAULT 'none',
+  tags          TEXT NOT NULL DEFAULT '[]',
+  flag          INTEGER NOT NULL DEFAULT 0,
+  priority      TEXT NOT NULL DEFAULT 'none',
+  reminded_at   INTEGER DEFAULT NULL,
   completed     INTEGER DEFAULT 0,
   completed_at  INTEGER DEFAULT NULL,
   sort_order    INTEGER DEFAULT 0,
@@ -109,6 +118,7 @@ pub fn open(path: &Path) -> AppResult<Connection> {
     conn.execute_batch("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;")?;
     conn.execute_batch(SCHEMA)?;
     migrate_list_icon(&conn)?;
+    migrate_task_columns(&conn)?;
     Ok(conn)
 }
 
@@ -118,6 +128,7 @@ pub fn open_in_memory() -> AppResult<Connection> {
     conn.execute_batch("PRAGMA foreign_keys = ON;")?;
     conn.execute_batch(SCHEMA)?;
     migrate_list_icon(&conn)?;
+    migrate_task_columns(&conn)?;
     Ok(conn)
 }
 
@@ -137,6 +148,35 @@ fn migrate_list_icon(conn: &Connection) -> AppResult<()> {
         ("icon_color", "ALTER TABLE lists ADD COLUMN icon_color TEXT NOT NULL DEFAULT ''"),
         ("icon_glyph", "ALTER TABLE lists ADD COLUMN icon_glyph TEXT NOT NULL DEFAULT ''"),
         ("folder_id", "ALTER TABLE lists ADD COLUMN folder_id TEXT"),
+    ] {
+        if !cols.iter().any(|c| c == col) {
+            conn.execute_batch(ddl)?;
+        }
+    }
+    Ok(())
+}
+
+/// 增量迁移：给旧库的 tasks 表补「提醒事项」字段列。
+/// 新库在 SCHEMA 里已含这些列，此处即空操作。
+fn migrate_task_columns(conn: &Connection) -> AppResult<()> {
+    let mut cols: Vec<String> = Vec::new();
+    {
+        let mut stmt = conn.prepare("PRAGMA table_info(tasks)")?;
+        let mut rows = stmt.query([])?;
+        while let Some(r) = rows.next()? {
+            cols.push(r.get(1)?);
+        }
+    }
+    for (col, ddl) in [
+        ("due_time", "ALTER TABLE tasks ADD COLUMN due_time TEXT"),
+        ("url", "ALTER TABLE tasks ADD COLUMN url TEXT NOT NULL DEFAULT ''"),
+        ("urgent", "ALTER TABLE tasks ADD COLUMN urgent INTEGER NOT NULL DEFAULT 0"),
+        ("repeat", "ALTER TABLE tasks ADD COLUMN repeat TEXT NOT NULL DEFAULT 'none'"),
+        ("lead_remind", "ALTER TABLE tasks ADD COLUMN lead_remind TEXT NOT NULL DEFAULT 'none'"),
+        ("tags", "ALTER TABLE tasks ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'"),
+        ("flag", "ALTER TABLE tasks ADD COLUMN flag INTEGER NOT NULL DEFAULT 0"),
+        ("priority", "ALTER TABLE tasks ADD COLUMN priority TEXT NOT NULL DEFAULT 'none'"),
+        ("reminded_at", "ALTER TABLE tasks ADD COLUMN reminded_at INTEGER"),
     ] {
         if !cols.iter().any(|c| c == col) {
             conn.execute_batch(ddl)?;

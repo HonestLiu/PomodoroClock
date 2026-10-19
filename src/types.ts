@@ -35,14 +35,32 @@ export interface TaskList {
   updated_at: number;
 }
 
+/** 重复规则（提醒事项） */
+export type Recurrence = 'none' | 'hourly' | 'daily' | 'weekdays' | 'weekends' | 'weekly';
+
+/** 提前提醒（基于 due_time；无则仅当天日期不触发到时提醒） */
+export type LeadRemind = 'none' | '1d' | '2d' | '1w';
+
+/** 优先级：none=未设置（界面隐藏）；低/中/高 */
+export type TaskPriority = 'none' | 'low' | 'medium' | 'high';
+
 export interface Task {
   id: string;
   list_id: string | null;
   title: string;
   notes: string;
-  est_pomodoros: number; // 预估番茄数（7.8）
+  est_pomodoros: number;
   due_date: string | null; // 'YYYY-MM-DD'
-  completed: number; // 0/1
+  due_time: string | null; // 到期时刻 'HH:MM'（24h）
+  url: string;
+  urgent: number;          // 紧急 0/1
+  repeat: Recurrence;
+  lead_remind: LeadRemind;
+  tags: string[];
+  flag: number;            // 旗标 0/1
+  priority: TaskPriority;
+  reminded_at: number | null; // 到时提醒去重（内部）
+  completed: number;       // 0/1
   completed_at: number | null;
   sort_order: number;
   created_at: number;

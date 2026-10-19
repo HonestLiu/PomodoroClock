@@ -6,6 +6,8 @@ import {
   tasksForCategory,
 } from '@/db/queries';
 import { completedTaskGroups, computeTaskCards, isOverdue } from '@/lib/derive';
+import { nextOccurrence } from '@/lib/recurrence';
+import { leadMs, dueTimestamp, taskRemindAt, shouldRemind } from '@/lib/taskRemind';
 import { formatMinutes, setDateLocale, toDateKey } from '@/lib/date';
 
 // 本脚本断言的是 PRD §7.2 的中文口径字符串，必须与运行环境语言无关：
@@ -168,6 +170,79 @@ check('自定义清单 已完成=0', customCards.done, 0);
 // 不污染：任务智能分类仍是全部口径
 const allCards = computeTaskCards(customDs, 'tasks', 25, computeStats());
 check('智能「任务」视图仍为全局口径(待完成=4)', allCards.pending, 4);
+
+// ── 提醒事项：重复推进 / 到时提醒（纯函数，日期与时区无关，用固定锚点）──
+console.log('\n--- 提醒事项：重复 / 到时提醒（lib/recurrence.ts + lib/taskRemind.ts） ---');
+// 锚点：2026-10-16 是周五（dow=5），17 六、18 日、19 一
+const anchor = new Date(2026, 9, 16, 12, 0, 0);
+check('daily +1天', nextOccurrence({ date: '2026-10-16', time: '09:30' }, 'daily', anchor),
+  { date: '2026-10-17', time: '09:30' });
+check('weekly +7天(跨月)', nextOccurrence({ date: '2026-10-16', time: '09:30' }, 'weekly', anchor),
+  { date: '2026-10-23', time: '09:30' });
+check('hourly +1小时(时间进位)', nextOccurrence({ date: '2026-10-16', time: '23:30' }, 'hourly', anchor),
+  { date: '2026-10-17', time: '00:30' });
+check('hourly 无时间退化为 daily', nextOccurrence({ date: '2026-10-16', time: null }, 'hourly', anchor),
+  { date: '2026-10-17', time: null });
+check('工作日 周五→下周一', nextOccurrence({ date: '2026-10-16', time: '08:00' }, 'weekdays', anchor),
+  { date: '2026-10-19', time: '08:00' });
+check('工作日 周一→周二', nextOccurrence({ date: '2026-10-19', time: '08:00' }, 'weekdays', anchor),
+  { date: '2026-10-20', time: '08:00' });
+check('周末 周五→本周六', nextOccurrence({ date: '2026-10-16', time: null }, 'weekends', anchor),
+  { date: '2026-10-17', time: null });
+check('周末 周日→下周六', nextOccurrence({ date: '2026-10-18', time: null }, 'weekends', anchor),
+  { date: '2026-10-24', time: null });
+check('永不不推进', nextOccurrence({ date: '2026-10-16', time: '09:30' }, 'none', anchor), null);
+check('无到期日以今天为基准', (() => {
+  const o = nextOccurrence({ date: null, time: null }, 'daily', anchor);
+  return o !== null && o.date === '2026-10-17';
+})(), true);
+
+check('lead 提前量 none/1d/2d/1w', [leadMs('none'), leadMs('1d'), leadMs('2d'), leadMs('1w')],
+  [0, 86400000, 172800000, 604800000]);
+check('dueTimestamp 无时间返回 null', dueTimestamp('2026-10-16', null), null);
+check('dueTimestamp 拼出当日 09:30', toDateKey(dueTimestamp('2026-10-16', '09:30') ?? 0), '2026-10-16');
+
+// taskRemindAt / shouldRemind：仅 due_time 存在才触发；提前量生效；去重
+const base = {
+  id: 'tr1', list_id: null, title: '提醒任务', notes: '', est_pomodoros: 0,
+  due_date: '2026-10-16', due_time: '09:30', url: '', urgent: 0, repeat: 'none',
+  lead_remind: 'none', tags: [], flag: 0, priority: 'none', reminded_at: null,
+  completed: 0, completed_at: null, sort_order: 0, created_at: 0, updated_at: 0,
+};
+check('taskRemindAt = 到期时刻(无提前)', toDateKey(taskRemindAt({ ...base }) ?? 0), '2026-10-16');
+check('taskRemindAt 无时间=null', taskRemindAt({ ...base, due_time: null }), null);
+check('taskRemindAt 提前1天跨到前一天', toDateKey(taskRemindAt({ ...base, lead_remind: '1d' }) ?? 0), '2026-10-15');
+check('shouldRemind 未到点=false', shouldRemind({ ...base }, dueTimestamp('2026-10-16', '09:00')!), false);
+check('shouldRemind 已到点=true', shouldRemind({ ...base }, dueTimestamp('2026-10-16', '09:40')!), true);
+check('shouldRemind 已完成=false', shouldRemind({ ...base, completed: 1 }, dueTimestamp('2026-10-16', '09:40')!), false);
+check('shouldRemind 已去重=false', shouldRemind({ ...base, reminded_at: dueTimestamp('2026-10-16', '09:40')! },
+  dueTimestamp('2026-10-16', '09:50')!), false);
+check('shouldRemind 改时间后重新武装=true',
+  shouldRemind({ ...base, reminded_at: dueTimestamp('2026-10-16', '09:40')!, due_time: '11:00' },
+    dueTimestamp('2026-10-16', '11:05')!), true);
+
+// scanTaskReminders：命中即写通知 + 置 reminded_at；再次扫描不重复触发（注入 deps，确定性）
+{
+  const { scanTaskReminders } = await import('@/lib/remindScan');
+  const fired: string[] = [];
+  const store = new Map<string, number>();
+  const now = dueTimestamp('2026-10-16', '09:40')!;
+  const dueTask = { ...base, id: 'scan1', title: '到点任务' };
+  const futureTask = { ...base, id: 'scan2', title: '未到点', due_time: '23:00' };
+  const deps = {
+    createNotification: async (args: { title: string }) => { fired.push(args.title); },
+    markReminded: async (taskId: string, at: number) => { store.set(taskId, at); },
+  };
+  const snapshot = () => [dueTask, futureTask].map((t) => ({ ...t, reminded_at: store.get(t.id) ?? null }));
+  const settings = { notify_enabled: false, system_notify: false }; // 关系统通知，避免真实弹窗
+  const pass1 = await scanTaskReminders(snapshot(), settings, deps, now);
+  check('扫描1 只触发到点任务', pass1, ['到点任务']);
+  check('扫描1 写通知数=1', fired.length, 1);
+  check('扫描1 置 reminded_at', store.has('scan1'), true);
+  const pass2 = await scanTaskReminders(snapshot(), settings, deps, now);
+  check('扫描2 已去重不重复触发', pass2, []);
+  check('扫描2 通知数仍=1', fired.length, 1);
+}
 
 console.log('\n--- S4 番茄记录图 (FR-R3) ---');
 const grid = pomodoroGrid(14);

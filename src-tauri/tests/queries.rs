@@ -147,6 +147,7 @@ fn create_task_write_path() {
             due_date: Some("2026-12-31".into()),
             est_pomodoros: Some(3.5),
             notes: Some("备注".into()),
+            ..Default::default()
         },
     )
     .unwrap();
@@ -282,6 +283,60 @@ fn update_task_patch_accepts_snake_case_fields() {
 }
 
 #[test]
+fn reminder_fields_round_trip() {
+    use focus_pomodoro_lib::models::{CreateTaskArgs, UpdateTaskPatch};
+    let mut conn = db::open_in_memory().unwrap();
+    seeded(&mut conn);
+
+    // 建带全部提醒字段的任务（tags 走 Vec<String> -> JSON 落库）
+    let created = focus_pomodoro_lib::commands::tasks::create_task_impl(
+        &conn,
+        CreateTaskArgs {
+            title: "带提醒任务".into(),
+            due_date: Some("2026-02-03".into()),
+            due_time: Some("09:30".into()),
+            url: Some("https://example.com".into()),
+            urgent: Some(1),
+            repeat: Some("weekly".into()),
+            lead_remind: Some("1d".into()),
+            tags: Some(vec!["重要".into(), "复习".into()]),
+            flag: Some(1),
+            priority: Some("high".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(created.due_time.as_deref(), Some("09:30"));
+    assert_eq!(created.url, "https://example.com");
+    assert_eq!(created.urgent, 1);
+    assert_eq!(created.repeat, "weekly");
+    assert_eq!(created.lead_remind, "1d");
+    assert_eq!(created.tags, vec!["重要".to_string(), "复习".to_string()], "tags 应存为 JSON 并能解回");
+    assert_eq!(created.flag, 1);
+    assert_eq!(created.priority, "high");
+    assert!(created.reminded_at.is_none(), "reminded_at 初始为 NULL");
+
+    // patch 改部分字段（snake_case），tags 清空、due_time 置空
+    let patch: UpdateTaskPatch = serde_json::from_value(serde_json::json!({
+        "urgent": 0,
+        "repeat": "daily",
+        "tags": [],
+        "due_time": null,
+        "priority": "low",
+        "reminded_at": 1770000000000i64
+    }))
+    .unwrap();
+    let t = focus_pomodoro_lib::commands::tasks::update_task_impl(&conn, &created.id, patch).unwrap();
+    assert_eq!(t.urgent, 0);
+    assert_eq!(t.repeat, "daily");
+    assert!(t.tags.is_empty(), "tags=[] 应清空");
+    assert!(t.due_time.is_none(), "due_time=null 应写 NULL");
+    assert_eq!(t.priority, "low");
+    assert_eq!(t.reminded_at, Some(1770000000000), "reminded_at 写入去重标记");
+    assert_eq!(t.url, "https://example.com", "未改字段保持不变");
+}
+
+#[test]
 fn list_tasks_list_id_defaults_to_unfinished() {
     use focus_pomodoro_lib::models::ListTasksArgs;
     let mut conn = db::open_in_memory().unwrap();
@@ -343,6 +398,7 @@ fn create_task_without_list_counts_null_group() {
             due_date: None,
             est_pomodoros: None,
             notes: None,
+            ..Default::default()
         },
     )
     .unwrap();

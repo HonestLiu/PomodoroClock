@@ -112,7 +112,7 @@ Rust 侧不重复结算，保证一次番茄恰好归档一条记录。
 ## 验证
 
 ```bash
-# 一键验收（推荐，共 7 步）：tsc → 红线 → 种子口径 → 计时口径 → cargo test → build → 可选截图 13 检查
+# 一键验收（推荐，共 7 步）：tsc → 红线 → 种子口径 → 计时口径 → cargo test → build → 可选截图 16 检查
 bash tools/check-all.sh              # 静态/构建检查
 bash tools/check-all.sh --with-shots # 追加 Playwright 截图验收（自动起 preview）
 bash tools/check-all.sh --skip-build # 只查类型与测试

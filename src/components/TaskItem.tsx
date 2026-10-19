@@ -3,7 +3,7 @@
 // P1：行尾「⋯」更多菜单 + 右键菜单（标记完成/移到清单/复制/删除）
 
 import { useEffect, useState } from 'react';
-import { Check, MoreHorizontal, Copy, Trash2, FolderPlus, ListTodo, Play } from 'lucide-react';
+import { Check, Flag, Link2, MoreHorizontal, Copy, Repeat, Trash2, FolderPlus, ListTodo, Play } from 'lucide-react';
 import type { Task } from '@/types';
 import { formatDueDate } from '@/lib/date';
 import { isOverdue } from '@/lib/derive';
@@ -76,6 +76,20 @@ export function TaskItem({ task, onReorder, showListSource = false }: {
     ? lists.find((l) => l.id === task.list_id)
     : undefined;
 
+  // 提醒事项派生：URL 显示名 / 标签 / 到时文本（日期 + 时间）
+  const url = task.url?.trim() ?? '';
+  const niceUrl = url.replace(/^https?:\/\//i, '').split(/[/?#]/)[0] || url;
+  const tags = task.tags ?? [];
+  const dueText = task.due_time
+    ? `${formatDueDate(task.due_date)} ${task.due_time}`
+    : formatDueDate(task.due_date);
+
+  function openUrl() {
+    const href = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+    // Tauri webview 与浏览器均走系统默认浏览器打开；失败静默
+    window.open(href, '_blank', 'noopener');
+  }
+
   // 搜索定位高亮（search.md ★1）：命中一次后自动清除
   useEffect(() => {
     if (task.id === highlight) setFlash(true);
@@ -130,6 +144,14 @@ export function TaskItem({ task, onReorder, showListSource = false }: {
           estPomodoros: task.est_pomodoros,
           notes: task.notes,
           dueDate: task.due_date ?? undefined,
+          dueTime: task.due_time ?? undefined,
+          url: task.url,
+          urgent: task.urgent,
+          repeat: task.repeat,
+          leadRemind: task.lead_remind,
+          tags: task.tags,
+          flag: task.flag,
+          priority: task.priority,
         });
         close();
       },
@@ -199,7 +221,7 @@ export function TaskItem({ task, onReorder, showListSource = false }: {
       </button>
 
       <span
-        className="task-title"
+        className={`task-title${task.urgent === 1 ? ' urgent' : ''}`}
         role="button"
         tabIndex={0}
         title={task.title}
@@ -213,7 +235,27 @@ export function TaskItem({ task, onReorder, showListSource = false }: {
           }
         }}
       >
+        {task.flag === 1 && <Flag size={12} className="task-flag" aria-hidden />}
+        {task.priority && task.priority !== 'none' && (
+          <span className={`task-prio task-prio-${task.priority}`} title={t(`task.priority.${task.priority}`)} aria-hidden />
+        )}
         {task.title}
+        {task.urgent === 1 && <span className="task-urgent">{t('task.urgent')}</span>}
+        {(tags.length > 0 || url) && (
+          <span className="task-sub">
+            {tags.map((tag) => <span key={tag} className="task-tag">{tag}</span>)}
+            {url && (
+              <span
+                className="task-url"
+                role="link" tabIndex={0} title={url}
+                onClick={(e) => { e.stopPropagation(); openUrl(); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); openUrl(); } }}
+              >
+                <Link2 size={11} aria-hidden /> {niceUrl}
+              </span>
+            )}
+          </span>
+        )}
       </span>
 
       {pomodoroCount > 0 && (
@@ -241,10 +283,15 @@ export function TaskItem({ task, onReorder, showListSource = false }: {
           </button>
         )}
         {overdue && <span className="task-overdue">{t('task.overdue')}</span>}
+        {task.repeat && task.repeat !== 'none' && (
+          <Repeat size={12} className="task-repeat" aria-hidden />
+        )}
         {task.est_pomodoros > 0 && (
           <span className="task-est">{task.est_pomodoros.toFixed(1).replace(/\.0$/, '')}</span>
         )}
-        <span className={`task-due${overdue ? ' overdue' : ''}`}>{formatDueDate(task.due_date)}</span>
+        {task.due_date && (
+          <span className={`task-due${overdue ? ' overdue' : ''}`}>{dueText}</span>
+        )}
       </span>
 
       <button

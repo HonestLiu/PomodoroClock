@@ -1,8 +1,8 @@
 // invoke 接口签名 —— PRD §8.4
 
 import type {
-  FocusRecord, Folder, Goal, GridCell, ListDistribution, Notification, Settings, Stats,
-  Task, TaskDuration, TaskList, TimerState, User,
+  FocusRecord, Folder, Goal, GridCell, LeadRemind, ListDistribution, Notification, Recurrence, Settings,
+  Stats, Task, TaskDuration, TaskList, TaskPriority, TimerState, User,
 } from '@/types';
 
 export interface ListTasksArgs {
@@ -17,6 +17,14 @@ export interface CreateTaskArgs {
   title: string;
   listId?: string | null;
   dueDate?: string | null;
+  dueTime?: string | null;
+  url?: string;
+  urgent?: number;
+  repeat?: Recurrence;
+  leadRemind?: LeadRemind;
+  tags?: string[];
+  flag?: number;
+  priority?: TaskPriority;
   estPomodoros?: number;
   notes?: string;
 }
@@ -33,6 +41,16 @@ export interface UpdateTaskPatch {
   title?: string;
   list_id?: string | null;
   due_date?: string | null;
+  due_time?: string | null;
+  url?: string;
+  urgent?: number;
+  repeat?: Recurrence;
+  lead_remind?: LeadRemind;
+  tags?: string[];
+  flag?: number;
+  priority?: TaskPriority;
+  /** 到时提醒去重标记（内部由巡检写入） */
+  reminded_at?: number | null;
   est_pomodoros?: number;
   notes?: string;
   sort_order?: number;

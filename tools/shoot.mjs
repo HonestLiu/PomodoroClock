@@ -94,6 +94,48 @@ try {
     fail('内置「任务」清单的任务不应显示来源徽标');
   } else ok(`今天视图逾期留驻（${todayRows.length} 行，全部带红色逾期标志、无来源徽标）`);
 
+  // 提醒事项字段（2026-10-19 用户需求）：打开编辑弹层，只查结构与选项数，不碰文案
+  await nav(NAV.today).click();
+  await page.waitForTimeout(300);
+  await page.locator('.task-item .task-title').first().click();
+  const hasModal = await page.waitForSelector('.modal', { timeout: 5000 }).then(() => true).catch(() => false);
+  if (!hasModal) fail('点任务标题未打开编辑弹层');
+  else {
+    const modal = await page.evaluate(() => {
+      const fields = [...document.querySelectorAll('.modal .field')];
+      const labelOf = (f) => f.querySelector('.field-label')?.textContent?.trim() ?? '';
+      const labels = fields.map(labelOf);
+      const find = (kw) => fields.find((f) => labelOf(f).includes(kw));
+      const optCount = (kw) => find(kw)?.querySelectorAll('select option').length ?? 0;
+      return {
+        count: fields.length,
+        switches: document.querySelectorAll('.modal .switch').length,
+        repeatOpts: optCount('重复'),
+        leadOpts: optCount('提前提醒'),
+        prioOpts: optCount('优先级'),
+        hasTime: !!find('时间'),
+        hasUrl: !!find('URL'),
+        hasTags: !!find('标签'),
+        hasFlag: !!find('旗标'),
+        hasUrgent: !!find('紧急'),
+        // 无时间时提前提醒应禁用
+        leadDisabled: find('提前提醒')?.querySelector('select')?.disabled ?? null,
+        labels,
+      };
+    });
+    if (modal.count < 13) fail(`编辑弹层字段数应 ≥13，实际 ${modal.count}`);
+    else if (modal.switches < 2) fail(`紧急+旗标两个开关，实际 switch=${modal.switches}`);
+    else if (modal.repeatOpts !== 6) fail(`重复应 6 项，实际 ${modal.repeatOpts}`);
+    else if (modal.leadOpts !== 4) fail(`提前提醒应 4 项，实际 ${modal.leadOpts}`);
+    else if (modal.prioOpts !== 4) fail(`优先级应 4 项，实际 ${modal.prioOpts}`);
+    else if (!modal.hasTime || !modal.hasUrl || !modal.hasTags || !modal.hasFlag || !modal.hasUrgent) {
+      fail(`缺提醒字段：${JSON.stringify({ t: modal.hasTime, u: modal.hasUrl, g: modal.hasTags, f: modal.hasFlag, x: modal.hasUrgent })}`);
+    } else if (modal.leadDisabled !== true) fail('无时间时提前提醒应置灰');
+    else ok(`编辑弹层字段齐全（${modal.count} 项；重复${modal.repeatOpts}/提前${modal.leadOpts}/优先级${modal.prioOpts}；开关${modal.switches}）`);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(250);
+  }
+
   // 侧边栏归档区结构（用户需求 2026-10-19）：
   // 「已完成/记录」位于「任务」之下、自定义清单之上，且**不渲染**时长与角标
   // （这两个值只随时间单调增长，展示噪音大于信息量）；主分类仍带两段数字。

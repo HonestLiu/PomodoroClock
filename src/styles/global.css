@@ -449,6 +449,32 @@ input:focus:not(:focus-visible), textarea:focus:not(:focus-visible) {
 
 .task-title { flex: 1; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .task-item.done .task-title { color: var(--text-2); text-decoration: line-through; }
+
+/* 旗标 / 优先级 / 紧急 */
+.task-flag { color: var(--accent-focus); margin-right: 5px; vertical-align: -1px; }
+.task-prio { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; }
+.task-prio-low { background: #b4b2ad; }
+.task-prio-medium { background: var(--accent-blue); }
+.task-prio-high { background: var(--accent-focus); }
+.task-title.urgent { color: var(--accent-focus); font-weight: 600; }
+.task-urgent {
+  margin-left: 6px; font-size: 10px; font-weight: 600; line-height: 15px;
+  color: var(--accent-focus); border: 1px solid var(--accent-focus);
+  border-radius: 4px; padding: 0 4px; vertical-align: 1px;
+}
+
+/* 标题下一行：标签 + URL */
+.task-sub { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; font-weight: 400; }
+.task-tag {
+  font-size: 10.5px; line-height: 1; color: var(--text-2);
+  background: var(--bg-sidebar); border-radius: 8px; padding: 3px 7px;
+}
+.task-url {
+  display: inline-flex; align-items: center; gap: 3px; max-width: 160px;
+  font-size: 10.5px; color: var(--accent-blue);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.task-url:hover { text-decoration: underline; }
 /* 已完成番茄图标（每完成一个累加一个，右对齐排列） */
 .task-pomos {
   flex: 0 0 auto;
@@ -458,7 +484,8 @@ input:focus:not(:focus-visible), textarea:focus:not(:focus-visible) {
 .task-pomos svg { flex: 0 0 auto; }
 .task-meta { display: flex; align-items: center; gap: 10px; color: var(--text-2); font-size: 12.5px; }
 .task-est { font-variant-numeric: tabular-nums; }
-.task-due { font-variant-numeric: tabular-nums; min-width: 52px; text-align: right; }
+.task-due { font-variant-numeric: tabular-nums; min-width: 52px; text-align: right; white-space: nowrap; }
+.task-repeat { color: var(--text-2); vertical-align: -1px; margin-left: 2px; }
 
 /* 逾期标志（用户需求：逾期任务留在今天/本周，但要醒目） */
 .task-due.overdue { color: var(--accent-focus); font-weight: 600; }
@@ -1315,3 +1342,16 @@ input::-ms-reveal, input::-ms-clear { display: none; }
 }
 .timer-mode-menu button:hover { color: var(--text-1); }
 .timer-mode-menu button.active { background: #fff; color: var(--accent-focus); font-weight: 600; }
+
+/* 编辑弹层标签 chips */
+.tag-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 4px 2px 8px; border-radius: 10px;
+  background: var(--bg-sidebar); color: var(--text-1); font-size: 11px; line-height: 1;
+}
+.tag-remove {
+  width: 14px; height: 14px; border-radius: 50%;
+  display: grid; place-items: center;
+  color: var(--text-2); font-size: 12px; line-height: 1;
+}
+.tag-remove:hover { color: var(--accent-focus); }

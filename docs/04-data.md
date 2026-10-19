@@ -71,3 +71,9 @@ focus_records ──(task_id 可空)──> tasks     notifications 独立   tim
 2. 改口径 → `stats.rs` 与 `queries.ts` **同时**改，双校验必须过。
 3. 改种子 → 双端同步改：`db/seed.ts::buildSeed` 与 `db.rs::seed_demo` 必须保持同一份 §6.3 数据与同一套 `demo_seeded` 守卫。
 4. 新表需要迁移策略：`IF NOT EXISTS` 对已有库幂等；如需既有数据回填，写一次性迁移函数并在 setup 中按版本号执行。
+
+> **加列（提醒事项字段 2026-10-19）**：`tasks` 新增 `due_time`/`url`/`urgent`/`repeat`/`lead_remind`/`tags`/`flag`/`priority`/`reminded_at` 共 9 列。
+> `CREATE TABLE IF NOT EXISTS` 不会给**已有库**补列，故桌面端加了幂等迁移 `db.rs::migrate_task_columns`（`PRAGMA table_info` 判缺再 `ALTER`，与 `migrate_list_icon` 同模式，在 `open`/`open_in_memory` 调用）；
+> IndexedDB 侧无列概念，走 `DB_VERSION` 2→3（升级即清空重播种）+ `idb.ts::normalizeTask` 兜底补默认，避免旧库缺字段崩溃。
+> `tags` 在 SQLite 存 JSON 文本（`serde_json` 序列化/反序列化），在 IndexedDB 存原生数组。
+> **加列必须三处同步**：`db.rs`（SCHEMA + migrate）+ `models.rs`（Task/CreateTaskArgs/UpdateTaskPatch）+ 前端 `types.ts`/`api/types.ts`/`api/local.ts`/`db/seed.ts`；漏一处就会出现「桌面端存了、浏览器端读到 undefined」。

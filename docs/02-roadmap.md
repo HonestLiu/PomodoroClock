@@ -17,6 +17,9 @@
 | 通知（应用内面板 + 角标 25） | ✅ | 应用内面板 + 系统通知均已接线（`lib/systemNotify.ts`、`Cargo.toml` 的 notification 插件、`timerStore.ts::checkExpiry` 门控、通知页 `system_notify` 开关）；真机弹窗待验证 |
 | 任务交互增强：更多菜单 / 右键 | ✅ | 移动/复制/删除/右键全可用（P1） |
 | 任务**拖拽排序** | ✅ | 视图内重排 + 跨清单移动（`tasks.md` ★2） |
+| **提醒事项字段体系**（URL/时间/紧急/重复/提前提醒/标签/旗标/优先级） | ✅ 新增 | `tasks` 表新增 9 列（SQLite 幂等迁移 + IDB v3）；编辑弹层 13 项、任务行徽标渲染；「发信息时」「附件」本期不做 |
+| **重复引擎**（真正重复） | ✅ 新增 | `lib/recurrence.ts` 纯函数；完成即推进下一轮（`dataStore.toggleTask`） |
+| **到时提醒**（原 backlog #16） | ✅ 新增 | `lib/taskRemind.ts` + `lib/remindScan.ts`，App 30s 巡检 + 启动补查；应用内+系统通知、`reminded_at` 去重 |
 | 清单管理 | ✅ | 创建/重命名/删除 + **拖拽排序 + 默认清单**（P1） |
 | i18n（中/英） | ✅ | `src/i18n/`（zh/en 词表 + `useI18n`，键集一致）；切换入口在外观页语言下拉（`patch('language')` + `setLang`），启动应用 `App.tsx:45`，首启跟随 `navigator.language` |
 | 深色主题 | ✅ | `App.tsx:54` 写 `documentElement.dataset.theme`；CSS `:root[data-theme='dark']`（`styles/global.css:29`）；设置下拉 `SettingsModal.tsx:383` |
@@ -28,7 +31,7 @@
 | 成就/高级版/好友 | 🔶 占位 | 符合"规格定义占位"；成就页已按 stats 实时算 4 条进度（`PlaceholderModal.tsx:33-50`），无解锁持久化 |
 | 账号中心 + PocketBase 云同步 | ✅ 新增 | 设置→账号即软件账号：登录/注册、改密码（需当前密码）、忘记密码（重置邮件）、同步区、头像上传/移除（PB 文件字段）、昵称就地编辑（`users.name`，邮箱只读）、退出（**会话级、不清本地数据**）；离线优先、本地为真相源；冲突按 rev→updated→device 裁决，PB 不可达静默降级（详见 `03-architecture.md` §账户与云同步）；端到端 36/36 已实测 |
 | 可访问性（键盘/焦点/语义/错误兜底） | ✅ | 模态 Esc+焦点陷阱（`components/useModalA11y.ts`）、菜单全键盘、拖拽键盘替代（`Alt+↑/↓`）、设置 tablist、`ErrorBoundary`；验收见 `06` G 组 |
-| 一键验收 | ✅ | `tools/check-all.sh`（tsc/红线/种子/计时口径/cargo 16/build/可选截图 13 检查，共 7 步）；`bash tools/check-all.sh --with-shots` 当前 7 步全绿 |
+| 一键验收 | ✅ | `tools/check-all.sh`（tsc/红线/种子/计时口径/cargo 17/build/可选截图 16 检查，共 7 步）；`bash tools/check-all.sh --with-shots` 当前 7 步全绿 |
 | 跨平台构建 | 🔶 部分 | macOS 真机构建通过；Windows/Linux 需真机验证 |
 
 > 结论：**P0/P1 已全绿，P2 完成大半**；当前主要缺口是数据迁移（导出/导入）、白噪音**按模式自动播放**（选择弹窗已落地）、开机自启与占位项实质化。

@@ -9,7 +9,7 @@ import type {
   FocusRecord, SmartKey, Stats, Task, TaskList,
 } from '@/types';
 import {
-  addDays, endOfWeek, startOfDay, startOfWeek, toDateKey, todayKey,
+  addDays, endOfWeek, parseDateKey, startOfDay, startOfWeek, toDateKey, todayKey,
 } from './date';
 import { tStatic } from '@/i18n';
 
@@ -64,9 +64,14 @@ export function tasksForCategory(ds: Dataset, key: SmartKey): Task[] {
   return filtered.sort((a, b) => a.sort_order - b.sort_order || a.created_at - b.created_at);
 }
 
-/** 逾期：未完成且到期日早于今天本地 00:00（无到期日不算） */
+/** 逾期：未完成且到期已过。带 due_time 时按「到期时刻 < 现在」，否则按「到期日 < 今天」（无到期日不算） */
 export function isOverdue(t: Task): boolean {
   if (t.completed === 1 || !t.due_date) return false;
+  if (t.due_time) {
+    const [hh, mm] = t.due_time.split(':').map(Number);
+    const due = parseDateKey(t.due_date).getTime() + hh * 3_600_000 + (mm || 0) * 60_000;
+    return due < Date.now();
+  }
   return startOfDay(new Date(t.due_date)).getTime() < startOfDay(new Date()).getTime();
 }
 

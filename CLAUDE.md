@@ -196,6 +196,42 @@
   - 右键/更多 → 删除、移到清单（规格定义）；
   - 拖动排序（规格定义，可选）。
 
+#### FR-T3.1 提醒事项字段体系（2026-10-19 用户需求）
+任务条目升级为「提醒事项」式字段组成（**数据模型已含以下 9 个新列**，见 §6.2 `tasks`）：
+
+| 字段 | 列 | 类型 | 说明 |
+| ---- | -- | ---- | ---- |
+| 标题 | `title` | TEXT | 已有 |
+| 备注 | `notes` | TEXT | 已有 |
+| URL | `url` | TEXT | 任务行标题下方显示域名，点击系统默认浏览器打开 |
+| 日期 | `due_date` | 'YYYY-MM-DD' | 已有 |
+| 时间 | `due_time` | 'HH:MM' | **关闭（null）则无到时提醒**；与日期组成「到期时刻」 |
+| 紧急 | `urgent` | 0/1 | 开→任务行标题红色 + 「紧急」红签 |
+| 重复 | `repeat` | TEXT | 永不/每小时/每天/工作日/周末/每周；见 §5.1.1 |
+| 提前提醒 | `lead_remind` | TEXT | 无/1天前/2天前/1周前；**无时间时置灰** |
+| 列表 | `list_id` | TEXT | 已有 |
+| 标签 | `tags` | TEXT(JSON) | 任务行标题下方 chips |
+| 旗标 | `flag` | 0/1 | 开→任务行勾选旁显示旗帜图标 |
+| 优先级 | `priority` | TEXT | 无/低/中/高；点前红/蓝/灰三色小点 |
+| 发信息时 | — | — | **本期不做**（应用无消息集成，不进数据模型） |
+| 添加附件 | — | — | **本期不做**（不进数据模型） |
+
+- 任务行渲染（`TaskItem.tsx`）：勾选 → 旗帜(`flag`) → 优先级点(`priority`) → 紧急签(`urgent`) → 标题 → 下方 chips(标签+URL)；右侧 到期(含 `due_time`) + 重复图标(`repeat`) + 逾期签。
+- 编辑弹层（`TaskEditModal.tsx`）：13 个字段，复用 `.field`/`.switch`/`select` 栅格；标签 chips 支持回车/逗号添加、点 × 删除。
+
+### 5.1.1 重复引擎（`lib/recurrence.ts`，纯函数）
+- 完成一个 `repeat != 'none'` 的任务时：当前轮标完成进「已完成」，并**新建**一个同内容、到期=下一次的新任务。
+- `nextOccurrence({date, time}, repeat)` 推进规则（本地时区）：
+  - `hourly`：有时间→+1h（时间进位）；无时间→退化为 `daily`。
+  - `daily` → +1天；`weekly` → +7天；`weekdays` → 下一工作日（周五→周一）；`weekends` → 下一个周六（周六→下周六）。
+  - 无到期日以今天为基准。反勾选只还原当前任务，不动已生成的下一轮。
+- 接入：`dataStore.ts::toggleTask`。
+
+### 5.1.2 到时提醒（`lib/taskRemind.ts` + `lib/remindScan.ts`，原 backlog #16）
+- `taskRemindAt(task)` = `DateTime(due_date, due_time) - lead 时长`；**无 `due_time` 不触发**（与规格「时间关闭则无到点提醒」一致；纯日期任务靠逾期显示）。
+- 巡检：`App.tsx` 挂 30s `setInterval` + 启动补查一次；命中条件 `shouldRemind`（未完成、到点、`reminded_at < remind_at` 或未提醒过）。
+- 触发动作：写应用内通知（type `task_remind`）→ 置 `reminded_at` 去重 → 若 `notify_enabled && system_notify` 发系统通知。改时间/日期后 `reminded_at < remind_at` 自动重新武装。
+
 #### FR-T4 预估番茄数
 - 任务可设置预估番茄数（float，如 7.8），来源：任务编辑时手动输入「预计小时数」或「番茄数」（规格定义：显示值 = 预估番茄数，精确 1 位小数）。
 - 换算建议：`est_pomodoros = 预计时长(分钟) / 25`（番茄时长取设置值）。
@@ -393,6 +429,15 @@ CREATE TABLE tasks (
   notes         TEXT DEFAULT '',
   est_pomodoros REAL DEFAULT 0,        -- 预估番茄数（7.8）
   due_date      TEXT DEFAULT NULL,     -- 'YYYY-MM-DD'
+  due_time      TEXT DEFAULT NULL,     -- 'HH:MM'（24h；与 due_date 组成「到期时刻」；关闭=无到时提醒）
+  url           TEXT NOT NULL DEFAULT '',   -- 关联 URL
+  urgent        INTEGER NOT NULL DEFAULT 0, -- 紧急（0/1）
+  repeat        TEXT NOT NULL DEFAULT 'none', -- 重复 none|hourly|daily|weekdays|weekends|weekly
+  lead_remind   TEXT NOT NULL DEFAULT 'none', -- 提前提醒 none|1d|2d|1w（基于 due_time）
+  tags          TEXT NOT NULL DEFAULT '[]',  -- 标签（JSON 数组）
+  flag          INTEGER NOT NULL DEFAULT 0,  -- 旗标（0/1，条目显示旗帜）
+  priority      TEXT NOT NULL DEFAULT 'none', -- 优先级 none|low|medium|high
+  reminded_at   INTEGER DEFAULT NULL,   -- 到时提醒去重标记（内部字段，不进 UI）
   completed     INTEGER DEFAULT 0,     -- 0/1
   completed_at  INTEGER DEFAULT NULL,  -- 完成时间戳（毫秒）
   sort_order    INTEGER DEFAULT 0,
@@ -666,6 +711,9 @@ pomodoro-app/
 - [ ] P1 今天/明天/本周/已计划筛选规则正确
 - [ ] P0 逾期任务留驻：到期日已过的未完成任务仍在「今天/本周」内（置顶 + 红色逾期标志），不只沉到「任务」
 - [ ] P1 自定义清单任务到期日落入今天/明天/本周时，行内显示来源清单徽标（可点击跳回）
+- [ ] P0 提醒事项字段体系：编辑弹层含 时间/紧急/重复(6)/提前提醒(4)/标签/旗标/优先级(4)/URL；无时间时提前提醒置灰；保存后任务行显示旗帜、优先级色点、紧急签、标签 chips、URL 链接、重复图标、到期含时间〔脚本：`tools/shoot.mjs` 编辑弹层断言 + `verify-data.ts` 纯函数〕
+- [ ] P0 重复引擎：完成一个「每天/每周/工作日/周末/每小时」任务，当前轮进已完成、自动新建下一轮且到期正确推进（含时间进位、工作日跨周五→周一）〔脚本：`verify-data.ts` nextOccurrence 10 项 + Rust `reminder_fields_round_trip`〕
+- [ ] P0 到时提醒：设了到期时间的任务到点写应用内通知（type task_remind）+ 系统通知；提前提醒（1天/2天/1周）提前触发；`reminded_at` 去重不重复弹；改时间后重新武装〔脚本：`verify-data.ts` scanTaskReminders 注入 deps 断言〕
 - [ ] P0 记录视图按日期分组，条目 = 任务名+时长+起止时间，与 S2 布局一致
 - [ ] P0 已完成视图为常驻项：按完成日期分组展示全部已完成任务，可反勾选/编辑/删除
 

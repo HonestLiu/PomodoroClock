@@ -46,6 +46,15 @@ pub struct Task {
     pub notes: String,
     pub est_pomodoros: f64,
     pub due_date: Option<String>,
+    pub due_time: Option<String>,
+    pub url: String,
+    pub urgent: i64,
+    pub repeat: String,
+    pub lead_remind: String,
+    pub tags: Vec<String>,
+    pub flag: i64,
+    pub priority: String,
+    pub reminded_at: Option<i64>,
     pub completed: i64,
     pub completed_at: Option<i64>,
     pub sort_order: i64,
@@ -172,12 +181,20 @@ pub struct ListTasksArgs {
     pub due_to: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateTaskArgs {
     pub title: String,
     pub list_id: Option<String>,
     pub due_date: Option<String>,
+    pub due_time: Option<String>,
+    pub url: Option<String>,
+    pub urgent: Option<i64>,
+    pub repeat: Option<String>,
+    pub lead_remind: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub flag: Option<i64>,
+    pub priority: Option<String>,
     pub est_pomodoros: Option<f64>,
     pub notes: Option<String>,
 }
@@ -204,6 +221,17 @@ pub struct UpdateTaskPatch {
     pub list_id: Option<Option<String>>,
     #[serde(default, alias = "dueDate", deserialize_with = "double_option")]
     pub due_date: Option<Option<String>>,
+    #[serde(default, alias = "dueTime", deserialize_with = "double_option")]
+    pub due_time: Option<Option<String>>,
+    pub url: Option<String>,
+    pub urgent: Option<i64>,
+    pub repeat: Option<String>,
+    pub lead_remind: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub flag: Option<i64>,
+    pub priority: Option<String>,
+    /// 到时提醒去重标记（内部由前端巡检写入）
+    pub reminded_at: Option<i64>,
     #[serde(default, alias = "estPomodoros")]
     pub est_pomodoros: Option<f64>,
     pub notes: Option<String>,

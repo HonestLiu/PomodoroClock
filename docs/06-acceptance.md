@@ -22,6 +22,10 @@
 - [x] P1 **来源徽标**：自定义清单任务按到期日出现在今天/明天/本周时标注来源清单（色点+名称，点击跳回）；内置清单不打标〔脚本：`verify-data.ts` 合成数据集断言；浏览器端到端复核〕
 - [x] P0 记录视图按日期分组，条目 = 任务名+时长+起止时间（原「已完成」，2026-10-19 改名「记录」）
 - [x] P0 已完成视图为常驻项：按完成日期分组展示全部已完成任务，行内可反勾选/编辑/删除，空态有文案〔脚本：`tools/shoot.mjs` S2b〕
+- [x] P0 **提醒事项字段体系**（用户需求 2026-10-19）：编辑弹层 13 项含 时间/紧急/重复(6)/提前提醒(4)/标签/旗标/优先级(4)/URL；无时间时提前提醒置灰；保存后任务行显示旗帜、优先级色点、紧急签、标签 chips、URL 链接、重复图标、到期含时间〔脚本：`shoot.mjs` 编辑弹层断言 + `verify-data.ts` 21 条纯函数断言〕
+- [x] P0 **重复引擎**（真正重复）：完成「每天/每周/工作日/周末/每小时」任务 → 当前轮进已完成 + 自动新建下一轮且到期正确推进（含 hourly 时间进位、weekdays 跨周五→周一、weekends 周六→下周六）〔脚本：`verify-data.ts` nextOccurrence 10 项 + Rust `reminder_fields_round_trip` 17 项〕
+- [x] P0 **到时提醒**（原 backlog #16）：设了 `due_time` 的任务到点写应用内通知（type `task_remind`）+ 系统通知；提前提醒（1天/2天/1周）提前触发；`reminded_at` 去重不重复弹；改时间后重新武装；无时间的任务不触发〔脚本：`verify-data.ts` scanTaskReminders 注入 deps 断言〕
+- [x] P0 数据层：`tasks` 新增 9 列（due_time/url/urgent/repeat/lead_remind/tags/flag/priority/reminded_at），双适配器（SQLite 幂等迁移 + IndexedDB v3）+ create/update 贯通，`cargo test` 17 passed〔脚本：`cargo test` + `tsc`〕
 
 ## C. 番茄钟
 - [x] P0 专注/休息状态机正确流转；倒计时 MM:SS
@@ -88,7 +92,7 @@
 - [x] P2 组件异常不白屏：`components/ErrorBoundary.tsx` 在 `main.tsx` 包裹根节点
 - [x] P2 一键验收：`bash tools/check-all.sh --with-shots` **7 步全绿**〔脚本〕
 - [x] P2 账号页结构断言〔脚本：`tools/shoot.mjs`〕：`.acct-section` 至少 2 个（账号区 + 本地数据区）、`input[type="email"]`、`input[type="password"]`、`.acct-row-actions .btn.primary`、`.acct-link`、危险按钮 `.btn.danger`；未登录不得出现 `.acct-badge` / `.acct-avatar`；旧结构 `.profile-avatar`、`.profile-edit`、`.profile-form`、`.cloud-card`、`.account-card` 必须为 0（账号页已并入设置页统一 field 栅格）
-- [x] P2 白噪音弹窗结构断言〔脚本：`tools/shoot.mjs`〕：点工具条白噪音必须出现 `.noise-modal`；`.noise-item` 恰为 6（「无」+5 音色）、`.noise-thumb` 中 `<img>` 恰为 5 张且 `naturalWidth>0`（内嵌封面缺失会直接失败）、`.noise-slider` 与 `.noise-foot .btn.primary` 各 1；取消后弹窗关闭。截图 `S5c-noise-picker.png`（截图检查共 **8** 项）。
+- [x] P2 白噪音弹窗结构断言〔脚本：`tools/shoot.mjs`〕：点工具条白噪音必须出现 `.noise-modal`；`.noise-item` 恰为 6（「无」+5 音色）、`.noise-thumb` 中 `<img>` 恰为 5 张且 `naturalWidth>0`（内嵌封面缺失会直接失败）、`.noise-slider` 与 `.noise-foot .btn.primary` 各 1；取消后弹窗关闭。截图 `S5c-noise-picker.png`（截图检查现共 **16** 项）。
 - [x] P2 计时模式菜单断言〔脚本：`tools/shoot.mjs`〕：`.timer-mode-menu button` 数量 = 3 且 top 坐标差 < 2px（被挤成换行即失败）
 - [x] P2 计时模式起始值断言〔脚本：`tools/shoot.mjs`〕：切「倒计时」显示 25:00、切「正计时」显示 00:00
 - [x] P2 白噪音落库语义：选音色 + 拖音量 → 确定才写 `settings.noise`/`noise_volume`；取消回滚试听；选「无」只停播、不覆盖已存音色；重开弹窗回显上次值〔手测：雨声 80% → IndexedDB `noise=rain`、`noise_volume=0.8`；设置行提示「雨声 · 80%」〕
@@ -100,7 +104,7 @@
 每阶段收尾跑一条命令即可：
 
 ```bash
-bash tools/check-all.sh --with-shots   # tsc → 红线 → 种子口径 → 计时模式口径 → cargo test → build → 截图 13 检查
+bash tools/check-all.sh --with-shots   # tsc → 红线 → 种子口径 → 计时模式口径 → cargo test → build → 截图 16 检查
 npx tsx tools/verify-timer.ts          # 单独跑计时口径自检（20 项）
 ```
 

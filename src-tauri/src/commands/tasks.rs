@@ -7,10 +7,11 @@ use crate::db::{new_id, Db};
 use crate::error::{AppError, AppResult};
 use crate::models::{CreateTaskArgs, ListTasksArgs, Task, UpdateTaskPatch};
 
-const TASK_COLS: &str =
-    "id, list_id, title, notes, est_pomodoros, due_date, completed, completed_at, sort_order, created_at, updated_at";
+const TASK_COLS: &str = "id, list_id, title, notes, est_pomodoros, due_date, due_time, url, urgent, \
+    repeat, lead_remind, tags, flag, priority, reminded_at, completed, completed_at, sort_order, created_at, updated_at";
 
 fn row_to_task(r: &rusqlite::Row) -> rusqlite::Result<Task> {
+    let tags: String = r.get(11)?;
     Ok(Task {
         id: r.get(0)?,
         list_id: r.get(1)?,
@@ -18,11 +19,20 @@ fn row_to_task(r: &rusqlite::Row) -> rusqlite::Result<Task> {
         notes: r.get(3)?,
         est_pomodoros: r.get(4)?,
         due_date: r.get(5)?,
-        completed: r.get(6)?,
-        completed_at: r.get(7)?,
-        sort_order: r.get(8)?,
-        created_at: r.get(9)?,
-        updated_at: r.get(10)?,
+        due_time: r.get(6)?,
+        url: r.get(7)?,
+        urgent: r.get(8)?,
+        repeat: r.get(9)?,
+        lead_remind: r.get(10)?,
+        tags: serde_json::from_str(&tags).unwrap_or_default(),
+        flag: r.get(12)?,
+        priority: r.get(13)?,
+        reminded_at: r.get(14)?,
+        completed: r.get(15)?,
+        completed_at: r.get(16)?,
+        sort_order: r.get(17)?,
+        created_at: r.get(18)?,
+        updated_at: r.get(19)?,
     })
 }
 
@@ -141,8 +151,8 @@ pub fn create_task_impl(conn: &rusqlite::Connection, args: CreateTaskArgs) -> Ap
     };
 
     conn.execute(
-        "INSERT INTO tasks (id, list_id, title, notes, est_pomodoros, due_date, completed, completed_at, sort_order, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, NULL, ?7, ?8, ?8)",
+        "INSERT INTO tasks (id, list_id, title, notes, est_pomodoros, due_date, completed, completed_at, sort_order, created_at, updated_at, due_time, url, urgent, repeat, lead_remind, tags, flag, priority)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, NULL, ?7, ?8, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
         params![
             id,
             list_id,
@@ -151,7 +161,15 @@ pub fn create_task_impl(conn: &rusqlite::Connection, args: CreateTaskArgs) -> Ap
             args.est_pomodoros.unwrap_or(0.0),
             args.due_date,
             order,
-            now
+            now,
+            args.due_time,
+            args.url.unwrap_or_default(),
+            args.urgent.unwrap_or(0),
+            args.repeat.unwrap_or_else(|| "none".into()),
+            args.lead_remind.unwrap_or_else(|| "none".into()),
+            serde_json::to_string(args.tags.as_deref().unwrap_or(&[])).unwrap_or_else(|_| "[]".into()),
+            args.flag.unwrap_or(0),
+            args.priority.unwrap_or_else(|| "none".into()),
         ],
     )?;
     read_task(&conn, &id)
@@ -181,6 +199,34 @@ pub fn update_task_impl(
     }
     if let Some(v) = patch.due_date {
         conn.execute("UPDATE tasks SET due_date = ?1 WHERE id = ?2", params![v, id])?;
+    }
+    if let Some(v) = patch.due_time {
+        conn.execute("UPDATE tasks SET due_time = ?1 WHERE id = ?2", params![v, id])?;
+    }
+    if let Some(v) = patch.url {
+        conn.execute("UPDATE tasks SET url = ?1 WHERE id = ?2", params![v, id])?;
+    }
+    if let Some(v) = patch.urgent {
+        conn.execute("UPDATE tasks SET urgent = ?1 WHERE id = ?2", params![v, id])?;
+    }
+    if let Some(v) = patch.repeat {
+        conn.execute("UPDATE tasks SET repeat = ?1 WHERE id = ?2", params![v, id])?;
+    }
+    if let Some(v) = patch.lead_remind {
+        conn.execute("UPDATE tasks SET lead_remind = ?1 WHERE id = ?2", params![v, id])?;
+    }
+    if let Some(v) = patch.tags {
+        let json = serde_json::to_string(&v).unwrap_or_else(|_| "[]".into());
+        conn.execute("UPDATE tasks SET tags = ?1 WHERE id = ?2", params![json, id])?;
+    }
+    if let Some(v) = patch.flag {
+        conn.execute("UPDATE tasks SET flag = ?1 WHERE id = ?2", params![v, id])?;
+    }
+    if let Some(v) = patch.priority {
+        conn.execute("UPDATE tasks SET priority = ?1 WHERE id = ?2", params![v, id])?;
+    }
+    if let Some(v) = patch.reminded_at {
+        conn.execute("UPDATE tasks SET reminded_at = ?1 WHERE id = ?2", params![v, id])?;
     }
     if let Some(v) = patch.est_pomodoros {
         conn.execute("UPDATE tasks SET est_pomodoros = ?1 WHERE id = ?2", params![v, id])?;

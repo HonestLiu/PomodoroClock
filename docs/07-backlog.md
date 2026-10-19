@@ -21,7 +21,7 @@
 | 13 | P2 | P2 | 目标达成环 | report ★3 | S | ✅ 已完成 |
 | 14 | P2 | P2 | 导出/导入 JSON | 数据 | M | — |
 | 15 | P2 | P2 | 开机自启接线(`tauri-plugin-autostart`；设置项 `autostart` 已在但无行为) | settings ★5 | S | install 依赖 |
-| 16 | P2 | P2 | 任务到期提醒(`task_remind`) | notify ★3 | M | #3 |
+| 16 | P2 | P2 | 任务到期提醒(`task_remind`) | notify ★3 | M | ✅ 已完成（2026-10-19 随「提醒事项字段」落地：`lib/taskRemind.ts` + `lib/remindScan.ts`，App 30s 巡检，应用内+系统通知、`reminded_at` 去重） |
 | 17 | P3 | — | 规模期/任务级统计、周报 | report ★2 | L | #12 |
 | 18 | P3 | — | 成就系统实质化（当前成就页只有 4 条实时进度，无解锁持久化） | growth | L | — |
 | 19 | P4 | — | Windows/Linux 真机验证、多设备同步压测、mobile（单设备云同步已落地） | growth | XL | 长期 |

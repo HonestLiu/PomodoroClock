@@ -6,6 +6,7 @@ import { api, on } from '@/api';
 import type { FocusRecord, Folder, Notification, Task, TaskList, User } from '@/types';
 import type { CreateTaskArgs, UpdateTaskPatch } from '@/api/types';
 import type { ListIconSpec } from '@/lib/listIcon';
+import { nextOccurrence } from '@/lib/recurrence';
 
 interface DataState {
   ready: boolean;
@@ -93,7 +94,36 @@ export const useDataStore = create<DataState>((set, get) => ({
     return t;
   },
   async updateTask(id, patch) { await api.update_task(id, patch); await get().reload(); },
-  async toggleTask(id) { await api.toggle_task(id); await get().reload(); },
+  async toggleTask(id) {
+      const before = get().tasks.find((t) => t.id === id);
+      await api.toggle_task(id);
+      // 重复任务（repeat != none）：完成时按规则推进到下一次（真正重复）。
+      // 当前这一轮标完成进「已完成」，再建一个同内容、到期=下一次的新任务。
+      if (before && before.completed === 0 && before.repeat !== 'none' && before.due_date) {
+        const next = nextOccurrence(
+          { date: before.due_date, time: before.due_time ?? null },
+          before.repeat,
+        );
+        if (next) {
+          await api.create_task({
+            title: before.title,
+            notes: before.notes,
+            url: before.url,
+            listId: before.list_id,
+            dueDate: next.date,
+            dueTime: next.time,
+            urgent: before.urgent,
+            repeat: before.repeat,
+            leadRemind: before.lead_remind,
+            tags: before.tags,
+            flag: before.flag,
+            priority: before.priority,
+            estPomodoros: before.est_pomodoros,
+          });
+        }
+      }
+      await get().reload();
+    },
   async reorderTasks(ids) { await api.reorder_tasks(ids); await get().reload(); },
   async deleteTask(id) { await api.delete_task(id); await get().reload(); },
 

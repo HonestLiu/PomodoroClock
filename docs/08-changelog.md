@@ -4,6 +4,36 @@
 
 ---
 
+## 2026-10-19 · 任务条目升级为「提醒事项」字段体系（重复引擎 + 到时提醒）
+
+### 用户需求
+把任务条目标齐苹果「提醒事项」的字段组成：标题、备注+URL、日期、时间（到时应用通知）、紧急、重复（**真正重复**）、提前提醒（无/1天/2天/1周）、列表、标签、旗标、优先级。经确认 **本期不做**「发信息时」与「添加附件」（均不进数据模型）。
+
+### 实现
+- **数据层**：`tasks` 新增 9 列 `due_time`/`url`/`urgent`/`repeat`/`lead_remind`/`tags`/`flag`/`priority`/`reminded_at`。
+  - SQLite：`db.rs::migrate_task_columns` 幂等加列（`PRAGMA table_info` 判缺再 `ALTER`），`TASK_COLS`/`row_to_task`/`INSERT`/`UPDATE` 全字段贯通，`tags` 存 JSON 文本（`serde_json`）。
+  - IndexedDB：`DB_VERSION` 2→3（升级即清空重播种），`idb.ts::normalizeTask` 兜底补默认，避免旧库缺字段崩溃。
+  - `models.rs`：`Task` 加 9 字段；`CreateTaskArgs`（camelCase）+ `Default`；`UpdateTaskPatch`（snake_case，`due_time` 用 `double_option` 支持显式 null）。
+  - `api/types.ts`、`api/local.ts::create_task`、`db/seed.ts::mkTask` 同步。
+- **编辑弹层** `TaskEditModal.tsx` 重建为 13 字段，复用 `.field`/`.switch`/`select` 栅格；标签 chips 回车/逗号添加、× 删除；**无时间时提前提醒置灰**。
+- **任务行渲染** `TaskItem.tsx`：旗帜(`flag`)、优先级三色点、紧急红签、标签 chips、URL 链接（`window.open` 系统默认浏览器）、重复图标、到期含 `due_time`。`isOverdue` 扩展：带时间按「到期时刻 < 现在」判。
+- **重复引擎**（真正重复）`lib/recurrence.ts`：`nextOccurrence` 纯函数。完成 `repeat != 'none'` 的任务时当前轮进已完成 + **新建**下一轮（`dataStore.toggleTask`）。规则：hourly 有时间 +1h（跨日进位）/无时间退化 daily；daily +1；weekly +7；weekdays 下一工作日（周五→周一）；weekends 下一个周六。反勾选只还原当前轮。复制任务也带上全部提醒字段。
+- **到时提醒**（原 backlog #16）`lib/taskRemind.ts` + `lib/remindScan.ts`：`taskRemindAt = DateTime(due_date, due_time) − lead`；**无 `due_time` 不触发**（与规格一致）。`App.tsx` 挂 30s 巡检 + 启动补查，命中写应用内通知（type `task_remind`）+ 系统通知，并置 `reminded_at` 去重；改时间后 `reminded_at < remind_at` 自动重新武装。
+- **i18n**：新增约 20 键（字段标签/重复 6 项/提前 4 项/优先级 4 项/提示/通知文案），zh/en 键集保持相等。
+
+### 验证
+- `cargo test --test queries`：**17 passed**（含新增 `reminder_fields_round_trip`，覆盖 tags JSON 往返、`due_time=null` 写 NULL、`reminded_at` 写入、未改字段保持）。
+- `tools/verify-data.ts` 新增 21 条纯函数断言：`nextOccurrence` 10 条（daily/weekly/hourly 时间进位/hourly 退化/weekdays 跨周五/weekends 周六→下周六/none/无日期）、`leadMs`、`dueTimestamp`、`taskRemindAt` 提前跨天、`shouldRemind` 未到点/已完成/去重/改时间重新武装；`scanTaskReminders` 注入 deps 断言（扫描1 只触发到点任务、写 1 条通知、置 `reminded_at`；扫描2 已去重不再触发）。
+- 浏览器端到端（临时脚本，已删）：编辑弹层 13 项齐全 + 重复/提前/优先级选项数 + 无时间置灰；填全字段保存 → 任务行旗帜/优先级点/紧急签/标签2 chips/URL/重复图标/到期含 09:30 全部渲染；完成「每天」重复任务 → 数量不变且下一轮到期 11-20→11-21；到时提醒写通知 + `reminded_at` 去重。
+- `bash tools/check-all.sh --with-shots` → **7/7 全绿**（截图断言 13 → **16 项**，新增「编辑弹层字段齐全」：字段数 ≥13、switch=2、重复 6/提前 4/优先级 4、无时间置灰）。
+
+### 防复发
+- `tasks` 表列改动必须三处同步：`db.rs`（SCHEMA + `migrate_task_columns`）、`models.rs`（Task/Create/Update）、`api/types.ts` + `api/local.ts` + `db/seed.ts`；漏一处就会出现「桌面端存了、浏览器端读到 undefined」。
+- 「重复」「到时提醒」均为纯函数（`lib/recurrence.ts` / `lib/taskRemind.ts`），改规则先补 `verify-data.ts` 断言再改实现。
+- 到时提醒去重靠 `reminded_at`；改 `taskRemindAt`/`leadMs` 公式时必须同步 `shouldRemind` 的 `<`/`<=` 比较，否则会重复弹或永不弹。
+
+---
+
 ## 2026-10-19 · 时间视图逾期留驻 + 自定义清单来源徽标
 
 ### 用户需求

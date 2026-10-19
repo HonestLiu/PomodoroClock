@@ -24,7 +24,10 @@ export interface DBShape {
 }
 
 const DB_NAME = 'focus_pomodoro';
-const DB_VERSION = 2;
+// 3：tasks 引入提醒事项字段（due_time/url/urgent/repeat/lead_remind/tags/flag/priority/reminded_at）。
+// 升级即清空重播种（既有模式），旧库不兼容。
+
+const DB_VERSION = 3;
 const STORE = 'kv';
 const KEY = 'db';
 
@@ -52,6 +55,24 @@ export function defaultTimerState(): TimerState {
     end_at: null,
     paused_remaining_ms: null,
   };
+}
+
+/** 提醒事项字段的默认值（Task 补齐用） */
+const taskReminderDefaults = {
+  due_time: null as string | null,
+  url: '',
+  urgent: 0,
+  repeat: 'none' as 'none',
+  lead_remind: 'none' as 'none',
+  tags: [] as string[],
+  flag: 0,
+  priority: 'none' as 'none',
+  reminded_at: null as number | null,
+};
+
+/** 旧库任务补齐新字段（防缺字段崩溃） */
+function normalizeTask(t: Task): Task {
+  return { ...taskReminderDefaults, ...t };
 }
 
 let data: DBShape = emptyDB();
@@ -102,7 +123,7 @@ export function initDB(): Promise<void> {
       idb = await openIDB();
       const existing = await idbGet(idb);
       if (existing && Array.isArray(existing.tasks)) {
-        data = { ...emptyDB(), ...existing };
+        data = { ...emptyDB(), ...existing, tasks: existing.tasks.map(normalizeTask) };
         return;
       }
     } catch {

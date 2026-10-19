@@ -28,6 +28,7 @@ import { useAuthStore, scheduleSyncPush } from '@/stores/authStore';
 import type { NoiseKind } from '@/lib/noise';
 import { api, on, subscribe, isTauri } from '@/api';
 import { useI18nStore, tStatic } from '@/i18n';
+import { scanTaskReminders, defaultRemindDeps } from '@/lib/remindScan';
 
 export default function App() {
   const [booted, setBooted] = useState(false);
@@ -63,6 +64,22 @@ export default function App() {
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
+
+  // 到时提醒巡检（提醒事项字段：时间 + 提前提醒）。每 30s 扫一遍 + 启动即扫。
+  // 读 getState()，不依赖 tasks/settings 变化，避免任务刷新时重建计时器。
+  useEffect(() => {
+    if (!booted) return;
+    const run = () => {
+      void scanTaskReminders(
+        useDataStore.getState().tasks,
+        useTimerStore.getState().settings,
+        defaultRemindDeps(),
+      );
+    };
+    run();
+    const handle = setInterval(run, 30_000);
+    return () => clearInterval(handle);
+  }, [booted]);
 
   // 本地配置变化 -> 防抖推送云端（已登录才推；失败静默降级）
   const settingsSig = JSON.stringify(settings);
