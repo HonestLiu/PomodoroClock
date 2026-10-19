@@ -19,6 +19,7 @@ export function tasksForCategory(key: SmartKey): Task[] {
   const { tasks } = getDB();
   const today = startOfDay(new Date()).getTime();
   const tomorrow = startOfDay(addDays(new Date(), 1)).getTime();
+  const weekStart = startOfWeek(new Date()).getTime();
   const weekEnd = endOfWeek(new Date()).getTime();
 
   const dueTs = (t: Task) => (t.due_date ? startOfDay(new Date(t.due_date)).getTime() : null);
@@ -26,12 +27,14 @@ export function tasksForCategory(key: SmartKey): Task[] {
   const filtered = tasks.filter((t) => {
     const due = dueTs(t);
     switch (key) {
+      // 与 lib/derive.ts::tasksForCategory 同步：今天含全部逾期任务
       case 'today':
-        return t.completed === 0 && due === today;
+        return t.completed === 0 && due !== null && due <= today;
       case 'tomorrow':
         return t.completed === 0 && due === tomorrow;
+      // 本周：本周窗口 + 全部逾期（随「今天」留在本周）
       case 'week':
-        return t.completed === 0 && due !== null && due >= today && due <= weekEnd;
+        return t.completed === 0 && due !== null && due <= weekEnd;
       case 'scheduled':
         return t.completed === 0 && due !== null;
       case 'completed':
@@ -45,6 +48,16 @@ export function tasksForCategory(key: SmartKey): Task[] {
     }
   });
 
+  // 今天/本周：逾期置顶，其后按到期日、再按排序/创建时间（与 lib/derive.ts 同步）
+  if (key === 'today' || key === 'week') {
+    return filtered.sort((a, b) => {
+      const da = dueTs(a) ?? 0, db = dueTs(b) ?? 0;
+      const threshold = key === 'week' ? weekStart : today;
+      const oa = da < threshold ? 0 : 1;
+      const ob = db < threshold ? 0 : 1;
+      return oa - ob || da - db || a.sort_order - b.sort_order || a.created_at - b.created_at;
+    });
+  }
   return filtered.sort((a, b) => a.sort_order - b.sort_order || a.created_at - b.created_at);
 }
 

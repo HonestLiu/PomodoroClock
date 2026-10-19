@@ -77,6 +77,23 @@ try {
   await page.waitForTimeout(600);
   await shot('S1-tasks');
 
+  // 「今天」视图：种子任务到期日=昨天（复刻 S1 截图），按逾期留驻规则应全部留在今天，
+  // 逾期置顶 + 红色「逾期」标志；它们在内置「任务」清单，故不显示来源徽标。
+  await nav(NAV.today).click();
+  await page.waitForTimeout(400);
+  await shot('S1b-today');
+  const todayRows = await page.locator('.task-item').evaluateAll((els) => els.map((e) => ({
+    overdueChip: !!e.querySelector('.task-overdue'),
+    redDue: e.querySelector('.task-due')?.classList.contains('overdue') ?? false,
+    source: !!e.querySelector('.task-source'),
+  })));
+  if (todayRows.length === 0) fail('今天视图为空：逾期任务没有留驻（tasksForCategory 口径回归）');
+  else if (todayRows.some((r) => !r.overdueChip || !r.redDue)) {
+    fail(`今天视图存在未标逾期的行（应全部为逾期留驻）：${JSON.stringify(todayRows)}`);
+  } else if (todayRows.some((r) => r.source)) {
+    fail('内置「任务」清单的任务不应显示来源徽标');
+  } else ok(`今天视图逾期留驻（${todayRows.length} 行，全部带红色逾期标志、无来源徽标）`);
+
   // 侧边栏归档区结构（用户需求 2026-10-19）：
   // 「已完成/记录」位于「任务」之下、自定义清单之上，且**不渲染**时长与角标
   // （这两个值只随时间单调增长，展示噪音大于信息量）；主分类仍带两段数字。

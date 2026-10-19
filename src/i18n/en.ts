@@ -215,6 +215,7 @@ export const en = {
   'sync.forgot': 'Forgot password?', 'sync.changePwd': 'Change password',
   'error.title': 'Something went wrong',
   'task.unspecified': 'Untitled task', 'task.pomoDone': '{n} pomodoros done',
+  'task.overdue': 'Overdue', 'task.fromList': 'From list \u201c{name}\u201d, click to view',
   'cal.cellTip': '{date} · {min}m',
   'noise.waves': 'Waves', 'noise.rain': 'Rain', 'noise.wind': 'Breeze',
   'noise.woods': 'Forest', 'noise.cozy': 'Cosy',

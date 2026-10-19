@@ -6,6 +6,9 @@ import { useEffect, useState } from 'react';
 import { Check, MoreHorizontal, Copy, Trash2, FolderPlus, ListTodo, Play } from 'lucide-react';
 import type { Task } from '@/types';
 import { formatDueDate } from '@/lib/date';
+import { isOverdue } from '@/lib/derive';
+import { resolveListIconColor } from '@/lib/listIcon';
+import { ALL_TASKS_LIST_ID } from '@/types';
 import { useDataStore } from '@/stores/dataStore';
 import { useTimerStore } from '@/stores/timerStore';
 import { useUiStore } from '@/stores/uiStore';
@@ -26,10 +29,12 @@ function TomatoIcon({ size = 13 }: { size?: number }) {
   );
 }
 
-export function TaskItem({ task, onReorder }: {
+export function TaskItem({ task, onReorder, showListSource = false }: {
   task: Task;
   /** 存在时启用拖拽排序（tasks.md ★2）；目标行被投放时以 targetId 回调 */
   onReorder?: (targetId: string) => void;
+  /** 智能时间视图（今天/明天/本周）下，标注任务来源于哪个自定义清单 */
+  showListSource?: boolean;
 }) {
   const toggleTask = useDataStore((s) => s.toggleTask);
   const updateTask = useDataStore((s) => s.updateTask);
@@ -63,6 +68,13 @@ export function TaskItem({ task, onReorder }: {
 
   // 该任务累计完成的番茄数 → 右侧小番茄图标（每条专注记录一个）
   const pomodoroCount = records.filter((r) => r.task_id === task.id).length;
+
+  // 逾期标志（未完成 + 到期日早于今天）
+  const overdue = isOverdue(task);
+  // 来源清单：仅自定义清单（内置「任务」清单不打标），在时间视图里标注
+  const sourceList = showListSource && task.list_id && task.list_id !== ALL_TASKS_LIST_ID
+    ? lists.find((l) => l.id === task.list_id)
+    : undefined;
 
   // 搜索定位高亮（search.md ★1）：命中一次后自动清除
   useEffect(() => {
@@ -213,10 +225,26 @@ export function TaskItem({ task, onReorder }: {
       )}
 
       <span className="task-meta">
+        {sourceList && (
+          <button
+            type="button"
+            className="task-source"
+            title={t('task.fromList', { name: sourceList.name })}
+            onClick={(e) => {
+              e.stopPropagation();
+              useUiStore.getState().navigate({ name: 'list', id: sourceList.id });
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <span className="task-source-dot" style={{ background: resolveListIconColor(sourceList) }} aria-hidden />
+            {sourceList.name}
+          </button>
+        )}
+        {overdue && <span className="task-overdue">{t('task.overdue')}</span>}
         {task.est_pomodoros > 0 && (
           <span className="task-est">{task.est_pomodoros.toFixed(1).replace(/\.0$/, '')}</span>
         )}
-        <span className="task-due">{formatDueDate(task.due_date)}</span>
+        <span className={`task-due${overdue ? ' overdue' : ''}`}>{formatDueDate(task.due_date)}</span>
       </span>
 
       <button

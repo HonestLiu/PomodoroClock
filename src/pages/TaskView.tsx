@@ -37,6 +37,8 @@ export function TaskView() {
   const listId = route.name === 'list' ? route.id : null;
   // 侧边栏「任务」类目：只统计/展示未完成任务，不考虑已完成（清单视图复用 key='tasks'，需与「任务」区分）
   const isTasksSmart = !listId && key === 'tasks';
+  // 智能时间视图（今天/明天/本周）：任务可能来自任意自定义清单，行内标注来源
+  const showListSource = !listId && (key === 'today' || key === 'tomorrow' || key === 'week');
 
   const ds: Dataset = useMemo(() => ({ tasks, lists, records }), [tasks, lists, records]);
 
@@ -124,7 +126,7 @@ export function TaskView() {
 
       <div className="task-list" onKeyDown={onListKeyDown}>
         {view.pending.length === 0 && <div className="empty">{t('task.empty')}</div>}
-        {view.pending.map((t) => <TaskItem key={t.id} task={t} onReorder={onReorder} />)}
+        {view.pending.map((t) => <TaskItem key={t.id} task={t} onReorder={onReorder} showListSource={showListSource} />)}
       </div>
       {/* 键盘重排的读屏播报（视觉隐藏） */}
       <div className="sr-only" role="status" aria-live="polite">{moveMsg}</div>

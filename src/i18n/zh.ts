@@ -221,6 +221,7 @@ export const zh = {
   'sync.forgot': '忘记密码？', 'sync.changePwd': '修改密码',
   'error.title': '页面出错了',
   'task.unspecified': '未指定任务', 'task.pomoDone': '已完成 {n} 个番茄',
+  'task.overdue': '逾期', 'task.fromList': '来自清单「{name}」，点击查看',
   'cal.cellTip': '{date} · {min}分钟',
   'noise.waves': '海浪', 'noise.rain': '雨声', 'noise.wind': '微风',
   'noise.woods': '树林', 'noise.cozy': '温馨',

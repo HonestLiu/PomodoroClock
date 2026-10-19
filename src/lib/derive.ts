@@ -31,14 +31,18 @@ const dueTs = (t: Task) => (t.due_date ? startOfDay(new Date(t.due_date)).getTim
 export function tasksForCategory(ds: Dataset, key: SmartKey): Task[] {
   const today = startOfDay(new Date()).getTime();
   const tomorrow = startOfDay(addDays(new Date(), 1)).getTime();
+  const weekStart = startOfWeek(new Date()).getTime();
   const weekEnd = endOfWeek(new Date()).getTime();
 
   const filtered = ds.tasks.filter((t) => {
     const due = dueTs(t);
     switch (key) {
-      case 'today': return t.completed === 0 && due === today;
+      // 今天：到期日 = 今天，**以及所有逾期任务**（用户需求：逾期不沉到「任务」，留在时间清单并打逾期标志）
+      case 'today': return t.completed === 0 && due !== null && due <= today;
+      // 明天：严格 = 明天（到期即今天的任务已在「今天」，逾期同理）
       case 'tomorrow': return t.completed === 0 && due === tomorrow;
-      case 'week': return t.completed === 0 && due !== null && due >= today && due <= weekEnd;
+      // 本周：本周窗口 + 所有逾期（今天 ⊂ 本周，逾期任务随「今天」一并留在本周）
+      case 'week': return t.completed === 0 && due !== null && due <= weekEnd;
       case 'scheduled': return t.completed === 0 && due !== null;
       case 'completed': return t.completed === 1;
       // 「记录」视图展示的是专注记录而非任务，任务集合为空
@@ -47,7 +51,23 @@ export function tasksForCategory(ds: Dataset, key: SmartKey): Task[] {
       default: return t.completed === 0;
     }
   });
+
+  // 今天/本周：逾期任务置顶（越久远越靠前），其后按到期日、再按排序/创建时间
+  if (key === 'today' || key === 'week') {
+    return filtered.sort((a, b) => {
+      const da = dueTs(a) ?? 0, db = dueTs(b) ?? 0;
+      const oa = da < (key === 'week' ? weekStart : today) ? 0 : 1;
+      const ob = db < (key === 'week' ? weekStart : today) ? 0 : 1;
+      return oa - ob || da - db || a.sort_order - b.sort_order || a.created_at - b.created_at;
+    });
+  }
   return filtered.sort((a, b) => a.sort_order - b.sort_order || a.created_at - b.created_at);
+}
+
+/** 逾期：未完成且到期日早于今天本地 00:00（无到期日不算） */
+export function isOverdue(t: Task): boolean {
+  if (t.completed === 1 || !t.due_date) return false;
+  return startOfDay(new Date(t.due_date)).getTime() < startOfDay(new Date()).getTime();
 }
 
 const DAY_MS = 86_400_000;

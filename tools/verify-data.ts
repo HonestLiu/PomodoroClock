@@ -3,8 +3,9 @@ import { initDB, getDB } from '@/db/idb';
 import {
   computeStats, categoryFocusMinutes, categoryTaskCount, completedGroups,
   pomodoroGrid, taskDurations, listDistribution, dailyFocusMap, todayPendingTasks,
+  tasksForCategory,
 } from '@/db/queries';
-import { completedTaskGroups, computeTaskCards } from '@/lib/derive';
+import { completedTaskGroups, computeTaskCards, isOverdue } from '@/lib/derive';
 import { formatMinutes, setDateLocale, toDateKey } from '@/lib/date';
 
 // 本脚本断言的是 PRD §7.2 的中文口径字符串，必须与运行环境语言无关：
@@ -83,6 +84,49 @@ check('已完成 分类已专注(仅已完成任务)', formatMinutes(categoryFoc
 check('已完成视图任务分组数', completedTaskGroups({
   tasks: db.tasks, lists: db.lists, records: db.focus_records,
 }).length, 0);
+
+// ── 逾期留驻 + 自定义清单任务归入时间视图（用户需求 2026-10-19）──
+console.log('\n--- 时间视图：逾期留驻 / 自定义清单归入 ---');
+// 种子 3 个任务到期日 = 昨天 → 今天=3（全部逾期）、明天=0、本周=3（今天含逾期⊂本周）
+check('今天 含全部逾期任务', tasksForCategory('today').length, 3);
+check('明天 严格=明天', tasksForCategory('tomorrow').length, 0);
+check('本周 含逾期+本周', tasksForCategory('week').length, 3);
+check('已计划 仍含全部有到期日任务', tasksForCategory('scheduled').length, 3);
+check('逾期任务置顶（今天首个为到期最早的）', tasksForCategory('today')[0]?.due_date, db.tasks[0].due_date);
+// isOverdue：未完成且到期日早于今天
+check('种子任务全部逾期', db.tasks.every((t) => isOverdue(t)), true);
+check('无到期日任务不逾期', isOverdue({ ...db.tasks[0], due_date: null }), false);
+check('已完成任务不逾期', isOverdue({ ...db.tasks[0], completed: 1 }), false);
+
+// 合成：自定义清单任务按到期日落入对应时间视图，并带来源归属（UI 侧 TaskItem 标注）
+const nowTs = Date.now();
+const dk = (off: number) => {
+  const x = new Date(); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() + off);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${x.getFullYear()}-${p(x.getMonth() + 1)}-${p(x.getDate())}`;
+};
+const synList = { id: 'l_syn_src', name: '来源清单', sort_order: 9, is_smart: 0,
+  icon_type: 'dot' as const, icon_color: '#E85D3F', icon_glyph: '', folder_id: null,
+  created_at: nowTs, updated_at: nowTs };
+const mkT = (id: string, due: string | null, completed = 0) => ({
+  id, list_id: 'l_syn_src', title: id, notes: '', est_pomodoros: 0, due_date: due,
+  completed, completed_at: null, sort_order: 0, created_at: nowTs, updated_at: nowTs,
+});
+const synDs = {
+  lists: [...db.lists, synList],
+  tasks: [mkT('st_overdue', dk(-2)), mkT('st_today', dk(0)), mkT('st_tomorrow', dk(1)),
+    mkT('st_week', dk(3)), mkT('st_future', dk(10)), mkT('st_nodate', null)],
+  records: db.focus_records,
+};
+const derive = await import('@/lib/derive');
+check('合成 今天=逾期+今天(2)', derive.tasksForCategory(synDs, 'today').map((t) => t.id).sort(), ['st_overdue', 'st_today']);
+check('合成 明天=1', derive.tasksForCategory(synDs, 'tomorrow').map((t) => t.id), ['st_tomorrow']);
+check('合成 本周=逾期+今天+明天+本周(4)', derive.tasksForCategory(synDs, 'week').map((t) => t.id).sort(),
+  ['st_overdue', 'st_today', 'st_tomorrow', 'st_week']);
+check('合成 已计划=5（含远期，不含无日期）', derive.tasksForCategory(synDs, 'scheduled').length, 5);
+check('合成 逾期任务来自自定义清单', derive.tasksForCategory(synDs, 'today')[0].list_id, 'l_syn_src');
+check('合成 逾期置顶顺序（逾期在前、按到期日升序）', derive.tasksForCategory(synDs, 'today').map((t) => t.id),
+  ['st_overdue', 'st_today']);
 
 // ── 清单视图统计卡（回归：曾因 key 被压成 'tasks' 而恒等于总专注时间）──
 // 纯函数回归用例：构造「自定义清单 + 关联任务 + 两条专注记录」，

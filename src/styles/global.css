@@ -456,9 +456,29 @@ input:focus:not(:focus-visible), textarea:focus:not(:focus-visible) {
   padding-left: 8px;
 }
 .task-pomos svg { flex: 0 0 auto; }
-.task-meta { display: flex; align-items: center; gap: 14px; color: var(--text-2); font-size: 12.5px; }
+.task-meta { display: flex; align-items: center; gap: 10px; color: var(--text-2); font-size: 12.5px; }
 .task-est { font-variant-numeric: tabular-nums; }
 .task-due { font-variant-numeric: tabular-nums; min-width: 52px; text-align: right; }
+
+/* 逾期标志（用户需求：逾期任务留在今天/本周，但要醒目） */
+.task-due.overdue { color: var(--accent-focus); font-weight: 600; }
+.task-overdue {
+  flex: 0 0 auto;
+  color: var(--accent-focus); border: 1px solid var(--accent-focus);
+  border-radius: 4px; padding: 0 5px; font-size: 11px; line-height: 16px;
+}
+
+/* 来源清单徽标：时间视图里标明该任务来自哪个自定义清单 */
+.task-source {
+  display: inline-flex; align-items: center; gap: 4px;
+  flex: 0 0 auto; max-width: 140px;
+  padding: 0 6px; height: 18px; border-radius: 9px;
+  background: var(--bg-sidebar); color: var(--text-2);
+  font-size: 11px; line-height: 1; min-width: 0;
+}
+.task-source > :last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-source:hover { color: var(--text-1); background: var(--hover); }
+.task-source-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
 
 .show-completed {
   display: flex; align-items: center; gap: 6px;
