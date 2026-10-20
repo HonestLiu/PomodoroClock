@@ -22,7 +22,7 @@ import { listAggregate } from '@/lib/derive';
 import { resolveListIconColor } from '@/lib/listIcon';
 import { formatMinutesShort } from '@/lib/date';
 import { NOISE_LABELS, type NoiseKind } from '@/lib/noise';
-import type { Settings } from '@/types';
+import type { Settings, StartupPage } from '@/types';
 import type { ConfirmSpec } from './ConfirmDialog';
 import { useI18nStore, useI18n, type ZhKey } from '@/i18n';
 import { useModalA11y } from '@/components/useModalA11y';
@@ -201,6 +201,28 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
                       <span className="track" />
                     </label>
                     <span className="field-hint">{t('general.floatHint')}</span>
+                  </div>
+                </div>
+                <div className="field">
+                  <span className="field-label">{t('general.startupPage')}</span>
+                  <div className="field-body">
+                    <select
+                      className="text-input"
+                      value={settings.startup_page}
+                      aria-label={t('general.startupPage')}
+                      onChange={(e) => void patch('startup_page', e.target.value as StartupPage)}
+                    >
+                      <option value="timer">{t('general.startup.timer')}</option>
+                      <option value="today">{t('nav.today')}</option>
+                      <option value="tomorrow">{t('nav.tomorrow')}</option>
+                      <option value="week">{t('nav.week')}</option>
+                      <option value="scheduled">{t('nav.scheduled')}</option>
+                      <option value="tasks">{t('nav.tasks')}</option>
+                      <option value="completed">{t('nav.completed')}</option>
+                      <option value="records">{t('nav.records')}</option>
+                      <option value="calendar">{t('nav.calendar')}</option>
+                    </select>
+                    <span className="field-hint">{t('general.startupPageHint')}</span>
                   </div>
                 </div>
                 <div className="field">

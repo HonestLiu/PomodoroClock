@@ -27,7 +27,11 @@ interface TimerStoreState {
   /** Tauri 运行时由 Rust `timer://tick` 提供的权威剩余毫秒（PRD §8.5） */
   rustRemaining: number | null;
 
-  init(): Promise<void>;
+  /**
+   * @param opts.openScreen 启动后是否展开专注界面。省略 = 恢复既有会话时自动展开；
+   *   传 false = 启动页选了某个侧边栏页面，不覆盖该页面。
+   */
+  init(opts?: { openScreen?: boolean }): Promise<void>;
   setSettings(s: Settings): void;
   openScreen(v: boolean): void;
   clearRestored(): void;
@@ -73,7 +77,7 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
   feedback: null,
   rustRemaining: null,
 
-  async init() {
+  async init(opts?: { openScreen?: boolean }) {
     if (inited) return;
     inited = true;
     const [settings, saved] = await Promise.all([api.get_settings(), api.get_timer_state()]);
@@ -100,7 +104,11 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
       state: restored,
       now,
       completedPomodoros: 0,
-      screenOpen: restored.running || restored.phase !== 'idle',
+      // 启动页为某个侧边栏页面时不自动展开专注界面；否则恢复既有会话时展开。
+      // 非 running 且非 idle 的「已结算待开始」状态仍展开（那是 §7.1 的恢复提示）。
+      screenOpen: opts?.openScreen === false
+        ? false
+        : restored.running || restored.phase !== 'idle',
       // 仅在"已结算并停在下一个未开始阶段"时提示恢复。若会话仍在自己跑，提示条上的
       // 「继续下一阶段」会 skip 掉正在进行的专注（不写记录），是破坏性误导。
       wasRestored: !restored.running && restored.phase !== 'idle',

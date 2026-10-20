@@ -40,6 +40,7 @@ focus_records ──(task_id 可空)──> tasks     notifications 独立   tim
 | noise_on_focus / noise_on_break | bool | false | 🔶 **只写未读**：设置页可改，计时器尚未据此自动播放 |
 | autostart | bool | false | 🔶 **只写未读**：`tauri-plugin-autostart` 未安装，无系统行为 |
 | motto | str | '' | 🔶 遗留字段：编辑资料入口已随账号页重构移除，当前无 UI 写入、无消费方（`types.ts` 仍留默认值） |
+| startup_page | str | timer | ✅ 已读入行为：启动时 `App.tsx` 分流——`timer` 展开专注界面，其余（`today`/`tomorrow`/`week`/`scheduled`/`tasks`/`completed`/`records`/`calendar`）`navigate` 到对应侧边栏页面；写入＝设置通用页「启动页」下拉。TS/Rust 双侧锁步（`types.ts`、`models.rs`、`db.rs::load_settings`） |
 
 > 账号资料（email/name/**password**) 与**头像**（`users.avatar`，PB 内建文件字段，无需改 schema）都不在本地库：
 > 由 PocketBase `users` 承载，账号页直接读写 PB 记录；`avatar` 存的是**服务端文件名**（`原文件名前缀 + 随机串`），

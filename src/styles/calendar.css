@@ -142,6 +142,7 @@
 /* ===== 年视图 ===== */
 .cal-year-grid {
   flex: 1;
+  min-height: 0;
   overflow: auto;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -190,7 +191,7 @@
 .cal-mini-day.today { color: #4a7de0; font-weight: 700; }
 
 /* ===== 月视图 ===== */
-.cal-month-wrap { flex: 1; overflow: auto; padding: 16px 22px; }
+.cal-month-wrap { flex: 1; min-height: 0; overflow: auto; padding: 16px 22px; }
 .cal-month-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -256,19 +257,25 @@
 /* ===== 时间网格视图（周/日/多日）===== */
 .cal-timeline {
   flex: 1;
+  min-height: 0; /* flex 子项默认 min-height:auto 会拒绝收缩，导致无法内部滚动 */
   display: flex;
   overflow: auto;
+  /* 共享高度预算：表头 + 全天条 + 24h 正文。时间轴显式撑满该预算，
+     刻度 top 经 calc 偏移表头块，使 00:00 落在正文首条网格线上且不被粘性表头遮挡。 */
+  --tl-head-h: 52px;
+  --tl-strip-h: 26px;
+  --tl-head-block: calc(var(--tl-head-h) + var(--tl-strip-h));
+  --tl-body-h: 1056px;
 }
+/* 日视图：横幅式表头更高 */
+.cal-timeline.day { --tl-head-h: 84px; }
 .cal-time-axis {
   flex: 0 0 52px;
   position: relative;
+  /* 显式撑满「表头块 + 24h 正文」，与 .cal-col 等高。
+     刻度经 transform 上移半行，00:00 落在正文首条网格线上，其上即列表头。 */
+  height: calc(var(--tl-head-block) + var(--tl-body-h));
   border-right: 1px solid #f0f0ee;
-}
-/* 顶部占位：与「列头 + 全天条」等高，使 00:00 刻度下移到正文区、不再被表头遮挡 */
-.cal-axis-spacer {
-  flex: 0 0 auto;
-  border-bottom: 1px solid #f0f0ee;
-  background: #fff;
 }
 .cal-axis-tick {
   position: absolute;
@@ -281,10 +288,16 @@
 .cal-cols {
   flex: 1;
   display: flex;
+  /* 关键：列按内容（表头+全天条+24h 正文）撑满，而不是被拉伸到视口高度。
+     否则列框停在视口底、正文向下溢出，粘性表头（不透明白底）会盖住 13:00 之后
+     的网格线与列分隔线 —— 表现为「过 12 点只剩分割线」。 */
+  align-items: stretch;
+  min-height: max-content;
 }
 .cal-col {
   flex: 1;
   min-width: 0;
+  min-height: max-content;
   border-right: 1px solid #f0f0ee;
   display: flex;
   flex-direction: column;
@@ -293,7 +306,7 @@
 /* 列头固定高度：无论是否今日，各列高度一致（今日圆点在固定盒内，不撑高） */
 .cal-col-head {
   flex: 0 0 auto;
-  height: 52px;
+  height: var(--tl-head-h);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -326,9 +339,8 @@
   box-shadow: 0 2px 6px rgba(74, 125, 224, 0.32);
 }
 
-/* 日视图：单列横幅式表头（大号日期 + 星期 + 月份），高度固定 84px */
-.cal-timeline.day { --cal-head-h: 84px; }
-.cal-timeline.day .cal-col-head { height: 84px; }
+/* 日视图：单列横幅式表头（大号日期 + 星期 + 月份），高度见 --tl-head-h(84px) */
+.cal-timeline.day .cal-col-head { height: var(--tl-head-h); }
 .cal-timeline.day .cal-day-banner {
   display: flex;
   align-items: center;
@@ -365,7 +377,8 @@
 .cal-day-banner .ym { font-size: 11px; color: #9c9a96; }
 .cal-col-body {
   position: relative;
-  height: 1056px; /* 24h × HOUR_PX(44) */
+  flex: 0 0 auto;
+  height: var(--tl-body-h); /* 24h × HOUR_PX(44)，00:00–24:00 全天同一样式 */
   background-image: repeating-linear-gradient(
     to bottom,
     transparent 0,
@@ -436,7 +449,7 @@
 }
 
 /* ===== 日程视图（时间线列表）===== */
-.cal-schedule-wrap { flex: 1; overflow: auto; padding: 18px 26px; }
+.cal-schedule-wrap { flex: 1; min-height: 0; overflow: auto; padding: 18px 26px; }
 .cal-schedule {
   position: relative;
   padding-left: 120px; /* 左栏加宽：日期文字右缘与节点圆圈留出间距，不粘连 */
@@ -489,7 +502,7 @@
 .cal-sched-card .time { font-size: 12px; color: #4a4a4a; margin-top: 2px; opacity: 0.8; }
 
 /* ===== 多周视图 ===== */
-.cal-multweek-wrap { flex: 1; overflow: auto; padding: 16px 22px; }
+.cal-multweek-wrap { flex: 1; min-height: 0; overflow: auto; padding: 16px 22px; }
 .cal-multweek {
   display: grid;
   grid-template-columns: repeat(7, 1fr);

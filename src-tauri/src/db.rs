@@ -483,6 +483,7 @@ pub fn load_settings(conn: &Connection) -> AppResult<Settings> {
             "noise" => s.noise = v,
             "wallpaper" => s.wallpaper = v,
             "motto" => s.motto = v,
+            "startup_page" => s.startup_page = v,
             _ => {}
         }
     }

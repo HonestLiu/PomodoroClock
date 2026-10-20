@@ -143,6 +143,8 @@ pub struct Settings {
     pub wallpaper: String,
     /// 座右铭：浏览器侧 Settings 有该键，Rust 侧此前缺字段会把远端配置静默丢弃
     pub motto: String,
+    /// 启动页：'timer' = 番茄钟展开视图（默认）；其余为侧边栏页面键
+    pub startup_page: String,
 }
 
 impl Default for Settings {
@@ -165,6 +167,7 @@ impl Default for Settings {
             noise_on_break: false,
             wallpaper: "waves".into(),
             motto: String::new(),
+            startup_page: "timer".into(),
         }
     }
 }

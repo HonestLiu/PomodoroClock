@@ -49,12 +49,19 @@ export default function App() {
       await api.get_user();      // 确保本地库初始化（首次运行写入 §6.3 数据）
       await bootstrap();
       await refreshStats();
-      await initTimer();
+      // 先加载设置（含启动页），再决定是否展开专注界面
+      await initTimer({ openScreen: false });
+      const startup = useTimerStore.getState().settings.startup_page;
+      // 启动页：'timer' 展开番茄钟专注界面；其余跳到对应侧边栏页面（且不覆盖该页面）
+      const onTimer = startup === 'timer';
       // 白噪音音色/音量回填（不触发播放；真正播放要等用户手势）
       const bootSettings = useTimerStore.getState().settings;
       useNoiseStore.getState().hydrate(bootSettings.noise as NoiseKind, bootSettings.noise_volume);
       // 应用已存语言（settings.language）
       useI18nStore.getState().setLang(useTimerStore.getState().settings.language as 'zh' | 'en');
+      if (onTimer) useTimerStore.getState().openScreen(true);
+      else if (startup === 'calendar') useUiStore.getState().navigate({ name: 'calendar' });
+      else if (startup) useUiStore.getState().navigate({ name: startup });
       setBooted(true);
       // 云同步：不阻塞启动（PB 不可达时静默降级，本地照常可用）
       void useAuthStore.getState().init();

@@ -2,20 +2,15 @@
 // 左侧固定时间轴 00:00–23:00；事件 CSS 绝对定位，高度∝时长，重叠平分列宽错开；
 // 今天的列贯穿红色「当前时间线」；日视图单列（大号日期横幅表头）、周视图 7 列、多日 3-4 列。
 //
-// 对齐说明：列内「表头 + 全天条」为固定高度，时间轴顶部放同高的占位块、
-// 刻度 top 统一偏移该高度，保证 00:00 与正文首条网格线对齐且不被表头遮挡。
+// 对齐说明：CSS 变量 --tl-head-h / --tl-strip-h / --tl-body-h 统一表头、全天条与正文高度，
+// JS 侧不再硬编码。时间轴显式撑满「表头块 + 24h 正文」，刻度 top 由 CSS calc 偏移表头块，
+// 故 00:00 落在正文首条网格线上且不被粘性表头遮挡；各列（含今日）高度与正文起点一致。
 
 import type { CalEvent, PlacedEvent } from '@/lib/calendar';
 import {
   HOUR_PX, eventsOfDay, hourTicks, layoutTimeColumn, monthName, nowLineTop, weekdayName,
 } from '@/lib/calendar';
 import { toDateKey } from '@/lib/date';
-
-/** 表头高度（与 calendar.css 的 --cal-head-h / 日视图变体保持一致） */
-const HEAD_H = 52;
-const HEAD_H_DAY = 84;
-/** 全天条高度（与 .cal-all-day-strip 的固定高一致） */
-const STRIP_H = 26;
 
 interface Props {
   dates: Date[];
@@ -32,14 +27,14 @@ export function TimelineGrid({
   dates, events, now, todayKey, onEventClick, onEventContextMenu, onDayContextMenu,
 }: Props) {
   const dayMode = dates.length === 1;
-  const axisTop = (dayMode ? HEAD_H_DAY : HEAD_H) + STRIP_H;
+  // 刻度 top 基于固定 HOUR_PX 网格；表头偏移由 CSS 占位块负责，这里不再重复计算
+  const tickTop = (h: number) => h * HOUR_PX;
   return (
     <div className={`cal-timeline${dayMode ? ' day' : ''}`}>
-      {/* 固定时间轴：顶部占位与列头+全天条等高，刻度整体下移 */}
+      {/* 固定时间轴：顶部占位与列头+全天条等高（CSS 变量），刻度整体下移 */}
       <div className="cal-time-axis">
-        <div className="cal-axis-spacer" style={{ height: axisTop }} aria-hidden />
         {hourTicks().map((h) => (
-          <div key={h} className="cal-axis-tick" style={{ top: axisTop + h * HOUR_PX }}>
+          <div key={h} className="cal-axis-tick" style={{ top: `calc(var(--tl-head-block) + ${tickTop(h)}px)` }}>
             {String(h).padStart(2, '0')}:00
           </div>
         ))}
@@ -94,6 +89,7 @@ export function TimelineGrid({
                   />
                 ))}
                 {isToday && (
+                  // 正文与时间轴同高、共用 00:00 原点，故当前时间线直接用 nowLineTop
                   <div className="cal-nowline" style={{ top: nowLineTop(now) }} aria-hidden />
                 )}
               </div>

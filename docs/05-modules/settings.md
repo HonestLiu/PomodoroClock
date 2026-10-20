@@ -12,6 +12,7 @@
 - ✅ i18n 中/英切换即时生效（外观页语言下拉：`patch('language')` + `useI18nStore.setLang`）；深色主题写 `data-theme` 并全屏可用。
 - ✅ 外观页白噪音行＝「选择白噪音」按钮 + 当前值提示（`音色 · 音量%`）——点开的是全局选择弹窗（见 `03-architecture.md` §白噪音选择弹窗），不再是下拉框；「专注时播放/休息时播放」两个开关仍在。
 - ✅ 通知两开关（应用内 / 系统）、番茄钟时长与自动下一轮真实生效。
+- ✅ 通用页「启动页」下拉（`startup_page`）：默认 `timer`＝启动即展开专注界面；可选今天/明天/本周/已计划/任务/已完成/记录/日历，启动时 `App.tsx` 先 `initTimer({ openScreen: false })` 载入设置再分流导航，选页面时不再弹专注界面。TS `Settings.startup_page` 与 Rust `Settings.startup_page`/`load_settings` 双侧锁步（`04-data.md`）。
 - 🔶 `autostart` 字段已存但**无系统行为**（缺 `tauri-plugin-autostart`）。
 - 🔶 高级版为规格占位（静态三档价格卡，订阅流程未实现）。
 
@@ -37,7 +38,7 @@
 - ★5（P2）开机自启插件接线（设置项已在，装插件后接线）。
 
 ## 数据影响
-- `settings` KV 新增：`system_notify`(bool, 默认 true)。语言/主题已在。
+- `settings` KV 新增：`system_notify`(bool, 默认 true)、`startup_page`(string, 默认 `'timer'`，见通用页「启动页」)。语言/主题已在。
 - 新增 `src/i18n/*`（纯前端，无 Rust 侧）。
 - 账号资料（email/name/password）与头像（PB 文件字段 `users.avatar`）由 PocketBase `users` 承载，本地 `users` 表仅保留默认单用户、无 `avatar`/nickname 列（`username` 仅作本地默认身份与迁移兜底）；设置快照每用户一条 PB `configs`（见 `03-architecture.md` §账户与云同步）。
 - 「删除数据」清空业务表并重建默认用户；「退出登录」只清 PB 会话，`settings`/`tasks`/`focus_records` 一行不动（`api/local.ts::logout`、`commands/user.rs::logout`）。

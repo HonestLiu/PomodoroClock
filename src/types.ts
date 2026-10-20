@@ -124,6 +124,8 @@ export interface Settings {
   wallpaper: string;
   /** 座右铭（个人资料，随配置同步到云端） */
   motto: string;
+  /** 启动页：'timer' = 番茄钟展开视图（默认）；其余 = 对应侧边栏页面。设置→通用 可改。 */
+  startup_page: StartupPage;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -144,7 +146,11 @@ export const DEFAULT_SETTINGS: Settings = {
   noise_on_break: false,
   wallpaper: 'waves',
   motto: '',
+  startup_page: 'timer',
 };
+
+/** 启动页配置值：'timer' = 番茄钟展开视图，其余为侧边栏页面 */
+export type StartupPage = 'timer' | SmartKey | 'calendar';
 
 /** 侧边栏 / 路由使用的分类键
  *  - `completed` = 已完成任务归档（所有 completed=1 的任务）
