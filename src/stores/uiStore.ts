@@ -7,7 +7,8 @@ import type { SmartKey } from '@/types';
 
 export type Route =
   | { name: SmartKey }
-  | { name: 'list'; id: string };
+  | { name: 'list'; id: string }
+  | { name: 'calendar' };
 
 export type SettingsTab = 'account' | 'premium' | 'general' | 'pomodoro' | 'lists' | 'appearance' | 'about';
 

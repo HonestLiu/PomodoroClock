@@ -10,6 +10,7 @@ import { SearchOverlay } from '@/components/SearchOverlay';
 import { TaskView } from '@/pages/TaskView';
 import { RecordsView } from '@/pages/RecordsView';
 import { DoneView } from '@/pages/DoneView';
+import { CalendarPage } from '@/pages/calendar/CalendarPage';
 import { ReportModal } from '@/modals/ReportModal';
 import { SettingsModal } from '@/modals/SettingsModal';
 import { TimerScreen } from '@/modals/TimerScreen';
@@ -227,8 +228,9 @@ export default function App() {
       <div className="shell">
         <Sidebar />
         <main className="main">
-          {/* 记录=专注归档；已完成=任务归档；其余（含清单视图）走任务视图 */}
-          {route.name === 'records' ? <RecordsView />
+          {/* 日历组件（7 视图，侧边栏入口）；记录=专注归档；已完成=任务归档；其余（含清单视图）走任务视图 */}
+          {route.name === 'calendar' ? <CalendarPage />
+            : route.name === 'records' ? <RecordsView />
             : route.name === 'completed' ? <DoneView />
               : <TaskView />}
         </main>

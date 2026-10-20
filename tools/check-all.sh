@@ -47,6 +47,7 @@ step_typecheck() { npx tsc --noEmit; }
 step_parity() { bash tools/check-runtime-parity.sh; }
 step_seed() { npx tsx tools/verify-data.ts > /tmp/check-all-seed.log 2>&1 && tail -1 /tmp/check-all-seed.log; }
 step_timer() { npx tsx tools/verify-timer.ts > /tmp/check-all-timer.log 2>&1 && tail -1 /tmp/check-all-timer.log; }
+step_calendar() { npx tsx tools/verify-calendar.ts > /tmp/check-all-calendar.log 2>&1 && tail -1 /tmp/check-all-calendar.log; }
 step_rust() { (cd src-tauri && cargo test --test queries 2>&1 | tail -3); }
 step_build() { npm run build > /tmp/check-all-build.log 2>&1 && grep -E 'dist/|built in' /tmp/check-all-build.log | tail -8; }
 step_shots() {
@@ -78,6 +79,7 @@ step "类型检查 tsc --noEmit" step_typecheck
 step "运行时一致性红线（UI 禁直连 db）" step_parity
 step "种子数据口径（PRD §7.2 / verify-data.ts）" step_seed
 step "计时模式口径（番茄钟/倒计时/正计时 / verify-timer.ts）" step_timer
+step "日历 7 视图模型层（lib/calendar / verify-calendar.ts）" step_calendar
 step "Rust 查询测试（cargo test --test queries）" step_rust
 if [ "$SKIP_BUILD" = 0 ]; then
   step "生产构建（tsc + vite build）" step_build

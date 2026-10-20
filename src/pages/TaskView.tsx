@@ -33,7 +33,8 @@ export function TaskView() {
   const { t, dict } = useI18n();
   const [moveMsg, setMoveMsg] = useState('');
 
-  const key: SmartKey = route.name === 'list' ? 'tasks' : route.name;
+  // 日历页不复用任务视图；此处 route 只可能是智能分类或清单
+  const key: SmartKey = route.name === 'list' || route.name === 'calendar' ? 'tasks' : route.name;
   const listId = route.name === 'list' ? route.id : null;
   // 侧边栏「任务」类目：只统计/展示未完成任务，不考虑已完成（清单视图复用 key='tasks'，需与「任务」区分）
   const isTasksSmart = !listId && key === 'tasks';

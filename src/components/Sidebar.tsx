@@ -3,7 +3,7 @@
 
 import { useMemo, useState, type CSSProperties } from 'react';
 import {
-  CalendarDays, CalendarClock, CheckCircle2, ChevronDown, ChevronRight, Folder, FolderPlus,
+  CalendarDays, CalendarClock, CalendarRange, CheckCircle2, ChevronDown, ChevronRight, Folder, FolderPlus,
   GripVertical, History, ListTodo, Plus, Search, Sun, Sunrise, User as UserIcon,
 } from 'lucide-react';
 import { useUiStore } from '@/stores/uiStore';
@@ -252,6 +252,17 @@ export function Sidebar() {
             </button>
           );
         })}
+
+        {/* 日历入口（7 视图组件，2026-10-20 需求）：独立页、纯导航无时长/角标。
+            刻意排在归档项之后，保持上方主分类/归档的 .nav-item 序号不变（tools/shoot.mjs 依赖）。 */}
+        <button
+          className="nav-item nav-calendar"
+          aria-current={activeKey === 'calendar' ? 'page' : undefined}
+          onClick={() => ui.navigate({ name: 'calendar' })}
+        >
+          <CalendarRange size={15} style={{ color: '#9B7BD4', flex: '0 0 auto' }} aria-hidden />
+          <span className="nav-label">{t('nav.calendar')}</span>
+        </button>
 
         {/* 清单夹 + 顶层自定义清单：有内容时再补一条分割线（排除内置「任务」清单） */}
         {(customRows.length > 0 || foldersSorted.length > 0) && <div className="nav-divider" role="separator" />}
