@@ -4,5 +4,21 @@
   <dict>
     <key>CFBundleIconName</key>
     <string>番茄钟图标</string>
+    <!--
+      App Transport Security：PocketBase 后端当前是纯 HTTP（http://62.234.82.11:28193）。
+      macOS 打包成 .app 后，WKWebView 里的 fetch 受 ATS 约束，未声明例外会被直接拒掉
+      （JS 侧表现为 TypeError: Load failed → 前端显示「无法连接云端服务，请检查网络」）。
+      `cargo tauri dev` 跑的是 target/debug 下的裸二进制、没有 bundle Info.plist，
+      ATS 不生效，所以 dev 正常、装包后失败 —— 这正是「dev 能连、build 后不能连」的根因。
+
+      NSAllowsArbitraryLoadsInWebContent 只放开 WebView 内容加载，原生 NSURLSession 仍受 ATS 保护，
+      是比 NSAllowsArbitraryLoads 更窄的钥匙。后端换成 HTTPS 后可整段删掉。
+      注意：ATS 的 NSExceptionDomains 不接受裸 IP，所以这里无法按域名收窄。
+    -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+      <key>NSAllowsArbitraryLoadsInWebContent</key>
+      <true/>
+    </dict>
   </dict>
 </plist>

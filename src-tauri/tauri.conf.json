@@ -25,7 +25,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost data: blob:; style-src 'self' 'unsafe-inline'; media-src 'self' asset: http://asset.localhost data: blob:; connect-src 'self' ipc: http://ipc.localhost http://62.234.82.11:28193 ws://62.234.82.11:28193"
+      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost data: blob: http://62.234.82.11:28193; style-src 'self' 'unsafe-inline'; media-src 'self' asset: http://asset.localhost data: blob:; connect-src 'self' ipc: http://ipc.localhost http://62.234.82.11:28193 ws://62.234.82.11:28193"
     }
   },
   "bundle": {

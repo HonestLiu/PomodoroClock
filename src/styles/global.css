@@ -1355,3 +1355,38 @@ input::-ms-reveal, input::-ms-clear { display: none; }
   color: var(--text-2); font-size: 12px; line-height: 1;
 }
 .tag-remove:hover { color: var(--accent-focus); }
+
+/* ── 设置 · 编辑资料：行内小头像预览 ── */
+.acct-avatar-sm {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: var(--bg-sidebar); color: var(--text-1); overflow: hidden;
+  display: grid; place-items: center; font-size: 14px; font-weight: 600; flex: 0 0 auto;
+}
+.acct-avatar-sm img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* ── 设置 · 清单管理：默认清单徽标 + 行内拖拽手柄 ── */
+.list-default-tag {
+  flex: 0 0 auto; margin-left: auto; padding: 0 6px; height: 16px; line-height: 16px;
+  border-radius: 8px; font-size: 10.5px; font-weight: 600;
+  color: var(--accent-focus); background: rgba(232, 93, 63, .10);
+}
+.list-row-wrap .field-label .list-grip { display: inline-flex; color: var(--text-3); flex: 0 0 auto; }
+.list-row-wrap.drag-over { box-shadow: inset 0 -2px 0 var(--accent-focus); }
+
+/* ── 设置 · 关于：应用标识头 ── */
+.about-head { display: flex; align-items: center; gap: 14px; padding: 4px 0 10px; }
+.about-mark {
+  width: 52px; height: 52px; border-radius: 14px; flex: 0 0 auto;
+  display: grid; place-items: center; font-size: 28px; line-height: 1;
+  background: linear-gradient(150deg, rgba(232, 93, 63, .16), rgba(74, 125, 224, .14));
+  border: 1px solid var(--border);
+}
+.about-id { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.about-name { font-size: 17px; font-weight: 700; letter-spacing: -.01em; color: var(--text-1); }
+.about-version {
+  font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+
+/* 徽标弱化态（关于页：未连接/未配置） */
+.acct-badge.muted { color: var(--text-3); }

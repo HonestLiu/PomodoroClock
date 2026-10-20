@@ -77,7 +77,8 @@ CREATE TABLE IF NOT EXISTS focus_records (
   end_at      INTEGER NOT NULL,
   duration_min INTEGER NOT NULL,
   phase       TEXT DEFAULT 'focus',
-  created_at  INTEGER NOT NULL
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_focus_start ON focus_records(start_at);
 CREATE INDEX IF NOT EXISTS idx_focus_task ON focus_records(task_id);
@@ -111,6 +112,99 @@ CREATE TABLE IF NOT EXISTS timer_state (
   end_at     INTEGER,
   paused_remaining_ms INTEGER
 );
+
+-- ── 多端同步元信息（引擎见 src/lib/syncData.ts）───────────────────────────
+-- sync_dirty      待上传的行（kind = lists / folders / tasks / records）
+-- sync_tombstones 本地已删除、待通知云端删除的行（硬删 + 墓碑）
+-- sync_shadow     本地 id ↔ 云端记录 id 映射（含上次同步时的 updated_at）
+-- sync_guard      单行开关：应用云端数据/清空数据库时置 1，触发器据此不再标脏
+CREATE TABLE IF NOT EXISTS sync_dirty (
+  kind TEXT NOT NULL,
+  id   TEXT NOT NULL,
+  PRIMARY KEY (kind, id)
+);
+
+CREATE TABLE IF NOT EXISTS sync_tombstones (
+  kind       TEXT NOT NULL,
+  id         TEXT NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (kind, id)
+);
+
+CREATE TABLE IF NOT EXISTS sync_shadow (
+  kind              TEXT NOT NULL,
+  id                TEXT NOT NULL,
+  remote_id         TEXT,
+  remote_updated_at INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (kind, id)
+);
+
+CREATE TABLE IF NOT EXISTS sync_guard (
+  id     INTEGER PRIMARY KEY CHECK (id = 1),
+  active INTEGER NOT NULL DEFAULT 0
+);
+INSERT OR IGNORE INTO sync_guard (id, active) VALUES (1, 0);
+
+-- 触发器：普通写入即标脏；删除则记墓碑（云端稍后按墓碑删除）
+CREATE TRIGGER IF NOT EXISTS trg_sync_lists_ins AFTER INSERT ON lists
+WHEN (SELECT active FROM sync_guard WHERE id = 1) = 0
+BEGIN INSERT OR IGNORE INTO sync_dirty (kind, id) VALUES ('lists', NEW.id); END;
+CREATE TRIGGER IF NOT EXISTS trg_sync_lists_upd AFTER UPDATE ON lists
+WHEN (SELECT active FROM sync_guard WHERE id = 1) = 0
+BEGIN INSERT OR IGNORE INTO sync_dirty (kind, id) VALUES ('lists', NEW.id); END;
+CREATE TRIGGER IF NOT EXISTS trg_sync_lists_del AFTER DELETE ON lists
+WHEN (SELECT active FROM sync_guard WHERE id = 1) = 0
+BEGIN
+  DELETE FROM sync_dirty WHERE kind = 'lists' AND id = OLD.id;
+  INSERT INTO sync_tombstones (kind, id, updated_at)
+    VALUES ('lists', OLD.id, CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER))
+    ON CONFLICT(kind, id) DO UPDATE SET updated_at = excluded.updated_at;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_sync_folders_ins AFTER INSERT ON folders
+WHEN (SELECT active FROM sync_guard WHERE id = 1) = 0
+BEGIN INSERT OR IGNORE INTO sync_dirty (kind, id) VALUES ('folders', NEW.id); END;
+CREATE TRIGGER IF NOT EXISTS trg_sync_folders_upd AFTER UPDATE ON folders
+WHEN (SELECT active FROM sync_guard WHERE id = 1) = 0
+BEGIN INSERT OR IGNORE INTO sync_dirty (kind, id) VALUES ('folders', NEW.id); END;
+CREATE TRIGGER IF NOT EXISTS trg_sync_folders_del AFTER DELETE ON folders
+WHEN (SELECT active FROM sync_guard WHERE id = 1) = 0
+BEGIN
+  DELETE FROM sync_dirty WHERE kind = 'folders' AND id = OLD.id;
+  INSERT INTO sync_tombstones (kind, id, updated_at)
+    VALUES ('folders', OLD.id, CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER))
+    ON CONFLICT(kind, id) DO UPDATE SET updated_at = excluded.updated_at;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_sync_tasks_ins AFTER INSERT ON tasks
+WHEN (SELECT active FROM sync_guard WHERE id = 1) = 0
+BEGIN INSERT OR IGNORE INTO sync_dirty (kind, id) VALUES ('tasks', NEW.id); END;
+CREATE TRIGGER IF NOT EXISTS trg_sync_tasks_upd AFTER UPDATE ON tasks
+WHEN (SELECT active FROM sync_guard WHERE id = 1) = 0
+BEGIN INSERT OR IGNORE INTO sync_dirty (kind, id) VALUES ('tasks', NEW.id); END;
+CREATE TRIGGER IF NOT EXISTS trg_sync_tasks_del AFTER DELETE ON tasks
+WHEN (SELECT active FROM sync_guard WHERE id = 1) = 0
+BEGIN
+  DELETE FROM sync_dirty WHERE kind = 'tasks' AND id = OLD.id;
+  INSERT INTO sync_tombstones (kind, id, updated_at)
+    VALUES ('tasks', OLD.id, CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER))
+    ON CONFLICT(kind, id) DO UPDATE SET updated_at = excluded.updated_at;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_sync_records_ins AFTER INSERT ON focus_records
+WHEN (SELECT active FROM sync_guard WHERE id = 1) = 0
+BEGIN INSERT OR IGNORE INTO sync_dirty (kind, id) VALUES ('records', NEW.id); END;
+CREATE TRIGGER IF NOT EXISTS trg_sync_records_upd AFTER UPDATE ON focus_records
+WHEN (SELECT active FROM sync_guard WHERE id = 1) = 0
+BEGIN INSERT OR IGNORE INTO sync_dirty (kind, id) VALUES ('records', NEW.id); END;
+CREATE TRIGGER IF NOT EXISTS trg_sync_records_del AFTER DELETE ON focus_records
+WHEN (SELECT active FROM sync_guard WHERE id = 1) = 0
+BEGIN
+  DELETE FROM sync_dirty WHERE kind = 'records' AND id = OLD.id;
+  INSERT INTO sync_tombstones (kind, id, updated_at)
+    VALUES ('records', OLD.id, CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER))
+    ON CONFLICT(kind, id) DO UPDATE SET updated_at = excluded.updated_at;
+END;
 "#;
 
 pub fn open(path: &Path) -> AppResult<Connection> {
@@ -119,6 +213,8 @@ pub fn open(path: &Path) -> AppResult<Connection> {
     conn.execute_batch(SCHEMA)?;
     migrate_list_icon(&conn)?;
     migrate_task_columns(&conn)?;
+    migrate_sync_columns(&conn)?;
+    migrate_sync_columns(&conn)?;
     Ok(conn)
 }
 
@@ -182,6 +278,27 @@ fn migrate_task_columns(conn: &Connection) -> AppResult<()> {
             conn.execute_batch(ddl)?;
         }
     }
+    Ok(())
+}
+
+/// 同步相关迁移：focus_records 补 updated_at（老库没有该列）
+fn migrate_sync_columns(conn: &Connection) -> AppResult<()> {
+    let mut cols: Vec<String> = Vec::new();
+    {
+        let mut stmt = conn.prepare("PRAGMA table_info(focus_records)")?;
+        let mut rows = stmt.query([])?;
+        while let Some(r) = rows.next()? {
+            cols.push(r.get(1)?);
+        }
+    }
+    if !cols.iter().any(|c| c == "updated_at") {
+        conn.execute_batch(
+            "ALTER TABLE focus_records ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0;",
+        )?;
+    }
+    conn.execute_batch(
+        "UPDATE focus_records SET updated_at = created_at WHERE updated_at = 0;",
+    )?;
     Ok(())
 }
 
@@ -396,6 +513,9 @@ pub fn load_timer_state(conn: &Connection) -> AppResult<TimerState> {
 /// 清空业务数据（PRD FR-S2「删除数据」/ §8.8-4）
 pub fn clear_all(conn: &mut Connection) -> AppResult<()> {
     let tx = conn.transaction()?;
+    // 清空属于「仅本地」操作：云端数据保留。用 guard 抑制触发器，
+    // 避免把本次批量删除当成墓碑上传（那会删掉云端数据）。
+    tx.execute("UPDATE sync_guard SET active = 1 WHERE id = 1", [])?;
     tx.execute("DELETE FROM focus_records", [])?;
     tx.execute("DELETE FROM tasks", [])?;
     tx.execute("DELETE FROM lists", [])?;
@@ -404,6 +524,12 @@ pub fn clear_all(conn: &mut Connection) -> AppResult<()> {
     tx.execute("DELETE FROM users", [])?;
     tx.execute("DELETE FROM goals", [])?;
     tx.execute("DELETE FROM timer_state", [])?;
+    // 簿记一并清掉：本地已无这些行，墓碑/脏标记/shadow 都失去意义。
+    // folders 不参与 clear_all（沿用原行为），故保留 folders 的 shadow。
+    tx.execute("DELETE FROM sync_dirty", [])?;
+    tx.execute("DELETE FROM sync_tombstones", [])?;
+    tx.execute("DELETE FROM sync_shadow WHERE kind IN ('lists', 'tasks', 'records')", [])?;
+    tx.execute("UPDATE sync_guard SET active = 0 WHERE id = 1", [])?;
     tx.commit()?;
     Ok(())
 }

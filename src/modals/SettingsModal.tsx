@@ -6,17 +6,21 @@
 // 已登录：同一张卡变账号卡（头像/首字母、用户名/邮箱、已登录徽标、同步区、退出登录）＋「本地数据」。
 // 头像来自 PocketBase 的 users.avatar 文件字段（点头像更换，可移除）；其余资料（昵称等）不在此编辑。
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Camera, Crown, Info, ListChecks, Palette,
-  Settings as SettingsIcon, Sliders, User as UserIcon, X,
+  Camera, Crown, GripVertical, Info, ListChecks,
+  Palette, Settings as SettingsIcon, Sliders, Trash2, User as UserIcon, X,
 } from 'lucide-react';
 import { useUiStore, type SettingsTab } from '@/stores/uiStore';
 import { useDataStore } from '@/stores/dataStore';
 import { useTimerStore } from '@/stores/timerStore';
 import { useAuthStore } from '@/stores/authStore';
+import { pendingCounts, dataSyncError, forceFullSync } from '@/lib/syncData';
 import { api } from '@/api';
 import { pbAvatarFileUrl } from '@/lib/pb';
+import { listAggregate } from '@/lib/derive';
+import { resolveListIconColor } from '@/lib/listIcon';
+import { formatMinutesShort } from '@/lib/date';
 import { NOISE_LABELS, type NoiseKind } from '@/lib/noise';
 import type { Settings } from '@/types';
 import type { ConfirmSpec } from './ConfirmDialog';
@@ -35,22 +39,14 @@ const TABS: Array<{ key: SettingsTab; labelKey: ZhKey; icon: typeof UserIcon }> 
 
 export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): void }) {
   const ui = useUiStore();
-  const { lists, createList, renameList, deleteList } = useDataStore();
-  const setDefaultList = useDataStore((s) => s.setDefaultList);
   const timer = useTimerStore();
   const { t } = useI18n();
   const modalRef = useRef<HTMLDivElement>(null);
 
   const [settings, setSettings] = useState<Settings>(timer.settings);
-  const [newListName, setNewListName] = useState('');
-  const [defaultListId, setDefaultListId] = useState<string | null>(null);
   const bgInputRef = useRef<HTMLInputElement>(null);
 
   useModalA11y(ui.settingsOpen, () => ui.closeAllOverlays(), modalRef, '.settings-nav button.active');
-
-  useEffect(() => {
-    void api.get_default_list().then(setDefaultListId);
-  }, [ui.settingsTab]);
 
   useEffect(() => { setSettings(timer.settings); }, [timer.settings]);
   if (!ui.settingsOpen) return null;
@@ -260,63 +256,7 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
             )}
 
             {/* ── 清单管理 ── */}
-            {ui.settingsTab === 'lists' && (
-              <>
-                {lists.map((l) => (
-                  <div className="field" key={l.id}>
-                    <span className="field-label">{l.name}</span>
-                    <div className="field-body">
-                      <input
-                        className="text-input" defaultValue={l.name}
-                        aria-label={t('lists.namePlaceholder')}
-                        onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== l.name) void renameList(l.id, v); }}
-                      />
-                      <button
-                        className="btn"
-                        aria-pressed={defaultListId === l.id}
-                        style={defaultListId === l.id ? { color: 'var(--accent-focus)', borderColor: 'var(--accent-focus)' } : undefined}
-                        onClick={() => void setDefaultList(defaultListId === l.id ? null : l.id).then(() => setDefaultListId(defaultListId === l.id ? null : l.id))}
-                      >
-                        {defaultListId === l.id ? t('lists.default') : t('lists.setDefault')}
-                      </button>
-                      <button
-                        className="btn danger"
-                        onClick={() => onConfirm({
-                          title: t('lists.delete'),
-                          message: t('lists.deleteMsg', { name: l.name }),
-                          confirmText: t('common.delete'),
-                          danger: true,
-                          onConfirm: async () => { await deleteList(l.id); },
-                        })}
-                      >
-                        {t('common.delete')}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                <div className="field">
-                  <span className="field-label">{t('lists.new')}</span>
-                  <div className="field-body">
-                    <input
-                      className="text-input" placeholder={t('lists.namePlaceholder')} value={newListName}
-                      aria-label={t('lists.namePlaceholder')}
-                      onChange={(e) => setNewListName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key !== 'Enter') return;
-                        const v = newListName.trim();
-                        if (v) { void createList(v); setNewListName(''); }
-                      }}
-                    />
-                    <button
-                      className="btn primary"
-                      onClick={() => { const v = newListName.trim(); if (v) { void createList(v); setNewListName(''); } }}
-                    >
-                      {t('lists.create')}
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
+            {ui.settingsTab === 'lists' && <ListsPane onConfirm={onConfirm} />}
 
             {/* ── 外观 ── */}
             {ui.settingsTab === 'appearance' && (
@@ -413,17 +353,7 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
             )}
 
             {/* ── 关于 ── */}
-            {ui.settingsTab === 'about' && (
-              <div style={{ padding: '10px 0' }}>
-                <h3 style={{ margin: '0 0 6px', fontSize: 16 }}>FocusPomodoro</h3>
-                <p className="field-hint" style={{ lineHeight: 1.8, margin: 0 }}>
-                  {t('about.tagline')}<br />
-                  {t('about.stack')}<br />
-                  {t('about.storage')}<br />
-                  {t('about.offline')}
-                </p>
-              </div>
-            )}
+            {ui.settingsTab === 'about' && <AboutPane />}
           </div>
         </div>
       </div>
@@ -460,8 +390,12 @@ function AccountPane({ onConfirm }: { onConfirm(spec: ConfirmSpec): void }) {
 
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [nick, setNick] = useState('');
+  // 数据同步（任务/清单/专注记录）状态：待上传条数 + 最近一次失败原因
+  const [dataPending, setDataPending] = useState(0);
+  const [dataErr, setDataErr] = useState('');
   // 已登录：就地编辑资料（昵称；邮箱 PB 不允许改）
-  const [editingProfile, setEditingProfile] = useState(false);
+  // 已登录：「编辑资料」表单（昵称 + 头像 + 修改密码 三合一）
+  const [editing, setEditing] = useState(false);
   const [nickDraft, setNickDraft] = useState('');
   const [email, setEmail] = useState('');
   const [pwd, setPwd] = useState('');
@@ -488,6 +422,30 @@ function AccountPane({ onConfirm }: { onConfirm(spec: ConfirmSpec): void }) {
   const name = (cloud.user?.name ?? '').trim() || email0.split('@')[0] || t('account.untitled');
   const initial = (name || '?')[0]?.toUpperCase() ?? '?';
 
+  useEffect(() => {
+    if (!signedIn) {
+      setDataPending(0);
+      setDataErr('');
+      return;
+    }
+    let alive = true;
+    const tick = async () => {
+      try {
+        const c = await pendingCounts();
+        if (alive) setDataPending(c.dirty + c.tombstones);
+      } catch {
+        /* 读数失败不影响主流程 */
+      }
+      if (alive) setDataErr(dataSyncError());
+    };
+    void tick();
+    const id = window.setInterval(() => void tick(), 1500);
+    return () => {
+      alive = false;
+      window.clearInterval(id);
+    };
+  }, [signedIn]);
+
   const syncLabel = busy
     ? t('sync.syncing')
     : cloud.lastSyncAt
@@ -511,22 +469,30 @@ function AccountPane({ onConfirm }: { onConfirm(spec: ConfirmSpec): void }) {
     if (ok) { setOp(''); setNp1(''); setNp2(''); setEditingPwd(false); }
   }
 
+  /** 进入「编辑资料」：回填昵称，折叠态密码子表单一并展开 */
+  function openEdit() {
+    setNickDraft((cloud.user?.name ?? '').trim());
+    setEditing(true);
+  }
+
   /** 已登录改昵称：写 PB users.name（32 字符上限与非法值由 authStore 校验并播报） */
   async function saveProfile() {
     const v = nickDraft.trim();
-    if (v === (cloud.user?.name ?? '').trim()) { setEditingProfile(false); return; }
+    if (v === (cloud.user?.name ?? '').trim()) { closeEdit(); return; }
     const ok = await cloud.updateNickname(v);
-    if (ok) setEditingProfile(false);
+    if (ok) closeEdit();
   }
 
-  function closeProfile() {
-    setEditingProfile(false);
+  function closeEdit() {
+    setEditing(false);
     setNickDraft('');
+    setEditingPwd(false);
+    setOp(''); setNp1(''); setNp2('');
   }
 
   /** 退出登录：可逆的低风险操作，不二次确认；也不关闭设置弹层（原地切回登录卡并提示） */
   async function signOut() {
-    setEditingPwd(false); setOp(''); setNp1(''); setNp2('');
+    closeEdit();
     setMode('login'); setEmail(''); setPwd(''); setPwd2('');
     setNotice(t('account.signedOut'));
     cloud.logout();
@@ -559,25 +525,19 @@ function AccountPane({ onConfirm }: { onConfirm(spec: ConfirmSpec): void }) {
     <>
       {signedIn ? (
         <>
-          {/* ── 个人资料 ── */}
+          {/* ── 账号：只读身份卡（点头像/按钮进入「编辑资料」） ── */}
           <div className="acct-section">
-            <div className="section-title">{t('account.editProfile')}</div>
+            <div className="section-title">{t('account.identity')}</div>
             <div className="acct-profile">
               <button
                 type="button"
                 className="acct-avatar"
-                onClick={() => avatarInputRef.current?.click()}
-                aria-label={t('account.avatarChange')}
-                title={t('account.avatarChange')}
-                aria-busy={uploading || undefined}
-                disabled={uploading}
+                onClick={openEdit}
+                aria-label={t('account.editProfile')}
+                title={t('account.editProfile')}
               >
                 {avatarUrl ? <img src={avatarUrl} alt="" /> : initial}
-                <span className="acct-avatar-edit" aria-hidden>
-                  {uploading
-                    ? <span className="account-avatar-loading">{t('account.avatarUploading')}</span>
-                    : <Camera size={13} aria-hidden />}
-                </span>
+                <span className="acct-avatar-edit" aria-hidden><Camera size={13} aria-hidden /></span>
               </button>
               <input
                 ref={avatarInputRef}
@@ -589,17 +549,6 @@ function AccountPane({ onConfirm }: { onConfirm(spec: ConfirmSpec): void }) {
               <div className="acct-id">
                 <div className="acct-name-row">
                   <span className="acct-name" title={name}>{name}</span>
-                  <button
-                    type="button" className="acct-link"
-                    aria-expanded={editingProfile}
-                    onClick={() => {
-                      if (editingProfile) { closeProfile(); return; }
-                      setNickDraft((cloud.user?.name ?? '').trim());
-                      setEditingProfile(true);
-                    }}
-                  >
-                    {t('account.editProfile')}
-                  </button>
                 </div>
                 <span className="acct-email" title={email0}>{email0}</span>
               </div>
@@ -608,11 +557,30 @@ function AccountPane({ onConfirm }: { onConfirm(spec: ConfirmSpec): void }) {
                   <span className="acct-dot" aria-hidden />
                   {t('account.signedIn')}
                 </span>
+                <button
+                  type="button" className="btn"
+                  aria-expanded={editing}
+                  onClick={() => (editing ? closeEdit() : openEdit())}
+                >
+                  {t('account.editProfile')}
+                </button>
               </div>
             </div>
+          </div>
 
-            {editingProfile && (
-              <div className="acct-form" role="group" aria-label={t('account.editProfile')}>
+          {/* ── 编辑资料：昵称 + 头像 + 修改密码（统一在这里，不再散落在各处） ── */}
+          <div className="acct-section">
+            <div className="section-title">{t('account.editSection')}</div>
+            {!editing ? (
+              <div className="field">
+                <span className="field-label">{t('account.editProfile')}</span>
+                <div className="field-body acct-row-actions">
+                  <button className="btn" onClick={openEdit}>{t('account.editProfile')}</button>
+                  <span className="field-hint">{t('account.editHint')}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="acct-form" role="group" aria-label={t('account.editSection')}>
                 <div className="field">
                   <span className="field-label">{t('account.nickname')}</span>
                   <div className="field-body">
@@ -622,86 +590,126 @@ function AccountPane({ onConfirm }: { onConfirm(spec: ConfirmSpec): void }) {
                       onChange={(e) => setNickDraft(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') void saveProfile();
-                        if (e.key === 'Escape') closeProfile();
+                        if (e.key === 'Escape') closeEdit();
                       }}
                     />
                   </div>
                 </div>
+
+                <div className="field">
+                  <span className="field-label">{t('account.avatarSection')}</span>
+                  <div className="field-body acct-row-actions">
+                    <span className="acct-avatar-sm" aria-hidden>
+                      {avatarUrl ? <img src={avatarUrl} alt="" /> : initial}
+                    </span>
+                    <button
+                      type="button" className="acct-link"
+                      disabled={uploading}
+                      onClick={() => avatarInputRef.current?.click()}
+                    >
+                      {uploading ? t('account.avatarUploading') : t('account.avatarChange')}
+                    </button>
+                    {avatarName && (
+                      <button
+                        type="button" className="acct-link"
+                        disabled={uploading}
+                        onClick={() => void removeAvatar()}
+                      >
+                        {t('account.avatarRemove')}
+                      </button>
+                    )}
+                    <span className="field-hint">{t('account.avatarHint')}</span>
+                  </div>
+                </div>
+
+                <div className="field">
+                  <span className="field-label">{t('account.passwordSection')}</span>
+                  <div className="field-body acct-row-actions">
+                    <button
+                      type="button" className="btn"
+                      aria-expanded={editingPwd}
+                      onClick={() => setEditingPwd(!editingPwd)}
+                    >
+                      {t('sync.changePwd')}
+                    </button>
+                  </div>
+                </div>
+
+                {editingPwd && (
+                  <div className="acct-form" style={{ border: 'none', padding: '0 0 6px' }}>
+                    <div className="field">
+                      <span className="field-label">{t('sync.oldPwd')}</span>
+                      <div className="field-body">
+                        <input
+                          className="text-input" type="password" autoComplete="current-password"
+                          value={op} aria-label={t('sync.oldPwd')}
+                          onChange={(e) => setOp(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="field">
+                      <span className="field-label">{t('sync.newPwd')}</span>
+                      <div className="field-body">
+                        <input
+                          className="text-input" type="password" autoComplete="new-password"
+                          value={np1} aria-label={t('sync.newPwd')}
+                          onChange={(e) => setNp1(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="field">
+                      <span className="field-label">{t('sync.passwordConfirm')}</span>
+                      <div className="field-body">
+                        <input
+                          className="text-input" type="password" autoComplete="new-password"
+                          value={np2} aria-label={t('sync.passwordConfirm')}
+                          onChange={(e) => setNp2(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' && np1 && !pwdMismatch) void savePwd(); }}
+                        />
+                      </div>
+                    </div>
+                    {pwdMismatch && <span className="acct-err" role="alert">{t('sync.pwdMismatch')}</span>}
+                    <div className="acct-form-actions">
+                      <button
+                        className="btn primary"
+                        disabled={!op || !np1 || pwdMismatch || busy}
+                        onClick={() => void savePwd()}
+                      >
+                        {t('sync.changePwd')}
+                      </button>
+                      <button
+                        className="btn"
+                        onClick={() => { setEditingPwd(false); setOp(''); setNp1(''); setNp2(''); }}
+                      >
+                        {t('common.cancel')}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <p className="acct-hint">{t('account.emailLocked')}</p>
                 <div className="acct-form-actions">
                   <button className="btn primary" disabled={busy} onClick={() => void saveProfile()}>
                     {t('common.save')}
                   </button>
-                  <button className="btn" onClick={closeProfile}>{t('common.cancel')}</button>
+                  <button className="btn" onClick={closeEdit}>{t('common.cancel')}</button>
                 </div>
               </div>
             )}
           </div>
 
-          {/* ── 账号安全 ── */}
+          {/* ── 账号操作 ── */}
           <div className="acct-section">
-            <div className="section-title">{t('sync.changePwd')}</div>
-            {editingPwd ? (
-              <div className="acct-form" role="group" aria-label={t('sync.changePwd')}>
-                <div className="field">
-                  <span className="field-label">{t('sync.oldPwd')}</span>
-                  <div className="field-body">
-                    <input
-                      className="text-input" type="password" autoComplete="current-password"
-                      value={op} aria-label={t('sync.oldPwd')}
-                      onChange={(e) => setOp(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div className="field">
-                  <span className="field-label">{t('sync.newPwd')}</span>
-                  <div className="field-body">
-                    <input
-                      className="text-input" type="password" autoComplete="new-password"
-                      value={np1} aria-label={t('sync.newPwd')}
-                      onChange={(e) => setNp1(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div className="field">
-                  <span className="field-label">{t('sync.passwordConfirm')}</span>
-                  <div className="field-body">
-                    <input
-                      className="text-input" type="password" autoComplete="new-password"
-                      value={np2} aria-label={t('sync.passwordConfirm')}
-                      onChange={(e) => setNp2(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' && np1 && !pwdMismatch) void savePwd(); }}
-                    />
-                  </div>
-                </div>
-                {pwdMismatch && <span className="acct-err" role="alert">{t('sync.pwdMismatch')}</span>}
-                <div className="acct-form-actions">
-                  <button className="btn primary" disabled={!op || !np1 || pwdMismatch || busy} onClick={() => void savePwd()}>
-                    {t('common.save')}
-                  </button>
-                  <button className="btn" onClick={() => { setEditingPwd(false); setOp(''); setNp1(''); setNp2(''); }}>
-                    {t('common.cancel')}
-                  </button>
-                </div>
+            <div className="section-title">{t('account.actionsSection')}</div>
+            <div className="field">
+              <span className="field-label">{t('account.signOut')}</span>
+              <div className="field-body acct-row-actions">
+                <button className="btn" onClick={() => void signOut()}>
+                  {t('account.signOut')}
+                </button>
+                <span className="field-hint">{t('account.signedOut')}</span>
               </div>
-            ) : (
-              <div className="field">
-                <span className="field-label">{t('sync.changePwd')}</span>
-                <div className="field-body acct-row-actions">
-                  {avatarName && (
-                    <button className="acct-link" disabled={uploading} onClick={() => void removeAvatar()}>
-                      {t('account.avatarRemove')}
-                    </button>
-                  )}
-                  <button className="btn" onClick={() => { setEditingPwd(true); setOp(''); setNp1(''); setNp2(''); }}>
-                    {t('sync.changePwd')}
-                  </button>
-                  <button className="btn" onClick={() => void signOut()}>
-                    {t('account.signOut')}
-                  </button>
-                </div>
-              </div>
-            )}
+            </div>
           </div>
 
           {/* ── 同步 ── */}
@@ -712,6 +720,7 @@ function AccountPane({ onConfirm }: { onConfirm(spec: ConfirmSpec): void }) {
               <div className="field-body acct-row-actions">
                 <span className={`acct-readout${cloud.syncState === 'error' ? ' acct-err' : ''}`} role="status" aria-live="polite">
                   {cloud.syncMessage || syncLabel}
+                  {!cloud.syncMessage && dataPending > 0 ? ` · ${t('sync.pending', { v: dataPending })}` : ''}
                 </span>
               </div>
             </div>
@@ -720,6 +729,15 @@ function AccountPane({ onConfirm }: { onConfirm(spec: ConfirmSpec): void }) {
               <div className="field-body acct-row-actions">
                 <button className="btn" disabled={busy} onClick={() => void cloud.pushNow()}>{t('sync.push')}</button>
                 <button className="btn" disabled={busy} onClick={() => void cloud.pullNow()}>{t('sync.pull')}</button>
+              </div>
+            </div>
+            <div className="field">
+              <span className="field-label">{t('sync.dataLabel')}</span>
+              <div className="field-body acct-row-actions">
+                <button className="btn" disabled={busy} onClick={() => void forceFullSync()}>{t('sync.full')}</button>
+                <span className={`field-hint${dataErr ? ' acct-err' : ''}`} role="status" aria-live="polite">
+                  {dataErr || (dataPending > 0 ? t('sync.pending', { v: dataPending }) : t('sync.none'))}
+                </span>
               </div>
             </div>
             <p className="acct-hint">{t('sync.autoHint')}</p>
@@ -837,6 +855,302 @@ function AccountPane({ onConfirm }: { onConfirm(spec: ConfirmSpec): void }) {
         <p className="acct-hint">{t('account.deleteDataHint')}</p>
         {signedIn && <p className="acct-hint warn">{t('account.deleteDataCloudWarn')}</p>}
       </div>
+    </>
+  );
+}
+
+/**
+ * 清单管理页 —— 把清单的「归属 / 统计 / 图标 / 排序 / 默认」都收在这里。
+ * 图标与字形的完整编辑复用侧边栏的 `CreateListModal`（`ui.openListEdit`），避免两套图标选择器。
+ */
+function ListsPane({ onConfirm }: { onConfirm(spec: ConfirmSpec): void }) {
+  const ui = useUiStore();
+  const {
+    lists, folders, tasks, records, createList, renameList, deleteList,
+    reorderLists, setListFolder, createFolder, deleteFolder,
+  } = useDataStore();
+  const { t } = useI18n();
+  const [defaultListId, setDefaultListId] = useState<string | null>(null);
+  const [newName, setNewName] = useState('');
+  const [newFolderName, setNewFolderName] = useState('');
+  const [overId, setOverId] = useState<string | null>(null);
+
+  useEffect(() => { void api.get_default_list().then(setDefaultListId); }, []);
+
+  const ds = useMemo(() => ({ tasks, lists, records }), [tasks, lists, records]);
+  const stats = useMemo(() => {
+    const m = new Map<string, { count: number; minutes: number }>();
+    for (const l of lists) m.set(l.id, listAggregate(ds, l.id));
+    return m;
+  }, [ds, lists]);
+
+  /** 键盘重排：焦点在清单行按 Alt + ↑/↓（与侧边栏一致） */
+  function move(id: string, dir: -1 | 1) {
+    const ids = lists.map((l) => l.id);
+    const from = ids.indexOf(id);
+    const to = from + dir;
+    if (from < 0 || to < 0 || to >= ids.length) return;
+    const next = [...ids];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    void reorderLists(next);
+  }
+
+  function onDrop(targetId: string) {
+    if (!overId || overId === targetId) { setOverId(null); return; }
+    const ids = lists.map((l) => l.id);
+    const from = ids.indexOf(overId);
+    const to = ids.indexOf(targetId);
+    if (from < 0 || to < 0) { setOverId(null); return; }
+    const next = [...ids];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    void reorderLists(next);
+    setOverId(null);
+  }
+
+  function add() {
+    const v = newName.trim();
+    if (!v) return;
+    void createList(v);
+    setNewName('');
+  }
+
+  return (
+    <>
+      {/* ── 新建清单 ── */}
+      <div className="section-title">{t('lists.new')}</div>
+      <div className="field">
+        <span className="field-label">{t('lists.namePlaceholder')}</span>
+        <div className="field-body">
+          <input
+            className="text-input" value={newName} placeholder={t('lists.namePlaceholder')}
+            aria-label={t('lists.namePlaceholder')}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') add(); }}
+          />
+          <button className="btn primary" onClick={add} disabled={!newName.trim()}>
+            {t('lists.create')}
+          </button>
+          <button className="btn" onClick={() => ui.openListCreate(true)} title={t('lists.createHint')}>
+            {t('lists.detail')}
+          </button>
+        </div>
+      </div>
+      <p className="acct-hint">{t('lists.createHint')}</p>
+
+      {/* ── 默认清单 ── */}
+      <div className="section-title">{t('lists.defaultSection')}</div>
+      <div className="field">
+        <span className="field-label">{t('lists.section')}</span>
+        <div className="field-body">
+          <select
+            className="text-input" value={defaultListId ?? ''} aria-label={t('lists.defaultSection')}
+            onChange={(e) => {
+              const v = e.target.value || null;
+              setDefaultListId(v);
+              void useDataStore.getState().setDefaultList(v);
+            }}
+          >
+            <option value="">{t('common.none')}</option>
+            {lists.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+          <span className="field-hint">{t('lists.defaultRow')}</span>
+        </div>
+      </div>
+
+      {/* ── 清单列表 ── */}
+      <div className="section-title">{t('lists.section')}</div>
+      {lists.length === 0 && <p className="acct-hint">{t('lists.empty')}</p>}
+      {lists.map((l) => {
+        const agg = stats.get(l.id) ?? { count: 0, minutes: 0 };
+        return (
+          <div
+            key={l.id}
+            className={`list-row-wrap${overId === l.id ? ' drag-over' : ''}`}
+            draggable
+            onDragStart={() => setOverId(l.id)}
+            onDragOver={(e) => { e.preventDefault(); if (overId !== l.id) setOverId(l.id); }}
+            onDragLeave={() => setOverId((p) => (p === l.id ? null : p))}
+            onDrop={(e) => { e.preventDefault(); onDrop(l.id); }}
+            onDragEnd={() => setOverId(null)}
+          >
+            <div className="field">
+              <span className="field-label">
+                <span className="list-grip" aria-hidden><GripVertical size={12} /></span>
+                {l.icon_type === 'font' && l.icon_glyph
+                  ? <span className="list-glyph" style={{ color: resolveListIconColor(l) }}>{l.icon_glyph}</span>
+                  : <span className="list-dot" style={{ background: resolveListIconColor(l) }} />}
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.name}</span>
+                {defaultListId === l.id && (
+                  <span className="list-default-tag">{t('lists.default')}</span>
+                )}
+              </span>
+              <div className="field-body">
+                <input
+                  className="text-input" defaultValue={l.name} aria-label={t('lists.namePlaceholder')}
+                  style={{ flex: '1 1 120px', minWidth: 90 }}
+                  onKeyDown={(e) => {
+                    if (!e.altKey) return;
+                    if (e.key === 'ArrowUp') { e.preventDefault(); move(l.id, -1); }
+                    if (e.key === 'ArrowDown') { e.preventDefault(); move(l.id, 1); }
+                  }}
+                  onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== l.name) void renameList(l.id, v); }}
+                />
+                <span className="field-hint" style={{ whiteSpace: 'nowrap' }}>
+                  {t('lists.stats', { count: agg.count, min: formatMinutesShort(agg.minutes) })}
+                </span>
+                <select
+                  className="text-input" value={l.folder_id ?? ''} aria-label={t('lists.folder')}
+                  style={{ flex: '0 0 auto', width: 'auto', minWidth: 96 }}
+                  onChange={(e) => void setListFolder(l.id, e.target.value || null)}
+                >
+                  <option value="">{t('lists.noFolder')}</option>
+                  {folders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+                </select>
+                <button
+                  className="btn" onClick={() => ui.openListEdit(l.id)}
+                  title={t('lists.detail')}
+                >
+                  {t('lists.detail')}
+                </button>
+                <button
+                  className="btn danger" title={t('lists.delete')}
+                  onClick={() => onConfirm({
+                    title: t('lists.delete'),
+                    message: t('lists.deleteMsg', { name: l.name }),
+                    confirmText: t('common.delete'),
+                    danger: true,
+                    onConfirm: async () => { await deleteList(l.id); },
+                  })}
+                >
+                  <Trash2 size={13} aria-hidden />
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+      {folders.length > 0 && <p className="acct-hint">{t('lists.reorderHint')}</p>}
+
+      {/* ── 清单夹 ── */}
+      <div className="section-title">{t('lists.foldersSection')}</div>
+      {folders.length === 0 && <p className="acct-hint">{t('lists.foldersEmpty')}</p>}
+      {folders.map((f) => {
+        const inside = lists.filter((l) => l.folder_id === f.id);
+        return (
+          <div className="field" key={f.id}>
+            <span className="field-label">
+              <span className="list-dot" style={{ background: f.color }} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
+            </span>
+            <div className="field-body">
+              <input
+                className="text-input" defaultValue={f.name} aria-label={t('folder.name')}
+                style={{ flex: '1 1 120px', minWidth: 90 }}
+                onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== f.name) void useDataStore.getState().renameFolder(f.id, v); }}
+              />
+              <span className="field-hint" style={{ whiteSpace: 'nowrap' }}>
+                {t('lists.stats', { count: inside.length, min: '' })}
+              </span>
+              <button className="btn" onClick={() => ui.openFolderEdit(f.id)} title={t('folder.editTitle')}>
+                {t('lists.detail')}
+              </button>
+              <button
+                className="btn danger" title={t('menu.deleteFolder')}
+                onClick={() => onConfirm({
+                  title: t('confirm.deleteFolderTitle'),
+                  message: t('confirm.deleteFolderMsg'),
+                  confirmText: t('common.delete'),
+                  danger: true,
+                  onConfirm: async () => { await deleteFolder(f.id); },
+                })}
+              >
+                <Trash2 size={13} aria-hidden />
+              </button>
+            </div>
+          </div>
+        );
+      })}
+      <div className="field">
+        <span className="field-label">{t('folder.new')}</span>
+        <div className="field-body">
+          <input
+            className="text-input" value={newFolderName} placeholder={t('folder.namePlaceholder')}
+            aria-label={t('folder.namePlaceholder')}
+            onChange={(e) => setNewFolderName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && newFolderName.trim()) { void createFolder(newFolderName.trim(), '#8848E0'); setNewFolderName(''); } }}
+          />
+          <button
+            className="btn" disabled={!newFolderName.trim()}
+            onClick={() => { void createFolder(newFolderName.trim(), '#8848E0'); setNewFolderName(''); }}
+          >
+            {t('lists.create')}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/**
+ * 关于页 —— 应用标识、本地数据规模、技术栈、云同步状态。
+ * 版本号与 package.json 保持一致（当前 1.0.0）。
+ */
+function AboutPane() {
+  const { t } = useI18n();
+  const { lists, tasks, records } = useDataStore();
+  const cloud = useAuthStore();
+  const signedIn = cloud.status === 'signedIn';
+  const pbUrl = (import.meta.env.VITE_PB_URL as string | undefined)?.trim() ?? '';
+
+  return (
+    <>
+      <div className="section-title">{t('about.sectionOverview')}</div>
+      <div className="about-head">
+        <div className="about-mark" aria-hidden>🍅</div>
+        <div className="about-id">
+          <div className="about-name">{t('about.appName')}</div>
+          <div className="about-version">{t('about.version')} 1.0.0</div>
+        </div>
+      </div>
+      <p className="acct-hint" style={{ marginTop: 2 }}>{t('about.tagline')}</p>
+      <p className="acct-hint">{t('about.stack')}</p>
+
+      <div className="section-title">{t('about.sectionData')}</div>
+      <div className="field">
+        <span className="field-label">{t('about.sectionData')}</span>
+        <div className="field-body">
+          <span className="acct-readout">
+            {t('about.counts', {
+              tasks: tasks.filter((x) => x.completed === 0).length,
+              lists: lists.length,
+              records: records.length,
+            })}
+          </span>
+        </div>
+      </div>
+      <p className="acct-hint">{t('about.storage')}</p>
+      <p className="acct-hint">{t('about.offline')}</p>
+
+      <div className="section-title">{t('about.sectionBackend')}</div>
+      <div className="field">
+        <span className="field-label">{t('sync.section')}</span>
+        <div className="field-body">
+          <span className={`acct-badge${signedIn ? '' : ' muted'}`}>
+            <span
+              className="acct-dot"
+              style={signedIn ? undefined : { background: 'var(--text-3)' }}
+              aria-hidden
+            />
+            {signedIn
+              ? t('about.backendReady')
+              : pbUrl ? t('about.backendDown') : t('about.backendNone')}
+          </span>
+          {pbUrl && <span className="field-hint">{pbUrl}</span>}
+        </div>
+      </div>
+      {!signedIn && <p className="acct-hint">{t('about.backendHint')}</p>}
     </>
   );
 }

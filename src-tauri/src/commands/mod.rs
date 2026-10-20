@@ -6,6 +6,7 @@ pub mod notify;
 pub mod records;
 pub mod settings;
 pub mod stats;
+pub mod sync;
 pub mod tasks;
 pub mod tray;
 pub mod user;

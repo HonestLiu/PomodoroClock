@@ -3,7 +3,7 @@
 
 import { create } from 'zustand';
 import {
-  currentUser, pbLogin, pbLogout, pbRefreshAuth, pbRegister, pbErrorMessage, collectionExists,
+  pb, currentUser, pbLogin, pbLogout, pbRefreshAuth, pbRegister, pbErrorMessage, collectionExists,
   pbUpdateProfile, pbRequestPasswordReset, pbUploadAvatar, pbDeleteAvatar, pbUpdateName, CONFIGS, type PbUser,
 } from '@/lib/pb';
 import {
@@ -11,6 +11,7 @@ import {
   type ConfigRecord, type SyncMeta,
 } from '@/lib/sync';
 import { api } from '@/api';
+import { SYNC_COLLECTIONS, startDataSync, stopDataSync, syncDataNow } from '@/lib/syncData';
 import { useTimerStore } from '@/stores/timerStore';
 import type { Settings } from '@/types';
 import { tStatic } from '@/i18n';
@@ -55,8 +56,17 @@ let unsubRealtime: (() => void) | null = null;
 /** 检查后端是否齐备；configs 集合缺失时返回引导文案（用于提示用户补配 PB） */
 async function backendHint(): Promise<string> {
   try {
-    const ok = await collectionExists(CONFIGS);
-    if (!ok) return tStatic('sync.missingCollection');
+    if (!(await collectionExists(CONFIGS))) return tStatic('sync.missingCollection');
+    // 数据同步集合（任务/清单/专注记录）由 scripts/pb-sync-setup.mjs 创建
+    for (const name of Object.values(SYNC_COLLECTIONS)) {
+      if (!(await collectionExists(name))) return tStatic('sync.missingSyncCollections');
+    }
+    // 集合是旧版脚本建的 → 没有 created/updated 系统字段，sort=updated 会 400
+    try {
+      await pb.collection(SYNC_COLLECTIONS.tasks).getList(1, 1, { sort: 'updated', requestKey: null });
+    } catch {
+      return tStatic('sync.staleSyncCollections');
+    }
     return '';
   } catch {
     return tStatic('sync.backendDown');
@@ -90,6 +100,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         (rec) => { void get().acceptRemote(rec); },
         (msg) => set({ syncState: 'error', syncMessage: msg }),
       );
+      // 任务/清单/专注记录的多端同步（配置之外的数据）
+      startDataSync(u.id);
     } catch {
       // 无法连接 PB / 网络异常：当未登录，本地照常工作
       set({ status: 'signedOut', user: null, syncMessage: tStatic('sync.unavailable') });
@@ -114,6 +126,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         (rec) => { void get().acceptRemote(rec); },
         (msg) => set({ syncState: 'error', syncMessage: msg }),
       );
+      // 登录成功即把任务/清单/专注记录也接上云端
+      startDataSync(u.id);
       return true;
     } catch (e) {
       set({ syncState: 'error', syncMessage: pbErrorMessage(e) });
@@ -133,6 +147,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ status: 'signedIn', user: u, meta: readMeta(u.id), syncState: 'idle' });
       // 注册后立刻把本地配置推上去，避免空云端覆盖本地
       await get().pushNow();
+      startDataSync(u.id);
       return true;
     } catch (e) {
       set({ syncState: 'error', syncMessage: pbErrorMessage(e) });
@@ -141,6 +156,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout() {
+    stopDataSync();
     unsubRealtime?.();
     unsubRealtime = null;
     if (pushTimer) { clearTimeout(pushTimer); pushTimer = null; }
@@ -153,6 +169,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const meta = await pushConfig();
       set({ syncState: 'ok', syncMessage: tStatic('sync.pushed'), lastSyncAt: Date.now(), meta });
+      void syncDataNow();
       return true;
     } catch (e) {
       set({ syncState: 'error', syncMessage: pbErrorMessage(e) });
@@ -163,6 +180,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   async pullNow() {
     if (!get().user) return false;
     set({ syncState: 'busy', syncMessage: '' });
+    void syncDataNow();
     try {
       const dir = await pullConfig();
       const me = currentUser();

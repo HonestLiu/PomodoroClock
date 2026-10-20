@@ -226,6 +226,13 @@ pub fn run() {
             commands::settings::set_setting,
             commands::settings::get_timer_state,
             commands::settings::set_timer_state,
+            // 多端同步
+            commands::sync::sync_dirty_batch,
+            commands::sync::sync_rows_by_ids,
+            commands::sync::sync_apply,
+            commands::sync::sync_ack,
+            commands::sync::sync_pending_counts,
+            commands::sync::sync_reset_rows,
             // 通知
             commands::notify::list_notifications,
             commands::notify::create_notification,
