@@ -298,11 +298,11 @@
   flex: 1;
   min-width: 0;
   min-height: max-content;
-  border-right: 1px solid #f0f0ee;
   display: flex;
   flex-direction: column;
 }
-.cal-col:last-child { border-right: none; }
+/* 列分隔线改由 .cal-col-body 绘制（见下），不再依赖 .cal-col 边框，
+   保证与 24h 横向网格同高、在任一滚动位置都完整。 */
 /* 列头固定高度：无论是否今日，各列高度一致（今日圆点在固定盒内，不撑高） */
 .cal-col-head {
   flex: 0 0 auto;
@@ -379,14 +379,26 @@
   position: relative;
   flex: 0 0 auto;
   height: var(--tl-body-h); /* 24h × HOUR_PX(44)，00:00–24:00 全天同一样式 */
-  background-image: repeating-linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent 43px,
-    #f3f2ef 43px,
-    #f3f2ef 44px
-  );
+  /* 横向小时线 与 纵向列分隔线 都在同一固定高度的正文上绘制，
+     保证二者同起同止、延伸到 24:00，且不受列自身高度/滚动变化影响。
+     每个 body 自带「左缘 1px 竖线 + 横向网格」，故相邻两列交界显示一条竖线。 */
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      #f0f0ee 0,
+      #f0f0ee 1px,
+      transparent 1px,
+      transparent 100%
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 43px,
+      #f3f2ef 43px,
+      #f3f2ef 44px
+    );
 }
+/* 末列右缘（靠滚动区边）不必补分隔线，body 自带左缘竖线已覆盖列间交界 */
 /* 全天条区域 */
 /* 全天条固定 26px（与 TimelineGrid 的 STRIP_H 对齐；事件仅一行，超出省略） */
 .cal-all-day-strip {
