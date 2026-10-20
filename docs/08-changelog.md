@@ -4,6 +4,35 @@
 
 ---
 
+## 2026-10-20 · 番茄钟长时运行崩溃（SIGABRT）：WKURLSchemeTask 后台线程响应改主线程
+
+### 现象
+开启番茄钟倒计时运行约 30 分钟后，应用直接崩溃退出。macOS Crash Report（EXC_CRASH / SIGABRT），`panic = "abort"` 生效（release 无回溯）。崩溃线程 14 `tokio-rt-worker`，栈：`abort → panic 处理 → <Rust 响应逻辑> → -[WKURLSchemeTaskImpl didFinish]`；线程 13 卡在 `WTF::callOnMainRunLoopAndWait(getExceptionTypeFromMainRunLoop)`；主线程阻塞在向 WebContent 进程同步发 IPC。终止原因 `abort() called`。
+
+### 根因
+Tauri 2 / wry 0.57.0 的**自定义协议响应不在主线程**：
+- 前端每一次 `invoke`（倒计时期间每秒多次：每秒 tray 标题 + 每 250ms tick 驱动状态）都经 `ipc://` POST → 在 **tokio worker** 上执行命令并回调 `responder`。
+- wry `url_scheme_handler.rs` 的 responder 直接在当前线程执行 `task.didReceiveResponse/didReceiveData/didFinish`（`WKURLSchemeTask` 的 `did*` 方法**必须**在主线程）。
+- Tauri 的 `tauri://localhost` 资源协议同样 `async_runtime::spawn` 后在 tokio 上响应（`tauri-2.12.3/src/protocol/tauri.rs`）。
+- WebKit 的 `getExceptionTypeFromMainRunLoop` 在非主线程调用时会**同步跳主线程**。当主线程恰好也正在向 WebContent 同步发消息（`IPC::Connection::sendMessage`，需等 WebContent 网络应答）时，后台线程的同步跳等待主线程、主线程的同步等又依赖网络——与另一条同样阻塞的 worker 形成**嵌套等待 → WebKit 断言 → abort**。崩溃通常发生在倒计时高并发 IPC 期间而非同刻单个调用错误（小请求多/快时无感，长会话必然触发）。
+
+### 修复（本地 vendor 补丁，非上游）
+- `[patch.crates-io] wry = { path = "vendor/wry" }`，vendor 一份 **wry 0.57.0**。
+- `vendor/wry/src/wkwebview/class/url_scheme_handler.rs`：新增 `run_on_main_thread`，把 `didReceiveResponse/didReceiveData/didFinish`（连同任务有效性校验）整体 `dispatch2::Queue::main().exec_async` 到**主队列**异步执行（串行、保序、不阻塞 worker）。404 路径同样处理。新增 `[target.'cfg(target_vendor="apple")'.dependencies.dispatch2]`（版本 0.3，锁文件已含 0.3.1）。
+- 附带性能优化 `commands/tray.rs::set_tray_phase`：同阶段图标去重（`TrayState.last_phase`），避免倒计时期间每秒重建菜单栏图标（AppKit/LaunchServices 开销与崩溃现场主线程占用同源）。
+- Cargo.lock 无需额外引入：`dispatch2` 本为 wry 传递依赖，补丁 manifest 直接沿用。
+
+### 验证
+- `cargo build`（debug）通过；wry 补丁与 `set_tray_phase` 签名变更均编译通过。
+- 需真机回归：macOS 跑 ≥40 分钟倒计时，确认不再 SIGABRT；`tray` 图标红/蓝切换正常。浏览器端不受影响（补丁仅 Tauri/wry 运行时）。
+
+### 防复发
+- **升级 wry 前必须重看本补丁**：上游 dev 分支（截至 2026-10）`url_scheme_handler.rs` 仍无主线程派发，未修复。升级时 diff `vendor/wry` 与上游，确认 `run_on_main_thread` 用法可移植后更新 manifest 注释。
+- 任何新增「谈完才发事件」的 Tauri 命令（尤其高频、由后台 task 完成）都要确认最终响应是否会触发 `WKURLSchemeTask did*` 且不在主线程——除非自建自定义 scheme，否则一律走 wry 主线程派发。
+- 勿把 `panic` 改回 unwind 当作修复：崩溃根因是跨线程嵌套等待，不是 panic 内容。
+
+---
+
 ## 2026-10-19 · 任务条目升级为「提醒事项」字段体系（重复引擎 + 到时提醒）
 
 ### 用户需求

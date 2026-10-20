@@ -144,7 +144,10 @@ pub fn run() {
                 .quit_with_text("退出")
                 .build()?;
 
-            app.manage(commands::tray::TrayState { toggle: toggle_item });
+            app.manage(commands::tray::TrayState {
+                toggle: toggle_item,
+                last_phase: std::sync::Mutex::new(String::new()),
+            });
 
             let _tray = TrayIconBuilder::with_id("main")
                 .icon(tauri::include_image!("icons/tray-focus.png"))

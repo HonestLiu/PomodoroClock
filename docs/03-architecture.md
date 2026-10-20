@@ -13,6 +13,10 @@ Rust 核心    src-tauri/src       commands/* · db.rs · timer_engine.rs
 存储        SQLite(focus.db) / IndexedDB / 设置 KV / 音频资产 / PocketBase(可选云端)
 ```
 
+> 注：`src-tauri` 通过 `[patch.crates-io]` 使用 **vendor 的 wry 0.57.0**（`src-tauri/vendor/wry`），
+> 把自定义协议（`ipc://`/`tauri://`）响应 dispatch 回主线程，修复番茄钟长时运行 SIGABRT。
+> **升级 wry 前必读 `vendor/wry/src/wkwebview/class/url_scheme_handler.rs` 顶部注释**与 `08-changelog.md`。
+
 ## 双运行时 —— 必须保持同步
 
 前端经 `src/api/index.ts` 依据 `window.__TAURI_INTERNALS__` 分派：

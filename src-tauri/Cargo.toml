@@ -31,3 +31,9 @@ lto = true
 opt-level = "s"
 panic = "abort"
 strip = true
+
+# 本地补丁：wry 0.57.0 自定义协议响应必须回到主线程（vendor/wry，详见
+# src/wkwebview/class/url_scheme_handler.rs 顶部注释），修复番茄钟长时运行后
+# WKURLSchemeTask 跨线程嵌套等待导致的 SIGABRT。升级 wry 时重新核对。
+[patch.crates-io]
+wry = { path = "vendor/wry" }
