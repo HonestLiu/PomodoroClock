@@ -27,7 +27,9 @@ async function ready() { await initDB(); }
 /** 旧库升级兜底：早期建的清单可能没有 icon / folder 字段，补默认值 */
 function normalizeList<T extends TaskList>(l: T): TaskList {
   const base = l.icon_type ? l : { ...l, ...defaultListIcon() };
-  return { ...base, folder_id: base.folder_id ?? null };
+  // 同步层会把 NULL 外键拉成 ""（PocketBase 文本字段规范化）：空串一律当「无归属」，
+  // 否则侧边栏既不算顶层也不属于任何清单夹，清单会凭空消失。
+  return { ...base, folder_id: base.folder_id || null };
 }
 
 export const localApi: Api = {

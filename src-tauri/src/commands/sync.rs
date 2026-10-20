@@ -250,6 +250,13 @@ fn apply_remote_row(
     }
 
     let mut row = obj.clone();
+    // PocketBase 文本字段会把 NULL 规范化成 ""；写回本地前还原成 NULL，
+    // 否则 folder_id="" 的清单既不算顶层也不属于任何夹，侧边栏直接消失。
+    for fk in fks_for(kind) {
+        if row.get(*fk).and_then(Value::as_str) == Some("") {
+            row.insert((*fk).to_string(), Value::Null);
+        }
+    }
     if try_upsert(conn, table, cols, &row).is_err() {
         let fks = fks_for(kind);
         if fks.is_empty() {
@@ -615,6 +622,22 @@ mod tests {
             )
             .unwrap();
         assert_eq!(shadow, "pbl1");
+    }
+
+    /// 回归：PocketBase 文本字段把 NULL 规范化成 ""，拉回本地必须还原成 NULL，
+    /// 否则 folder_id="" 的清单侧边栏直接消失（2026-10-20 用户报障）。
+    #[test]
+    fn empty_string_foreign_key_becomes_null() {
+        let conn = fresh();
+        let row = obj(json!({
+            "id": "l1", "name": "x", "sort_order": 0, "folder_id": "",
+            "created_at": 1, "updated_at": 2, "pb_id": "pb1"
+        }));
+        assert!(apply_remote_row(&conn, "lists", LISTS_COLS, "lists", &row, 2).unwrap());
+        let folder: Option<String> = conn
+            .query_row("SELECT folder_id FROM lists WHERE id = 'l1'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(folder, None);
     }
 
     #[test]

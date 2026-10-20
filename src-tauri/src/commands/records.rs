@@ -5,6 +5,12 @@ use tauri::State;
 
 use crate::db::{new_id, Db};
 use crate::error::{AppError, AppResult};
+
+/// 外键列空串 → None（同步层会把 NULL 拉成 ""，见 db::repair_empty_refs）
+fn blank(v: Option<String>) -> Option<String> {
+    v.filter(|s| !s.is_empty())
+}
+
 use crate::models::{CreateRecordArgs, FocusRecord, ListRecordsArgs};
 
 const COLS: &str = "id, task_id, list_id, start_at, end_at, duration_min, phase, created_at";
@@ -12,8 +18,8 @@ const COLS: &str = "id, task_id, list_id, start_at, end_at, duration_min, phase,
 fn row_to_record(r: &rusqlite::Row) -> rusqlite::Result<FocusRecord> {
     Ok(FocusRecord {
         id: r.get(0)?,
-        task_id: r.get(1)?,
-        list_id: r.get(2)?,
+        task_id: blank(r.get(1)?),
+        list_id: blank(r.get(2)?),
         start_at: r.get(3)?,
         end_at: r.get(4)?,
         duration_min: r.get(5)?,

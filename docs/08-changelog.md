@@ -4,6 +4,40 @@
 
 ---
 
+## 2026-10-20 · 侧边栏自建清单「凭空消失」（folder_id 被同步层写成空串）
+
+### 现象
+用户在侧边栏创建的清单、清单夹会「自动消失」；删除清单夹（解散）后，夹内清单不但不回到顶层，反而整块消失；反复几次后侧边栏一个自建清单都不剩。**数据其实还在库里**——「设置 → 清单管理」里仍能看到这些清单。
+
+### 根因
+同步层把 `folder_id: null` 推给 PocketBase 时，PB 的**文本字段把 null 规范化成了空串 `""`**；下次拉取又把 `""` 原样写回 SQLite。而侧边栏只认 `folder_id == null` 为「顶层清单」，`""` 既不属于任何清单夹、也不算顶层：
+
+```ts
+// Sidebar.tsx（修复前）
+unfiledLists = customRows.filter((l) => l.folder_id == null)   // '' == null → false
+```
+
+于是每一轮同步拉取后，**所有顶层自建清单从侧边栏消失**。删除清单夹时 `UPDATE lists SET folder_id = NULL WHERE folder_id = ?` 也因成员已是 `""` 而匹配不到任何行，解散后清单同样消失。`list_id` / `task_id` 同理受害（`WHERE list_id IS NULL` 的计数口径失真）。
+
+证据链：本地库 `lists.folder_id` 全部为 `''`（`typeof` = text）、云端 `sync_lists.folder_id` 全部为 `""`、而 `folders` 表已空——清单在库、在设置页可见、在侧边栏不可见。
+
+### 修复
+四层同口径把「空串」一律还原为「无归属」：
+1. **同步写入边界**（`commands/sync.rs::apply_remote_row`）：拉回的行里 `fks_for(kind)` 指定的外键列若为 `""`，先改成 `JSON null` 再 upsert——从源头不再写脏。
+2. **启动修复**（`db.rs::repair_empty_refs`，`open()`/`open_in_memory()` 均调用）：`UPDATE lists/tasks/focus_records … WHERE col = ''` 还原成 NULL。幂等，第二次启动即空操作。
+3. **读侧兜底**（`lists.rs` / `tasks.rs` / `records.rs` 的 `blank()`）：`Option<String>` 读出后过滤空串。
+4. **UI 兜底 + 本地适配器**：`Sidebar.unfiledLists` 改 `!l.folder_id`；`derive::folderAggregate` 用 `(l.folder_id || null)`；`api/local.ts::normalizeList` 与 `db/idb.ts::normalizeTask` 同口径（浏览器运行时无同步，保持双端一致）。
+
+### 验证
+- 新增 Rust 回归测试 `empty_string_foreign_key_becomes_null`（`commands::sync.rs`），`cargo test --lib` 6/6、`cargo test` 17/17 全绿；`npx tsc --noEmit` 干净。
+- 真机复现 → 修复：启动应用后 `repair_empty_refs` 把 3 个清单的 `folder_id` 由 `''` 修成 `NULL`；**等待完整同步周期（60s 轮询 + 实时订阅）后复查，仍为 `NULL`，`sync_dirty` / `sync_tombstones` 均为 0**——不再出现「拉一次脏一次」的回写循环。
+- 端到端脚本（经 vite 热载注入 `api` 调用）验证完整生命周期：建清单 → 建清单夹 → 清单入夹 → 再建清单 → 解散夹 → 清单回到顶层，全程数据不丢。
+
+### 防复发
+- 空串与 NULL 在本项目语义不同（空串 = 脏数据），凡外键列必须 `NULLIF` / `blank()`；同步层新增外键列时要同步登记到 `fks_for()`。
+- 待办池另记一条：`adoptCloudIfFirstRun` 会对「云端已有数据的账号」执行破坏性的 `sync_reset_rows`（清空本机 lists/folders/tasks/records），标记存在 webview localStorage 里，清掉 localStorage 会重新武装——后续改为「只覆盖云端存在的行，本机独有行保留」。
+---
+
 ## 2026-10-20 · 周/多日视图 13:00 后纵向列分隔线缺失
 
 ### 现象

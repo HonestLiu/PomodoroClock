@@ -246,7 +246,7 @@ export function folderAggregate(ds: Dataset, folderId: string): { count: number;
   let count = 0;
   let minutes = 0;
   for (const l of ds.lists) {
-    if (l.folder_id !== folderId) continue;
+    if ((l.folder_id || null) !== folderId) continue;   // 空串外键等同「不属于本夹」
     const a = listAggregate(ds, l.id);
     count += a.count;
     minutes += a.minutes;

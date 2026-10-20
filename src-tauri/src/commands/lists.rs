@@ -7,6 +7,11 @@ use crate::db::{new_id, Db};
 use crate::error::{AppError, AppResult};
 use crate::models::TaskList;
 
+/// 外键列空串 → None（同步层会把 NULL 拉成 ""，见 db::repair_empty_refs）
+fn blank(v: Option<String>) -> Option<String> {
+    v.filter(|s| !s.is_empty())
+}
+
 fn read_list(conn: &rusqlite::Connection, id: &str) -> AppResult<TaskList> {
     conn.query_row(
         "SELECT id, name, sort_order, is_smart, icon_type, icon_color, icon_glyph, folder_id, created_at, updated_at
@@ -21,7 +26,7 @@ fn read_list(conn: &rusqlite::Connection, id: &str) -> AppResult<TaskList> {
                 icon_type: r.get(4)?,
                 icon_color: r.get(5)?,
                 icon_glyph: r.get(6)?,
-                folder_id: r.get(7)?,
+                folder_id: blank(r.get(7)?),
                 created_at: r.get(8)?,
                 updated_at: r.get(9)?,
             })
@@ -46,7 +51,7 @@ pub fn list_lists(db: State<'_, Db>) -> AppResult<Vec<TaskList>> {
             icon_type: r.get(4)?,
             icon_color: r.get(5)?,
             icon_glyph: r.get(6)?,
-            folder_id: r.get(7)?,
+            folder_id: blank(r.get(7)?),
             created_at: r.get(8)?,
             updated_at: r.get(9)?,
         })

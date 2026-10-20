@@ -214,7 +214,7 @@ pub fn open(path: &Path) -> AppResult<Connection> {
     migrate_list_icon(&conn)?;
     migrate_task_columns(&conn)?;
     migrate_sync_columns(&conn)?;
-    migrate_sync_columns(&conn)?;
+    repair_empty_refs(&conn)?;
     Ok(conn)
 }
 
@@ -225,6 +225,7 @@ pub fn open_in_memory() -> AppResult<Connection> {
     conn.execute_batch(SCHEMA)?;
     migrate_list_icon(&conn)?;
     migrate_task_columns(&conn)?;
+    repair_empty_refs(&conn)?;
     Ok(conn)
 }
 
@@ -298,6 +299,24 @@ fn migrate_sync_columns(conn: &Connection) -> AppResult<()> {
     }
     conn.execute_batch(
         "UPDATE focus_records SET updated_at = created_at WHERE updated_at = 0;",
+    )?;
+    Ok(())
+}
+
+/// 修复脏数据：外键列里的**空串**一律还原成 NULL。
+///
+/// 为什么会脏：同步层把行推给 PocketBase 时，`folder_id` / `list_id` / `task_id`
+/// 为 NULL 的列会被 PB 的文本字段规范化成 `""`；下次拉取再原样写回 SQLite。
+/// 而侧边栏只认 `folder_id == null` 为「顶层清单」，`""` 既不属于任何清单夹、
+/// 也不算顶层 → 清单在侧边栏凭空消失（数据其实还在库里）。
+///
+/// 幂等：只更新真正是空串的行，第二次启动即为空操作。
+fn repair_empty_refs(conn: &Connection) -> AppResult<()> {
+    conn.execute_batch(
+        "UPDATE lists SET folder_id = NULL WHERE folder_id = '';
+         UPDATE tasks SET list_id = NULL WHERE list_id = '';
+         UPDATE focus_records SET task_id = NULL WHERE task_id = '';
+         UPDATE focus_records SET list_id = NULL WHERE list_id = '';",
     )?;
     Ok(())
 }

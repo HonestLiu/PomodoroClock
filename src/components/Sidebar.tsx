@@ -98,7 +98,8 @@ export function Sidebar() {
     [customRows],
   );
   const unfiledLists = useMemo(
-    () => customRows.filter((l) => l.folder_id == null).sort((a, b) => a.sort_order - b.sort_order || a.created_at - b.created_at),
+    // !folder_id：空串也算顶层（历史脏数据把 NULL 外键拉成了 ""，见 db::repair_empty_refs）
+    () => customRows.filter((l) => !l.folder_id).sort((a, b) => a.sort_order - b.sort_order || a.created_at - b.created_at),
     [customRows],
   );
 

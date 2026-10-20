@@ -5,6 +5,12 @@ use tauri::State;
 
 use crate::db::{new_id, Db};
 use crate::error::{AppError, AppResult};
+
+/// 外键列空串 → None（同步层会把 NULL 拉成 ""，见 db::repair_empty_refs）
+fn blank(v: Option<String>) -> Option<String> {
+    v.filter(|s| !s.is_empty())
+}
+
 use crate::models::{CreateTaskArgs, ListTasksArgs, Task, UpdateTaskPatch};
 
 const TASK_COLS: &str = "id, list_id, title, notes, est_pomodoros, due_date, due_time, url, urgent, \
@@ -14,7 +20,7 @@ fn row_to_task(r: &rusqlite::Row) -> rusqlite::Result<Task> {
     let tags: String = r.get(11)?;
     Ok(Task {
         id: r.get(0)?,
-        list_id: r.get(1)?,
+        list_id: blank(r.get(1)?),
         title: r.get(2)?,
         notes: r.get(3)?,
         est_pomodoros: r.get(4)?,

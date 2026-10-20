@@ -70,9 +70,9 @@ const taskReminderDefaults = {
   reminded_at: null as number | null,
 };
 
-/** 旧库任务补齐新字段（防缺字段崩溃） */
+/** 旧库任务补齐新字段（防缺字段崩溃）；外键空串还原为 null（与 Rust 同口径） */
 function normalizeTask(t: Task): Task {
-  return { ...taskReminderDefaults, ...t };
+  return { ...taskReminderDefaults, ...t, list_id: t.list_id || null };
 }
 
 let data: DBShape = emptyDB();
