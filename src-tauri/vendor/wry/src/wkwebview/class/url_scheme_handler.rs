@@ -46,15 +46,20 @@ where
   // `unsafe impl Send for RequestAsyncResponder` 的前提一致。这里把非 Send 的
   // FnOnce 包进 Send 包装，dispatch 的目标只有主线程（单线程串行），
   // `SendOnce` 不会并发访问。
+  // 注意：不要在派发的闭包里解构 SendOnce（`let SendOnce(f) = send_once`），
+  // rustc 会因此把捕获定义为穿透到内部的 Box<dyn FnOnce()> 并要求其 Send。
+  // 解构放在 SendOnce::invoke 方法体内（在目标线程执行），闭包只按值调用方法。
   struct SendOnce(Box<dyn FnOnce()>);
   unsafe impl Send for SendOnce {}
+  impl SendOnce {
+    fn invoke(self) {
+      (self.0)();
+    }
+  }
 
   let send_once = SendOnce(Box::new(f));
   // dispatch_async 到主队列：异步、串行、保序；worker 线程不再同步等待主线程。
-  dispatch2::Queue::main().exec_async(move || {
-    let SendOnce(f) = send_once;
-    f();
-  });
+  dispatch2::Queue::main().exec_async(move || send_once.invoke());
 }
 
 pub fn create(name: &str) -> &AnyClass {
