@@ -7,7 +7,7 @@ export const en = {
   'nav.calendar': 'Calendar',
   'calendar.add': 'Add event', 'calendar.prev': 'Previous', 'calendar.next': 'Next',
   'calendar.today': 'Today', 'calendar.viewSwitch': 'Switch view', 'calendar.quick': 'Quick action',
-  'calendar.upgrade': 'Upgrade now', 'calendar.close': 'Close', 'calendar.allDay': 'All day', 'calendar.untitled': 'Untitled',
+  'calendar.close': 'Close', 'calendar.allDay': 'All day', 'calendar.untitled': 'Untitled',
   'calendar.untitledEvent': 'New event', 'calendar.more': '+{n} more',
   'calendar.empty': 'No events',
   'calendar.mode.year': 'Year', 'calendar.mode.month': 'Month', 'calendar.mode.week': 'Week',

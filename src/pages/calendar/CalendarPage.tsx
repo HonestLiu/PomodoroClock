@@ -1,11 +1,14 @@
 // 日历页 —— 7 种视图（年/月/周/日/日程/多日/多周）
 //
 // 状态全部本地：anchor（视图锚点日期）、mode（视图模式）。事件复用任务数据
-// （有 due_date 即映射为日历事件），不新建存储。视图切换、左右翻页、今天归零、
-// + 添加、星光快捷操作、事件详情弹层均在此页。
+// （有 due_date 即映射为日历事件），不新造存储。视图切换、左右翻页、今天归零、
+// + 添加、星光快捷操作、事件详情弹层、自定义右键菜单均在此页。
+//
+// 右键约定：日历区域接管原生右键菜单——事件上出「编辑/完成/删除」菜单，
+// 空白处出「新建日程」菜单；其余位置仅静默屏蔽原生菜单。
 
 import { useMemo, useRef, useState, useEffect, useCallback, forwardRef } from 'react';
-import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react';
 import type { CalEvent, CalendarViewMode } from '@/lib/calendar';
 import {
   rangeLabel, shift, tasksToEvents, weekDates, multiDayDates,
@@ -30,15 +33,28 @@ interface Popover {
   y: number;
 }
 
+/** 自定义右键菜单：带事件 = 事件操作；不带 = 空白处新建 */
+interface CalCtx {
+  x: number;
+  y: number;
+  e?: CalEvent;
+  date?: Date;
+}
+
 export function CalendarPage() {
   const { t } = useI18n();
   const tasks = useDataStore((s) => s.tasks);
   const createTask = useDataStore((s) => s.createTask);
+  const toggleTask = useDataStore((s) => s.toggleTask);
+  const deleteTask = useDataStore((s) => s.deleteTask);
+  const setEditingTask = useUiStore((s) => s.setEditingTask);
+  const askConfirm = useUiStore((s) => s.askConfirm);
 
   const [mode, setMode] = useState<CalendarViewMode>('month');
   const [anchor, setAnchor] = useState<Date>(() => new Date());
   const [now, setNow] = useState<Date>(() => new Date());
   const [popover, setPopover] = useState<Popover | null>(null);
+  const [ctx, setCtx] = useState<CalCtx | null>(null);
   const popRef = useRef<HTMLDivElement>(null);
 
   // 「今天」时间线每分钟推进
@@ -63,11 +79,22 @@ export function CalendarPage() {
   const go = useCallback((dir: 1 | -1) => setAnchor((a) => shift(mode, a, dir)), [mode]);
 
   const onEventClick = useCallback((e: CalEvent, x: number, y: number) => {
-    setPopover({ e, x: Math.min(x, window.innerWidth - 230), y: Math.min(y, window.innerHeight - 150) });
+    setCtx(null);
+    setPopover({ e, x: Math.min(x, window.innerWidth - 230), y: Math.min(y, window.innerHeight - 170) });
   }, []);
 
   const onShowMore = useCallback((key: string, x: number, y: number) => {
-    setPopover({ text: key, x: Math.min(x, window.innerWidth - 230), y: Math.min(y, window.innerHeight - 150) });
+    setPopover({ text: key, x: Math.min(x, window.innerWidth - 230), y: Math.min(y, window.innerHeight - 170) });
+  }, []);
+
+  const onEventContextMenu = useCallback((e: CalEvent, x: number, y: number) => {
+    setPopover(null);
+    setCtx({ x, y, e });
+  }, []);
+
+  const onDayContextMenu = useCallback((d: Date, x: number, y: number) => {
+    setPopover(null);
+    setCtx({ x, y, date: d });
   }, []);
 
   // 从年/月钻取
@@ -75,18 +102,39 @@ export function CalendarPage() {
   const goWeekAt = (d: Date) => { setAnchor(d); setMode('week'); };
   const selectDay = (d: Date) => { setAnchor(d); setMode('day'); };
 
-  // + 添加：在当前锚点日期创建任务并打开编辑弹层（复用既有 TaskEditModal，
+  // + 添加：在指定日期创建任务并打开编辑弹层（复用既有 TaskEditModal，
   // 与任务页「添加任务 → 编辑」一致，不新造表单）。
   // 注意：create_task 拒绝空标题，故带默认标题创建，用户随即在弹层改名。
-  const setEditingTask = useUiStore((s) => s.setEditingTask);
-  const onAdd = async () => {
-    const date = mode === 'year' ? new Date(anchor.getFullYear(), anchor.getMonth(), 1) : anchor;
+  const addAt = useCallback(async (date: Date) => {
     try {
       const task = await createTask({ title: t('calendar.untitledEvent'), dueDate: toDateKey(date) });
       setEditingTask(task.id);
     } catch {
       // 创建失败（如库不可写）静默降级，不打断日历浏览
     }
+  }, [createTask, setEditingTask, t]);
+
+  const onAdd = () => {
+    const date = mode === 'year' ? new Date(anchor.getFullYear(), anchor.getMonth(), 1) : anchor;
+    void addAt(date);
+  };
+
+  const onCtxEdit = (taskId: string) => { setCtx(null); setEditingTask(taskId); };
+  const onCtxToggle = (taskId: string) => { setCtx(null); void toggleTask(taskId); };
+  const onCtxDelete = (e: CalEvent) => {
+    setCtx(null);
+    askConfirm({
+      title: t('task.deleteTitle'),
+      message: t('task.deleteMsg', { title: e.title || t('calendar.untitled') }),
+      confirmText: t('common.delete'),
+      danger: true,
+      onConfirm: () => deleteTask(e.taskId),
+    });
+  };
+  const onCtxAdd = () => {
+    const d = ctx?.date ?? anchor;
+    setCtx(null);
+    void addAt(d);
   };
 
   const datesForTimeline = mode === 'week'
@@ -96,7 +144,16 @@ export function CalendarPage() {
       : multiDayDates(anchor);
 
   return (
-    <div className="cal-page">
+    <div
+      className="cal-page"
+      onContextMenu={(ev) => {
+        // 接管右键：屏蔽原生菜单；空白处弹软件菜单，事件上由子组件冒泡前拦下
+        ev.preventDefault();
+        if (ctx || popover) return;
+        setPopover(null);
+        setCtx({ x: ev.clientX, y: ev.clientY, date: anchor });
+      }}
+    >
       {/* 顶部导航栏 */}
       <div className="cal-topbar">
         <span className="cal-range">{rangeLabel(mode, anchor)}</span>
@@ -141,6 +198,8 @@ export function CalendarPage() {
           onSelectDay={selectDay}
           onEventClick={onEventClick}
           onShowMore={onShowMore}
+          onEventContextMenu={onEventContextMenu}
+          onDayContextMenu={onDayContextMenu}
         />
       )}
       {(mode === 'week' || mode === 'day' || mode === 'multiday') && (
@@ -150,13 +209,27 @@ export function CalendarPage() {
           now={now}
           todayKey={todayKey}
           onEventClick={onEventClick}
+          onEventContextMenu={onEventContextMenu}
+          onDayContextMenu={onDayContextMenu}
         />
       )}
       {mode === 'schedule' && (
-        <ScheduleView anchor={anchor} events={events} onEventClick={onEventClick} />
+        <ScheduleView
+          anchor={anchor}
+          events={events}
+          onEventClick={onEventClick}
+          onEventContextMenu={onEventContextMenu}
+        />
       )}
       {mode === 'multiweek' && (
-        <MultiWeekView anchor={anchor} events={events} todayKey={todayKey} onEventClick={onEventClick} />
+        <MultiWeekView
+          anchor={anchor}
+          events={events}
+          todayKey={todayKey}
+          onEventClick={onEventClick}
+          onEventContextMenu={onEventContextMenu}
+          onDayContextMenu={onDayContextMenu}
+        />
       )}
 
       {/* 底部悬浮胶囊工具栏 */}
@@ -173,7 +246,6 @@ export function CalendarPage() {
               {t(`calendar.mode.${m}`)}
             </button>
           ))}
-          <button className="cal-upgrade" onClick={() => onAdd()}>{t('calendar.upgrade')}</button>
         </div>
       </div>
 
@@ -187,13 +259,29 @@ export function CalendarPage() {
         <Sparkles size={20} />
       </button>
 
-      {/* 事件详情 / 更多 弹层 */}
+      {/* 事件详情 / 更多 弹层：可直接跳编辑、勾选完成 */}
       {popover && (
         <EventPopover
           ref={popRef}
           popover={popover}
           events={events}
+          tasks={tasks}
           onClose={() => setPopover(null)}
+          onEdit={(id) => { setPopover(null); setEditingTask(id); }}
+          onToggle={(id) => { void toggleTask(id); }}
+        />
+      )}
+
+      {/* 自定义右键菜单（接管原生菜单） */}
+      {ctx && (
+        <CalendarContextMenu
+          ctx={ctx}
+          tasks={tasks}
+          onClose={() => setCtx(null)}
+          onEdit={onCtxEdit}
+          onToggle={onCtxToggle}
+          onDelete={onCtxDelete}
+          onAdd={onCtxAdd}
         />
       )}
       <CalendarSpacer />
@@ -206,11 +294,69 @@ function CalendarSpacer() {
   return <div aria-hidden style={{ height: 72, flex: '0 0 auto' }} />;
 }
 
+const MENU_W = 160;
+const MENU_W_EMPTY = 150;
+const MENU_H_EVENT = 110;
+const MENU_H_EMPTY = 40;
+
+/** 日历右键菜单：事件 = 跳编辑 / 完成勾选 / 删除；空白 = 新建日程 */
+function CalendarContextMenu({ ctx, tasks, onClose, onEdit, onToggle, onDelete, onAdd }: {
+  ctx: CalCtx;
+  tasks: { id: string; completed: number }[];
+  onClose(): void;
+  onEdit(taskId: string): void;
+  onToggle(taskId: string): void;
+  onDelete(e: CalEvent): void;
+  onAdd(): void;
+}) {
+  const { t } = useI18n();
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const hasEvent = !!ctx.e;
+  const w = hasEvent ? MENU_W : MENU_W_EMPTY;
+  const h = hasEvent ? MENU_H_EVENT : MENU_H_EMPTY;
+  const left = Math.max(4, Math.min(ctx.x, window.innerWidth - w - 4));
+  const top = Math.max(4, Math.min(ctx.y, window.innerHeight - h - 4));
+  const done = ctx.e ? tasks.find((x) => x.id === ctx.e!.taskId)?.completed === 1 : false;
+
+  return (
+    <>
+      <div className="ctx-backdrop" onClick={onClose} onContextMenu={(e) => { e.preventDefault(); onClose(); }} />
+      <div className="ctx-menu" style={{ left, top }} role="menu">
+        {ctx.e ? (
+          <>
+            <button type="button" role="menuitem" onClick={() => onEdit(ctx.e!.taskId)}>
+              <Pencil size={13} aria-hidden /> {t('task.edit')}
+            </button>
+            <button type="button" role="menuitem" onClick={() => onToggle(ctx.e!.taskId)}>
+              <Check size={13} aria-hidden /> {done ? t('task.uncomplete') : t('task.complete')}
+            </button>
+            <button type="button" role="menuitem" className="danger" onClick={() => onDelete(ctx.e!)}>
+              <Trash2 size={13} aria-hidden /> {t('task.delete')}
+            </button>
+          </>
+        ) : (
+          <button type="button" role="menuitem" onClick={onAdd}>
+            <Plus size={13} aria-hidden /> {t('calendar.add')}
+          </button>
+        )}
+      </div>
+    </>
+  );
+}
+
 const EventPopover = forwardRef<HTMLDivElement, {
   popover: Popover;
   events: CalEvent[];
+  tasks: { id: string; completed: number }[];
   onClose(): void;
-}>(({ popover, events, onClose }, ref) => {
+  onEdit(taskId: string): void;
+  onToggle(taskId: string): void;
+}>(({ popover, events, tasks, onClose, onEdit, onToggle }, ref) => {
   const { t } = useI18n();
   const list = useMemo(() => {
     if (popover.e) return [popover.e];
@@ -224,12 +370,35 @@ const EventPopover = forwardRef<HTMLDivElement, {
 
   return (
     <div ref={ref} className="cal-popover" style={{ left: popover.x, top: popover.y }}>
-      {list.map((e) => (
-        <div key={e.taskId} style={{ padding: '4px 0', borderBottom: '1px solid #f0f0ee' }}>
-          <div className="title">{e.title || t('calendar.untitled')}</div>
-          <div className="meta">{e.allDay ? t('calendar.allDay') : rangeTime(e)}</div>
-        </div>
-      ))}
+      {list.map((e) => {
+        const done = tasks.find((x) => x.id === e.taskId)?.completed === 1;
+        return (
+          <div key={e.taskId} className="cal-pop-row">
+            <button
+              type="button"
+              className={`cal-pop-check${done ? ' done' : ''}`}
+              aria-label={done ? t('task.uncomplete') : t('task.complete')}
+              aria-pressed={done}
+              onClick={() => onToggle(e.taskId)}
+            >
+              {done && <Check size={11} strokeWidth={3} aria-hidden />}
+            </button>
+            <div className="body">
+              <div className={`title${done ? ' done' : ''}`}>{e.title || t('calendar.untitled')}</div>
+              <div className="meta">{e.allDay ? t('calendar.allDay') : rangeTime(e)}</div>
+            </div>
+            <button
+              type="button"
+              className="cal-pop-edit"
+              aria-label={t('task.edit')}
+              title={t('task.edit')}
+              onClick={() => onEdit(e.taskId)}
+            >
+              <Pencil size={13} aria-hidden />
+            </button>
+          </div>
+        );
+      })}
       <button
         className="cal-btn"
         style={{ marginTop: 8, height: 26, fontSize: 12 }}

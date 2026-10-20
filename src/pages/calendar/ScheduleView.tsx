@@ -1,5 +1,5 @@
 // 日程视图：垂直时间线列表。左侧日期 + 时间 + 空心圆点节点，期间以竖线相连；
-// 右侧宽圆角事件卡片（标题 + 时间跨度）。
+// 右侧宽圆角事件卡片（标题 + 时间跨度）。日期文字与节点圆圈保持间距，不粘连。
 
 import type { CalEvent } from '@/lib/calendar';
 import { eventsOfDay, weekdayName } from '@/lib/calendar';
@@ -9,9 +9,10 @@ interface Props {
   anchor: Date;
   events: CalEvent[];
   onEventClick(e: CalEvent, x: number, y: number): void;
+  onEventContextMenu(e: CalEvent, x: number, y: number): void;
 }
 
-export function ScheduleView({ anchor, events, onEventClick }: Props) {
+export function ScheduleView({ anchor, events, onEventClick, onEventContextMenu }: Props) {
   const { t } = useI18n();
   const dayEvents = eventsOfDay(events, anchor).slice().sort(byTime);
   const dateLabel = `${anchor.getDate()} ${weekdayName(anchor)}`;
@@ -31,6 +32,11 @@ export function ScheduleView({ anchor, events, onEventClick }: Props) {
                 className="cal-sched-card"
                 style={{ background: e.color }}
                 onClick={(ev) => onEventClick(e, ev.clientX, ev.clientY)}
+                onContextMenu={(ev) => {
+                  ev.preventDefault();
+                  ev.stopPropagation();
+                  onEventContextMenu(e, ev.clientX, ev.clientY);
+                }}
               >
                 <div className="title">{e.title}</div>
                 <div className="time">{timeText(e, t('calendar.allDay'))}</div>

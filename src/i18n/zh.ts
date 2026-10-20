@@ -9,7 +9,7 @@ export const zh = {
   'nav.calendar': '日历',
   'calendar.add': '添加日程', 'calendar.prev': '上一个', 'calendar.next': '下一个',
   'calendar.today': '今天', 'calendar.viewSwitch': '视图切换', 'calendar.quick': '快速操作',
-  'calendar.upgrade': '立即升级', 'calendar.close': '关闭', 'calendar.allDay': '全天', 'calendar.untitled': '未命名',
+  'calendar.close': '关闭', 'calendar.allDay': '全天', 'calendar.untitled': '未命名',
   'calendar.untitledEvent': '新日程', 'calendar.more': '+{n} 更多',
   'calendar.empty': '暂无日程',
   'calendar.mode.year': '年视图', 'calendar.mode.month': '月视图', 'calendar.mode.week': '周视图',

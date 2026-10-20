@@ -15,9 +15,14 @@ interface Props {
   onSelectDay(date: Date): void;          // 点击日期（含选中态）
   onEventClick(e: CalEvent, x: number, y: number): void;
   onShowMore(key: string, x: number, y: number): void;
+  onEventContextMenu(e: CalEvent, x: number, y: number): void;
+  onDayContextMenu?(d: Date, x: number, y: number): void;
 }
 
-export function MonthView({ anchor, events, todayKey, onSelectDay, onEventClick, onShowMore }: Props) {
+export function MonthView({
+  anchor, events, todayKey, onSelectDay, onEventClick, onShowMore,
+  onEventContextMenu, onDayContextMenu,
+}: Props) {
   const { t } = useI18n();
   const cells = monthGrid(anchor.getFullYear(), anchor.getMonth());
   const selectedKey = toDateKey(anchor);
@@ -41,7 +46,17 @@ export function MonthView({ anchor, events, todayKey, onSelectDay, onEventClick,
             .concat(k === selectedKey ? ['selected'] : [])
             .join(' ');
           return (
-            <div key={k} className={cls} onClick={() => onSelectDay(c.date)}>
+            <div
+              key={k}
+              className={cls}
+              onClick={() => onSelectDay(c.date)}
+              onContextMenu={(ev) => {
+                if (!onDayContextMenu) return;
+                ev.preventDefault();
+                ev.stopPropagation();
+                onDayContextMenu(c.date, ev.clientX, ev.clientY);
+              }}
+            >
               <span className="cal-day-num">{c.date.getDate()}</span>
               <div className="cal-day-events">
                 {shown.map((ev) => (
@@ -50,6 +65,11 @@ export function MonthView({ anchor, events, todayKey, onSelectDay, onEventClick,
                     className="cal-ev-chip"
                     style={{ background: ev.color }}
                     onClick={(e) => { e.stopPropagation(); onEventClick(ev, e.clientX, e.clientY); }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onEventContextMenu(ev, e.clientX, e.clientY);
+                    }}
                   >
                     {fmtTitleTime(ev)}
                   </div>
