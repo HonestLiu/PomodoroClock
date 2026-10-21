@@ -4,7 +4,7 @@
 import { useMemo, useState, type CSSProperties } from 'react';
 import {
   CalendarDays, CalendarClock, CalendarRange, CheckCircle2, ChevronDown, ChevronRight, Folder, FolderPlus,
-  GripVertical, Heart, History, ListTodo, Plus, Search, Sun, Sunrise, User as UserIcon,
+  GripVertical, Heart, History, ListTodo, Plus, Search, Sparkles, Sun, Sunrise, User as UserIcon,
 } from 'lucide-react';
 import { useUiStore } from '@/stores/uiStore';
 import { useDataStore } from '@/stores/dataStore';
@@ -254,8 +254,10 @@ export function Sidebar() {
           );
         })}
 
-        {/* 日历入口（7 视图组件，2026-10-20 需求）：独立页、纯导航无时长/角标。
+        {/* 日历 + 纪念自成一组（用户需求 2026-10-21）：上方一条分割线与「已完成/记录」归档区隔开，
+            组内两项相邻不加线；下方沿用清单区那条条件分割线。
             刻意排在归档项之后，保持上方主分类/归档的 .nav-item 序号不变（tools/shoot.mjs 依赖）。 */}
+        <div className="nav-divider" role="separator" />
         <button
           className="nav-item nav-calendar"
           aria-current={activeKey === 'calendar' ? 'page' : undefined}
@@ -271,8 +273,18 @@ export function Sidebar() {
           aria-current={activeKey === 'countdown' ? 'page' : undefined}
           onClick={() => ui.navigate({ name: 'countdown' })}
         >
-          <Heart size={15} style={{ color: '#E85D3F', flex: '0 0 auto' }} aria-hidden />
+  <Heart size={15} style={{ color: '#E85D3F', flex: '0 0 auto' }} aria-hidden />
           <span className="nav-label">{t('nav.countdown')}</span>
+        </button>
+
+        {/* AI 助手（docs/05-modules/ai.md）：与日历/纪念同组，排在「纪念」之后 */}
+        <button
+          className="nav-item nav-ai"
+          aria-current={activeKey === 'ai' ? 'page' : undefined}
+          onClick={() => ui.navigate({ name: 'ai' })}
+        >
+          <Sparkles size={15} style={{ color: '#4A7DE0', flex: '0 0 auto' }} aria-hidden />
+          <span className="nav-label">{t('nav.ai')}</span>
         </button>
 
         {/* 清单夹 + 顶层自定义清单：有内容时再补一条分割线（排除内置「任务」清单） */}

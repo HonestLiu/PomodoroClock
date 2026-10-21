@@ -14,7 +14,7 @@ fn blank(v: Option<String>) -> Option<String> {
 use crate::models::{CreateTaskArgs, ListTasksArgs, Task, UpdateTaskPatch};
 
 const TASK_COLS: &str = "id, list_id, title, notes, est_pomodoros, due_date, due_time, url, urgent, \
-    repeat, lead_remind, tags, flag, priority, reminded_at, completed, completed_at, sort_order, created_at, updated_at";
+    repeat, lead_remind, tags, flag, priority, reminded_at, completed, completed_at, sort_order, created_at, updated_at, actual_minutes, parent_id";
 
 fn row_to_task(r: &rusqlite::Row) -> rusqlite::Result<Task> {
     let tags: String = r.get(11)?;
@@ -39,6 +39,8 @@ fn row_to_task(r: &rusqlite::Row) -> rusqlite::Result<Task> {
         sort_order: r.get(17)?,
         created_at: r.get(18)?,
         updated_at: r.get(19)?,
+        actual_minutes: r.get(20)?,
+        parent_id: blank(r.get(21)?),
     })
 }
 
@@ -157,8 +159,8 @@ pub fn create_task_impl(conn: &rusqlite::Connection, args: CreateTaskArgs) -> Ap
     };
 
     conn.execute(
-        "INSERT INTO tasks (id, list_id, title, notes, est_pomodoros, due_date, completed, completed_at, sort_order, created_at, updated_at, due_time, url, urgent, repeat, lead_remind, tags, flag, priority)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, NULL, ?7, ?8, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+        "INSERT INTO tasks (id, list_id, title, notes, est_pomodoros, due_date, completed, completed_at, sort_order, created_at, updated_at, due_time, url, urgent, repeat, lead_remind, tags, flag, priority, parent_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, NULL, ?7, ?8, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
         params![
             id,
             list_id,
@@ -176,6 +178,7 @@ pub fn create_task_impl(conn: &rusqlite::Connection, args: CreateTaskArgs) -> Ap
             serde_json::to_string(args.tags.as_deref().unwrap_or(&[])).unwrap_or_else(|_| "[]".into()),
             args.flag.unwrap_or(0),
             args.priority.unwrap_or_else(|| "none".into()),
+            args.parent_id,
         ],
     )?;
     read_task(&conn, &id)

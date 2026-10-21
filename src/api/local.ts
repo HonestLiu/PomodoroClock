@@ -425,6 +425,8 @@ export const localApi: Api = {
         sort_order: d.tasks.filter((x) => x.list_id === listId).length,
         created_at: Date.now(),
         updated_at: Date.now(),
+        actual_minutes: null,
+        parent_id: args.parentId ?? null,
       };
       d.tasks.push(t);
       return { ...t };

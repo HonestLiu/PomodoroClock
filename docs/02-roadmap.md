@@ -29,6 +29,7 @@
 | 系统级设置：开机自启 | ⬜ | 开关已存（`SettingsModal.tsx:47`），但 `tauri-plugin-autostart` 未安装、无系统行为（`Cargo.toml` 无该依赖） |
 | 导出/导入 JSON | ⬜ | 规格预留，未实现 |
 | 搜索增强 | ✅ | 即时过滤/分组、↑↓、回车定位高亮（`components/SearchOverlay.tsx:2,27-59`） |
+| AI 能力（4 功能：NL 建任务/拆解/每日计划/日报周报） | 🔶 M1+M2 已落地 | 设置页可配 Claude/OpenAI 的 URL+Key+模型（Key 只存本机）；**独立 AI 页（网页式对话）**+侧边栏入口（纪念之后）+顶栏单个 AI 按钮开右侧抽屉（共享会话）；NL 解析在气泡内确认才落库、可整批撤销；未配置→降级。M3–M5 待办 |
 | 倒数纪念日（独立日期域：倒数/已过/每年重复/月/自定义 + 提醒） | ✅ 新增 | `docs/05-modules/countdown.md`；独立表 `countdowns`（SQLite+IDB 双份，IDB v4）、纯函数 `lib/countdown.ts`（43 项断言入 check-all）、独立 `useCountdownStore`；提醒走 `notifications(type=countdown_remind)`；双视图+置顶排序+空态；P2 首页小组件未做 |
 | 成就/高级版/好友 | 🔶 占位 | 符合"规格定义占位"；成就页已按 stats 实时算 4 条进度（`PlaceholderModal.tsx:33-50`），无解锁持久化 |
 | 账号中心 + PocketBase 云同步 | ✅ 新增 | 设置→账号即软件账号：登录/注册、改密码（需当前密码）、忘记密码（重置邮件）、同步区、头像上传/移除（PB 文件字段）、昵称就地编辑（`users.name`，邮箱只读）、退出（**会话级、不清本地数据**）；离线优先、本地为真相源；冲突按 rev→updated→device 裁决，PB 不可达静默降级（详见 `03-architecture.md` §账户与云同步）；端到端 36/36 已实测 |
@@ -64,3 +65,4 @@ P1 已全部落地（见 `08-changelog.md`）。当前按性价比排序：
 5. ✅ 倒计时/正计时语义已落地（2026-10-18）；剩「每模式独立时长」与「白噪音按模式」
 6. 成就系统实质化与解锁持久化
 7. **倒数纪念日**（新需求，独立数据域，设计与验收见 `docs/05-modules/countdown.md`）
+8. **AI 能力**（见 `docs/05-modules/ai.md`：设计已定稿，需先定 LLM 提供方/模型/密钥；按 M1 基础设施 → M5 报告闭环推进）

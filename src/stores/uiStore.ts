@@ -9,7 +9,8 @@ export type Route =
   | { name: SmartKey }
   | { name: 'list'; id: string }
   | { name: 'calendar' }
-  | { name: 'countdown' };
+  | { name: 'countdown' }
+  | { name: 'ai' };
 
 export type SettingsTab = 'account' | 'premium' | 'general' | 'pomodoro' | 'lists' | 'appearance' | 'about';
 
@@ -32,6 +33,8 @@ interface UiState {
   premiumOpen: boolean;
   friendsOpen: boolean;
   achievementsOpen: boolean;
+  /** 右侧 AI 抽屉（其他页面点 AI 入口打开；docs/05-modules/ai.md） */
+  aiDrawerOpen: boolean;
   /** 白噪音选择弹窗（计时页工具条与设置页共用） */
   noiseOpen: boolean;
   /** 新建清单夹弹窗 */
@@ -60,6 +63,7 @@ interface UiState {
   openPremium(v: boolean): void;
   openFriends(v: boolean): void;
   openAchievements(v: boolean): void;
+  openAiDrawer(v?: boolean): void;
   openNoise(v: boolean): void;
   openFolderCreate(v: boolean): void;
   openListCreate(v: boolean): void;
@@ -92,6 +96,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   premiumOpen: false,
   friendsOpen: false,
   achievementsOpen: false,
+  aiDrawerOpen: false,
   noiseOpen: false,
   folderCreateOpen: false,
   listCreateOpen: false,
@@ -114,6 +119,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   openPremium: (v) => set({ premiumOpen: v, notifOpen: false, friendsOpen: false, achievementsOpen: false }),
   openFriends: (v) => set({ friendsOpen: v, notifOpen: false, premiumOpen: false, achievementsOpen: false }),
   openAchievements: (v) => set({ achievementsOpen: v, notifOpen: false, premiumOpen: false, friendsOpen: false }),
+  openAiDrawer: (v = true) => set({ aiDrawerOpen: v, notifOpen: false, premiumOpen: false, friendsOpen: false, achievementsOpen: false, noiseOpen: false }),
   openNoise: (v) => set({ noiseOpen: v, notifOpen: false, premiumOpen: false, friendsOpen: false, achievementsOpen: false }),
   openFolderCreate: (v) => set({ folderCreateOpen: v, folderEditId: null }),
   openListCreate: (v) => set({ listCreateOpen: v, listEditId: null }),
@@ -126,7 +132,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   toggleShowCompleted: (key) =>
     set((s) => ({ showCompleted: { ...s.showCompleted, [key]: !s.showCompleted[key] } })),
   closeAllOverlays: () =>
-    set({ reportOpen: false, settingsOpen: false, searchOpen: false, notifOpen: false, premiumOpen: false, friendsOpen: false, achievementsOpen: false, noiseOpen: false, folderCreateOpen: false, listCreateOpen: false, contextMenu: null, listEditId: null, folderEditId: null }),
+    set({ reportOpen: false, settingsOpen: false, searchOpen: false, notifOpen: false, premiumOpen: false, friendsOpen: false, achievementsOpen: false, aiDrawerOpen: false, noiseOpen: false, folderCreateOpen: false, listCreateOpen: false, contextMenu: null, listEditId: null, folderEditId: null }),
   askConfirm: (confirm) => set({ confirm }),
   clearConfirm: () => set({ confirm: null }),
   triggerHighlight: (highlight) => set({ highlight }),

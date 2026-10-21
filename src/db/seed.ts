@@ -118,6 +118,8 @@ export function buildSeed(opts: { empty?: boolean } = {}): DBShape {
     sort_order: sort,
     created_at: now,
     updated_at: now,
+    actual_minutes: null,
+    parent_id: null,
   });
 
   // S1：数学真题 7.8 / 408真题 / 单词，到期日 10月13日（截图当日 10月14日 -> 昨天）

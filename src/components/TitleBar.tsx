@@ -2,7 +2,7 @@
 // macOS 使用 titleBarStyle: Overlay 保留系统红黄绿（见 src-tauri/tauri.conf.json）；
 // Windows/Linux 使用 decorations:false + 本组自绘按钮。
 
-import { Crown, Users, Bell, Trophy, BarChart3, Settings as SettingsIcon } from 'lucide-react';
+import { Crown, Users, Bell, Trophy, BarChart3, Settings as SettingsIcon, Sparkles } from 'lucide-react';
 import { useUiStore } from '@/stores/uiStore';
 import { useDataStore, unreadCount } from '@/stores/dataStore';
 import { isTauri } from '@/api';
@@ -47,6 +47,17 @@ export function TitleBar() {
         <button className="icon-btn" title={t('title.achievements')} aria-label={t('title.achievements')} aria-pressed={ui.achievementsOpen} onClick={() => ui.openAchievements(!ui.achievementsOpen)}><Trophy size={16} aria-hidden /></button>
         <button className={`icon-btn${ui.reportOpen ? ' active' : ''}`} title={t('report.title')} aria-label={t('report.title')} aria-expanded={ui.reportOpen} onClick={() => ui.openReport()}><BarChart3 size={16} aria-hidden /></button>
         <button className="icon-btn" title={t('settings.title')} aria-label={t('settings.title')} aria-expanded={ui.settingsOpen} onClick={() => ui.openSettings()}><SettingsIcon size={16} aria-hidden /></button>
+        {/* AI 入口（docs/05-modules/ai.md）：其他页面点开右侧 AI 抽屉；在 AI 页本身不重复出现 */}
+        {ui.route.name !== 'ai' && (
+          <button
+            className="icon-btn ai-entry"
+            title={t('nav.ai')} aria-label={t('nav.ai')}
+            aria-expanded={ui.aiDrawerOpen}
+            onClick={() => ui.openAiDrawer(!ui.aiDrawerOpen)}
+          >
+            <Sparkles size={16} aria-hidden />
+          </button>
+        )}
       </div>
     </div>
   );

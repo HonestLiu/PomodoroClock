@@ -28,6 +28,7 @@ export interface CreateTaskArgs {
   priority?: TaskPriority;
   estPomodoros?: number;
   notes?: string;
+  parentId?: string | null;
 }
 
 /** 建清单入参：图标可省略（省略则用默认单色原点） */

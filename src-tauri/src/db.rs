@@ -62,6 +62,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   reminded_at   INTEGER DEFAULT NULL,
   completed     INTEGER DEFAULT 0,
   completed_at  INTEGER DEFAULT NULL,
+  actual_minutes INTEGER DEFAULT NULL,   -- AI 估时校准闭环（docs/05-modules/ai.md）
+  parent_id     TEXT REFERENCES tasks(id) ON DELETE CASCADE,  -- 子任务归属（AI 拆解/NL 建任务）
   sort_order    INTEGER DEFAULT 0,
   created_at    INTEGER NOT NULL,
   updated_at    INTEGER NOT NULL
@@ -121,6 +123,25 @@ CREATE TABLE IF NOT EXISTS countdowns (
   updated_at    INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_countdowns_date ON countdowns(date);
+
+CREATE TABLE IF NOT EXISTS ai_batches (
+  batch_id   TEXT PRIMARY KEY,
+  source     TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  status     TEXT NOT NULL DEFAULT 'applied',
+  task_ids   TEXT
+);
+
+CREATE TABLE IF NOT EXISTS estimate_calib (
+  id          TEXT PRIMARY KEY,
+  list_id     TEXT, tag TEXT,
+  task_id     TEXT NOT NULL,
+  actual_min  INTEGER NOT NULL,
+  est_min     REAL NOT NULL,
+  factor      REAL NOT NULL,
+  created_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_calib_key ON estimate_calib(list_id, tag);
 
 CREATE TABLE IF NOT EXISTS timer_state (
   id         INTEGER PRIMARY KEY CHECK (id = 1),
@@ -294,6 +315,8 @@ fn migrate_task_columns(conn: &Connection) -> AppResult<()> {
         ("flag", "ALTER TABLE tasks ADD COLUMN flag INTEGER NOT NULL DEFAULT 0"),
         ("priority", "ALTER TABLE tasks ADD COLUMN priority TEXT NOT NULL DEFAULT 'none'"),
         ("reminded_at", "ALTER TABLE tasks ADD COLUMN reminded_at INTEGER"),
+        ("actual_minutes", "ALTER TABLE tasks ADD COLUMN actual_minutes INTEGER"),
+        ("parent_id", "ALTER TABLE tasks ADD COLUMN parent_id TEXT"),
     ] {
         if !cols.iter().any(|c| c == col) {
             conn.execute_batch(ddl)?;
@@ -519,6 +542,10 @@ pub fn load_settings(conn: &Connection) -> AppResult<Settings> {
             "noise_volume" => s.noise_volume = v.parse().unwrap_or(s.noise_volume),
             "theme" => s.theme = v,
             "language" => s.language = v,
+            "ai_provider" => s.ai_provider = v,
+            "ai_base_url" => s.ai_base_url = v,
+            "ai_api_key" => s.ai_api_key = v,
+            "ai_model" => s.ai_model = v,
             "noise" => s.noise = v,
             "wallpaper" => s.wallpaper = v,
             "motto" => s.motto = v,
@@ -565,6 +592,8 @@ pub fn clear_all(conn: &mut Connection) -> AppResult<()> {
     tx.execute("DELETE FROM goals", [])?;
     tx.execute("DELETE FROM timer_state", [])?;
     tx.execute("DELETE FROM countdowns", [])?;
+    tx.execute("DELETE FROM ai_batches", [])?;
+    tx.execute("DELETE FROM estimate_calib", [])?;
     // 簿记一并清掉：本地已无这些行，墓碑/脏标记/shadow 都失去意义。
     // folders 不参与 clear_all（沿用原行为），故保留 folders 的 shadow。
     tx.execute("DELETE FROM sync_dirty", [])?;

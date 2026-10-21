@@ -60,6 +60,9 @@ pub struct Task {
     pub sort_order: i64,
     pub created_at: i64,
     pub updated_at: i64,
+    /// AI 估时校准（docs/05-modules/ai.md）与父子归属
+    pub actual_minutes: Option<i64>,
+    pub parent_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -181,6 +184,11 @@ pub struct Settings {
     pub motto: String,
     /// 启动页：'timer' = 番茄钟展开视图（默认）；其余为侧边栏页面键
     pub startup_page: String,
+    /// AI 配置（docs/05-modules/ai.md）：provider=none 未配置；api_key 仅本地存储、不同步云端
+    pub ai_provider: String,
+    pub ai_base_url: String,
+    pub ai_api_key: String,
+    pub ai_model: String,
 }
 
 impl Default for Settings {
@@ -204,6 +212,10 @@ impl Default for Settings {
             wallpaper: "waves".into(),
             motto: String::new(),
             startup_page: "timer".into(),
+            ai_provider: "none".into(),
+            ai_base_url: String::new(),
+            ai_api_key: String::new(),
+            ai_model: String::new(),
         }
     }
 }
@@ -236,6 +248,8 @@ pub struct CreateTaskArgs {
     pub priority: Option<String>,
     pub est_pomodoros: Option<f64>,
     pub notes: Option<String>,
+    /// 子任务归属（AI 拆解 / 自然语言建任务）
+    pub parent_id: Option<String>,
 }
 
 /// 区分「字段缺席」与「显式 null」：缺席 -> None，null -> Some(None)。

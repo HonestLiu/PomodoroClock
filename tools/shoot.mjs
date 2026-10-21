@@ -75,6 +75,16 @@ try {
     fail(`首屏没有 .task-item（空态元素 ${empty} 个）——首启种子数据可能没写入。body 片段：${body}`);
   }
   await page.waitForTimeout(600);
+
+  // 启动页可配置（e1a72b6）后默认 startup_page='timer'，preview 的全新档案会直接展开专注界面；
+  // 它是整窗覆盖层，会拦截后续所有点击 —— 先收起，再截 S1（S1 按 PRD 应是任务视图）。
+  if (await page.locator('.timer-screen').count()) {
+    const bootClose = page.locator('.timer-close');
+    if (await bootClose.count()) await bootClose.click();
+    else await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+  }
+  if (await page.locator('.timer-screen').count()) throw new Error('无法关闭启动时展开的专注界面，后续检查会全被拦截');
   await shot('S1-tasks');
 
   // 「今天」视图：种子任务到期日=昨天（复刻 S1 截图），按逾期留驻规则应全部留在今天，
@@ -142,20 +152,33 @@ try {
   const navStruct = await page.evaluate(() => {
     const items = [...document.querySelectorAll('.nav .nav-item')];
     const metaCount = (el) => el.querySelectorAll('.nav-time, .nav-count').length;
+    const cal = document.querySelector('.nav .nav-calendar');
     return {
       total: items.length,
       mainMeta: [0, 1, 2, 3, 4].map((i) => metaCount(items[i])),
       archiveMeta: [5, 6].map((i) => metaCount(items[i])),
       archiveClass: [5, 6].map((i) => items[i].classList.contains('nav-archive')),
       dividers: document.querySelectorAll('.nav .nav-divider').length,
+      // 7..9 = 日历 / 纪念 / AI（纯导航、无时长角标）；断言类名而非文案，两种语言都要成立
+      utilClasses: [7, 8, 9].map((i) => (items[i]?.className ?? '')),
+      utilMeta: [7, 8, 9].map((i) => metaCount(items[i])),
+      // 「日历+纪念」自成一组：组前必须有一条分隔线（用户需求 2026-10-21）
+      dividerBeforeCalendar: !!cal?.previousElementSibling?.classList.contains('nav-divider'),
     };
   });
-  if (navStruct.total !== 7) fail(`侧边栏导航应为 7 项，实际 ${navStruct.total}`);
-  if (navStruct.mainMeta.some((n) => n !== 2)) fail(`主分类 5 项应各有「时长+角标」，实际 ${JSON.stringify(navStruct.mainMeta)}`);
+  // 5 主分类 + 2 归档 + 日历 + 纪念 + AI = 10
+  if (navStruct.total !== 10) fail(`侧边栏导航应为 10 项（主分类5+归档2+日历+纪念+AI），实际 ${navStruct.total}`);
+  else if (navStruct.utilClasses.some((c) => !/nav-calendar|nav-countdown|nav-ai/.test(c))) {
+    fail(`第 7/8/9 项应为 .nav-calendar / .nav-countdown / .nav-ai，实际 ${JSON.stringify(navStruct.utilClasses)}`);
+  } else if (navStruct.utilMeta.some((n) => n !== 0)) {
+    fail(`日历/纪念/AI 不应有时长/角标，实际 ${JSON.stringify(navStruct.utilMeta)}`);
+  } else if (!navStruct.dividerBeforeCalendar) {
+    fail('「日历+纪念」组前缺少分隔线（.nav-divider）');
+  } else if (navStruct.mainMeta.some((n) => n !== 2)) fail(`主分类 5 项应各有「时长+角标」，实际 ${JSON.stringify(navStruct.mainMeta)}`);
   else if (navStruct.archiveMeta.some((n) => n !== 0)) fail(`归档 2 项不应有时长/角标，实际 ${JSON.stringify(navStruct.archiveMeta)}`);
   else if (navStruct.archiveClass.some((x) => !x)) fail('归档项缺少 .nav-archive 类');
   else if (navStruct.dividers < 1) fail('归档区上方缺少分隔线（.nav-divider）');
-  else ok(`侧边栏分组正确（主分类 5 项带数字；归档 2 项纯文本；分隔线 ${navStruct.dividers} 条）`);
+  else ok(`侧边栏分组正确（主分类5带数字；归档2纯文本；日历+纪念+AI 一组且组前有分隔线；分隔线共 ${navStruct.dividers} 条）`);
 
   // 当前高亮的侧边栏序号（只断言结构与序号，不碰任何文案：文案走 i18n，两种语言都要成立）
   const activeNavIndex = () => page.locator('.nav-item')

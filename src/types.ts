@@ -44,6 +44,39 @@ export type LeadRemind = 'none' | '1d' | '2d' | '1w';
 /** 优先级：none=未设置（界面隐藏）；低/中/高 */
 export type TaskPriority = 'none' | 'low' | 'medium' | 'high';
 
+/** AI LLM 提供方（docs/05-modules/ai.md）：none=未配置；claude/openai 走各自 chat API 格式 */
+export type AiProvider = 'none' | 'claude' | 'openai';
+
+/** NL 解析出的澄清问题（歧义时不猜，让用户点选） */
+export interface AiClarify {
+  id: string;
+  text: string;
+  options: string[];
+  default?: number;
+}
+
+export type AiFieldKey = 'title' | 'project' | 'due' | 'est' | 'priority' | 'repeat';
+/** 每个抽取字段的置信度与原文片段（前端高亮 + 低置信强调） */
+export type AiProvenance = Partial<Record<AiFieldKey, { confidence: number; span: [number, number] }>>;
+
+/** NL 解析出的一个任务候选（预览态；adopt 才落库） */
+export interface AiTaskCandidate {
+  id: string;
+  title: string;
+  list_id: string | null;       // 项目（已解析为清单 id）
+  list_name: string | null;     // 项目（原始名，便于展示/未匹配提示）
+  due_date: string | null;      // 'YYYY-MM-DD'
+  due_time: string | null;      // 'HH:MM'
+  est_min: number | null;       // 预计总耗时（分钟）
+  priority: TaskPriority;
+  repeat: Recurrence;
+  parent_id: string | null;     // 同批内父任务 candidate id（父子关系）
+  raw_due: string;              // 截止时间原文（raw_text）
+  prov: AiProvenance;
+  raw: string;                  // 整句原文
+  clarify?: string;             // 需用户先答的澄清问题 id
+}
+
 export interface Task {
   id: string;
   list_id: string | null;
@@ -65,6 +98,8 @@ export interface Task {
   sort_order: number;
   created_at: number;
   updated_at: number;
+  actual_minutes: number | null; // AI 估时校准：累计实际专注分钟
+  parent_id: string | null;      // 子任务归属（AI 拆解/NL 建任务）；null=顶层
 }
 
 export interface FocusRecord {
@@ -151,6 +186,11 @@ export interface Settings {
   motto: string;
   /** 启动页：'timer' = 番茄钟展开视图（默认）；其余 = 对应侧边栏页面。设置→通用 可改。 */
   startup_page: StartupPage;
+  /** AI 配置（docs/05-modules/ai.md）：provider=none 未配置；api_key 仅本地存储、不同步云端 */
+  ai_provider: AiProvider;
+  ai_base_url: string;
+  ai_api_key: string;
+  ai_model: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -172,10 +212,14 @@ export const DEFAULT_SETTINGS: Settings = {
   wallpaper: 'waves',
   motto: '',
   startup_page: 'timer',
+  ai_provider: 'none',
+  ai_base_url: '',
+  ai_api_key: '',
+  ai_model: '',
 };
 
 /** 启动页配置值：'timer' = 番茄钟展开视图，其余为侧边栏页面 */
-export type StartupPage = 'timer' | SmartKey | 'calendar' | 'countdown';
+export type StartupPage = 'timer' | SmartKey | 'calendar' | 'countdown' | 'ai';
 
 /** 侧边栏 / 路由使用的分类键
  *  - `completed` = 已完成任务归档（所有 completed=1 的任务）

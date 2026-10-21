@@ -48,6 +48,11 @@
 | 40 | P3 | P2 | 倒数纪念日·页面：侧边栏「纪念」入口 + `CountdownPage`（卡片/列表双视图、置顶+剩余天数排序、已过/未来分区、空态引导）+ `CountdownEditModal` 创建/编辑 + 二次确认删除 + i18n zh/en | countdown ★2 | M | ✅ 已完成 |
 | 41 | P3 | P2 | 倒数纪念日·提醒：`lib/countdownRemind.ts`（当天/提前 N 天，自然日零点触发）+ App 30s 巡检 + `notifications(type=countdown_remind)` + `reminded_at` 按触发日去重 + 权限降级提示 | notify ★ | M | ✅ 已完成 |
 | 42 | P3 | P2 | 倒数纪念日·增强：每月/自定义间隔 `advanceOnce`、首页小组件 `CountdownWidget`、深色主题核对 | countdown ★3 | S | 🔶 部分（每月/自定义已做，首页小组件未做） |
+| 43 | AI | P1 | **AI-M1 基础设施**：`lib/ai/providers.ts` + `runStructuredLLM`（结构化 JSON/校验重试/时间上下文注入 NOW·星期·tz）+ `aiPreviewStore` 预览态 + `applyBatch/undo`（batch_id 一键撤销）+ 建表 `ai_batches`/`estimate_calib` + `tasks.actual_minutes` 列 + fake LLM 测试推进 | ai ★★ | L | ✅ 已完成 |
+| 44 | AI | P1 | **AI-M2 自然语言创建任务**：NL→多任务+父子拆分、confidence/source_span、低置信强调、clarify 点选、原文高亮、先预览后落库、LLM 挂→手动表单 | ai ★★ | M | ✅ 已完成 |
+| 45 | AI | P1 | **AI-M3 AI 任务拆解**：≥3 层草稿树+验收标准、依赖无环、部分采纳、子树重拆（第 N 次差异）、树可拖拽编层 | ai ★★ | M | #43 |
+| 46 | AI | P1 | **AI-M4 AI 每日计划**：规则过滤(must/should/defer)+LLM 排序取舍+`lib/ai/timebox.ts` 确定性装箱(容量×0.82 缓冲/依赖/同项目聚合/块上限)、超载冲突提示、手动重排增量重算不重调 LLM | ai ★★★ | L | #43 |
+| 47 | AI | P1 | **AI-M5 日报/周报 + 估时校准闭环**：五段报告（完成/偏移钉子任务/工时因子/风险/≤3 建议）、`actual_minutes` 在完成时准备、样本写 `estimate_calib`（滑动窗口+MAD）、功能一/二/三估算带 factor | ai ★★ | M | #43,#46 |
 
 ## 现状备注（2026-10-18 核验）
 - **#1–#6 属实**：任务更多菜单/右键（`TaskView.tsx`）、拖拽排序（`sort_order` 写回）、系统通知（`lib/systemNotify.ts` + `Cargo.toml` notification 插件 + `timerStore.ts::checkExpiry` 门控，真机弹窗待验）、搜索回车定位（`SearchOverlay.tsx:38-59`）、清单拖拽+默认清单、会话恢复提示（`timerStore` 恢复后 `wasRestored`）。#14 导出/导入未实现（仅 `api/local.ts:399` 测试注释）；#15 未装插件（`Cargo.toml` 无 autostart）。

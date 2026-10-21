@@ -12,10 +12,12 @@ import { RecordsView } from '@/pages/RecordsView';
 import { DoneView } from '@/pages/DoneView';
 import { CalendarPage } from '@/pages/calendar/CalendarPage';
 import { CountdownPage } from '@/pages/CountdownPage';
+import { AiPage } from '@/pages/AiPage';
 import { ReportModal } from '@/modals/ReportModal';
 import { SettingsModal } from '@/modals/SettingsModal';
 import { TimerScreen } from '@/modals/TimerScreen';
 import { NoisePicker } from '@/components/NoisePicker';
+import { AiDrawer } from '@/components/AiDrawer';
 import { TaskEditModal } from '@/modals/TaskEditModal';
 import { PlaceholderModal } from '@/modals/PlaceholderModal';
 import { CreateFolderModal } from '@/modals/CreateFolderModal';
@@ -66,6 +68,7 @@ export default function App() {
       if (onTimer) useTimerStore.getState().openScreen(true);
       else if (startup === 'calendar') useUiStore.getState().navigate({ name: 'calendar' });
       else if (startup === 'countdown') useUiStore.getState().navigate({ name: 'countdown' });
+      else if (startup === 'ai') useUiStore.getState().navigate({ name: 'ai' });
       else if (startup) useUiStore.getState().navigate({ name: startup });
       setBooted(true);
       // 云同步：不阻塞启动（PB 不可达时静默降级，本地照常可用）
@@ -251,11 +254,13 @@ export default function App() {
             : route.name === 'records' ? <RecordsView />
             : route.name === 'completed' ? <DoneView />
               : route.name === 'countdown' ? <CountdownPage />
-                : <TaskView />}
+                : route.name === 'ai' ? <AiPage />
+                  : <TaskView />}
         </main>
       </div>
 
       <FloatWindow />
+      <AiDrawer />
       <NotificationPanel />
       <SearchOverlay />
 

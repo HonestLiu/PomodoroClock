@@ -22,6 +22,7 @@ import { listAggregate } from '@/lib/derive';
 import { resolveListIconColor } from '@/lib/listIcon';
 import { formatMinutesShort } from '@/lib/date';
 import { NOISE_LABELS, type NoiseKind } from '@/lib/noise';
+import { aiConfig, testConnection } from '@/lib/ai/providers';
 import type { Settings, StartupPage } from '@/types';
 import type { ConfirmSpec } from './ConfirmDialog';
 import { useI18nStore, useI18n, type ZhKey } from '@/i18n';
@@ -44,6 +45,8 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
   const modalRef = useRef<HTMLDivElement>(null);
 
   const [settings, setSettings] = useState<Settings>(timer.settings);
+  const [testing, setTesting] = useState(false);
+  const [testMsg, setTestMsg] = useState('');
   const bgInputRef = useRef<HTMLInputElement>(null);
 
   useModalA11y(ui.settingsOpen, () => ui.closeAllOverlays(), modalRef, '.settings-nav button.active');
@@ -58,6 +61,16 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
     timer.setSettings(saved);
     // 每日目标同时写入 goals 表（报表日历口径）
     if (key === 'daily_target_min') await api.set_goal(Number(value));
+  }
+
+  /** AI 连通性测试：用当前表单配置发一条最小请求，给出可行动结论 */
+  async function runAiTest() {
+    setTesting(true); setTestMsg('');
+    const r = await testConnection(aiConfig(settings));
+    setTestMsg(r.key === 'ok'
+      ? t('ai.test.ok')
+      : `${t(r.key)}${r.hint ? ` · ${r.hint}` : ''}`);
+    setTesting(false);
   }
 
   const activeTab = TABS.find((x) => x.key === ui.settingsTab) ?? TABS[0];
@@ -221,8 +234,71 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
                       <option value="completed">{t('nav.completed')}</option>
                       <option value="records">{t('nav.records')}</option>
                       <option value="calendar">{t('nav.calendar')}</option>
+                      <option value="countdown">{t('nav.countdown')}</option>
+                      <option value="ai">{t('nav.ai')}</option>
                     </select>
                     <span className="field-hint">{t('general.startupPageHint')}</span>
+                  </div>
+                </div>
+
+                {/* AI 服务（docs/05-modules/ai.md）：Claude / OpenAI 两种格式可配，Key 仅本地存 */}
+                <div className="section-title">{t('ai.settingsTitle')}</div>
+                <div className="field">
+                  <span className="field-label">{t('ai.provider')}</span>
+                  <div className="field-body">
+                    <select
+                      className="text-input"
+                      value={settings.ai_provider}
+                      aria-label={t('ai.provider')}
+                      onChange={(e) => void patch('ai_provider', e.target.value as Settings['ai_provider'])}
+                    >
+                      <option value="none">{t('ai.provider.none')}</option>
+                      <option value="claude">{t('ai.provider.claude')}</option>
+                      <option value="openai">{t('ai.provider.openai')}</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="field">
+                  <span className="field-label">{t('ai.model')}</span>
+                  <div className="field-body">
+                    <input className="text-input" value={settings.ai_model} aria-label={t('ai.model')}
+                      placeholder="claude-sonnet-5-5 / gpt-4o-mini"
+                      onChange={(e) => void patch('ai_model', e.target.value)} />
+                  </div>
+                </div>
+                <div className="field">
+                  <span className="field-label">{t('ai.baseUrl')}</span>
+                  <div className="field-body">
+                    <input className="text-input" value={settings.ai_base_url} aria-label={t('ai.baseUrl')}
+                      placeholder="https://api.anthropic.com"
+                      onChange={(e) => void patch('ai_base_url', e.target.value)} />
+                  </div>
+                </div>
+                <div className="field">
+                  <span className="field-label">{t('ai.apiKey')}</span>
+                  <div className="field-body">
+                    <input className="text-input" type="password" autoComplete="off"
+                      value={settings.ai_api_key} aria-label={t('ai.apiKey')}
+                      placeholder="sk-… / sk-ant-…"
+                      onChange={(e) => void patch('ai_api_key', e.target.value)} />
+                    <span className="field-hint">{t('ai.apiKeyHint')}</span>
+                  </div>
+                </div>
+                <div className="field">
+                  <span className="field-label">{t('ai.model')}</span>
+                  <div className="field-body">
+                    <span className="field-hint">{t('ai.modelHint')}</span>
+                  </div>
+                </div>
+                <div className="field">
+                  <span className="field-label">{t('ai.test')}</span>
+                  <div className="field-body">
+                    <button type="button" className="btn" disabled={testing} onClick={() => void runAiTest()}>
+                      {t('ai.test')}
+                    </button>
+                    {testMsg && (
+                      <span className="field-hint" style={{ color: 'var(--text-2)' }}>{testMsg}</span>
+                    )}
                   </div>
                 </div>
                 <div className="field">

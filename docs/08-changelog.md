@@ -4,6 +4,75 @@
 
 ---
 
+## 2026-10-21 · 修：AI 一直「暂时不可用」（模型名 + 桌面 CSP + 错误不可行动）
+
+### 现象
+用户在设置页配好第三方 AI（openai 格式 + `https://api.deepseek.com` + Key）后，AI 对话**每次只回一句「AI 暂时不可用，可改为手动添加。」**，看不到原因。
+
+### 根因（两层，均已实测确认）
+1. **模型名不被支持**：直接用同样请求打端点返回 `400 — The supported API model names are deepseek-flash, deepseek-v4-pro, but you passed mimo-v2.6-flash`。请求本身是通的（URL 正确、Key 有效）。
+2. **桌面端 CSP 拦截**：`tauri.conf.json` 的 `connect-src` 原本只放行 `self / ipc.localhost / 62.234.82.11:28193`，任何用户自选的 API 域名都会被 WKWebView 拦下（浏览器 dev 无此限制，故 dev 看不出问题）。
+   另外旧实现把 HTTP 错误一律吞成「AI 暂时不可用」，也没有 JSON 抽取健壮性，模型稍夹一句说明文字就解析失败。
+
+### 修复
+- **CSP**：`connect-src` 放宽为 `self ipc: http: https: ws: wss:`（用户可自选 API 端点，白名单无法在构建期枚举）。
+- **错误可行动化**：`lib/ai/providers.ts` 新增 `AiHttpError` 与状态码→i18n 映射（0 网络/401·403 鉴权/404 地址/400 参数（常为模型名）/429 限流/5xx 服务端/JSON 不合法），并在气泡里显示**服务端短句**（如"supported model names are deepseek-flash…"）。`parseTasks` 透传 `message`+`hint`，`AiChat` 失败气泡渲染次行提示。
+- **JSON 抽取健壮**：`parseJsonObject` 改为「整段 → 首{末} → 逐个括号配平取第一个可解析对象」，容忍模型夹带说明文字或输出多个对象；失败时把原始片段前 160 字放进 hint 便于定位。
+- **请求兼容**：`response_format: json_object` 400 时自动去掉重试一次（部分 OpenAI 兼容端不支持）；`endpointUrl()` 归一化 baseUrl（`https://host` / `/v1` / 完整路径三种填法都对）。
+- **设置页新增「测试连接」**：用当前表单配置发一条最小请求，直接回「连接正常 / 具体原因 + 服务端短句」，避免再盲猜；模型名旁补一句「必须是该服务支持的模型名」。
+- 选了服务商但**没填 Key** → 仍归为「未配置」（引导去配置），而不是先撞 401。
+
+### 验证
+- 真·第三方端到端（用用户配置的 deepseek + `deepseek-flash`）：`status=ok`，解析出 2 个任务（父子关系正确），并因今天是周三而主动提出「"周三前"具体指哪一天」的澄清 —— **时间上下文注入生效**。
+- `tools/verify-ai.ts` 补断言（选服务商无 Key → unconfigured），`check-all.sh` **9/9 全绿**，`tsc --noEmit` 干净。
+- 需**重启应用**（CSP 改在 `tauri.conf.json`，须重新构建/重启后生效）。
+
+---
+
+## 2026-10-21 · AI 能力 M1+M2 落地：独立 AI 页（网页式对话）+ 右侧抽屉
+
+### 需求
+① **Claude 与 OpenAI 两种 API 格式都支持**，在设置页配 Key / API 地址 / 模型。
+② **独立 AI 页**（侧边栏入口，排在「纪念」之后）做成**网页 AI 对话样式**；**其他页面只留一个 AI 按钮**，点开**右侧边栏**做临时 AI 操作，不要弹对话框。
+
+### 实现
+- **适配层** `lib/ai/providers.ts`：`callClaude`（POST `/v1/messages`，`x-api-key` + `anthropic-version`）与 `callOpenAI`（POST `/v1/chat/completions`，`Authorization` + `response_format:json_object`）；统一 `runStructuredLLM<T>` —— 取 JSON → 本地 `validateObject` 校验 → 不过则重试 1 次；`AbortController` 超时且可取消；`timeContext()` 每次注入 当前时间/星期/时区。
+- **配置**：设置→通用新增「AI 服务」区（none/claude/openai + 模型 + API 地址 + Key）。**Key 只留本机**：`lib/sync.ts::pushConfig` 推配置前 `delete payload.ai_api_key`，不上传云端。
+- **对话状态** `stores/aiChatStore.ts`：一条助手消息 = 一次解析（候选 + 澄清 + `createdIds`），**按消息分批回滚**（撤销删本批任务，先子后父）；支持 `retry`、`answerClarify`（点选澄清后按确认口径重解析）。
+- **对话 UI** `components/AiChat.tsx`：用户右气泡 / 助手左气泡；候选任务**画在气泡内**（勾选 + 清单/日期/时间/预计/优先级 + 低置信黄边与「低置信」签）；空态给示例句 chips；输入条上方三个「待接入」chips 点击只给说明气泡（诚实占位）。
+- **入口**：侧边栏 `nav-ai`（排「纪念」之后，与日历/纪念同组、组前分割线）→ `pages/AiPage.tsx`（`.ai-page--chat`：页头固定 + 消息区内部滚动 + 输入条贴底）；顶栏 Sparkles 按钮 → `components/AiDrawer.tsx`（右侧滑出，Esc/遮罩关闭，**与 AI 页共享同一会话**）。**移除**原先嵌在任务页的输入框（非 AI 页只保留顶栏一个入口）。
+- **数据**：`tasks` 增 `parent_id`（父子）与 `actual_minutes`（估时校准闭环，M5 用）；`ai_batches` / `estimate_calib` 表已在 `db.rs` 备好。
+
+### 验证
+- `check-all.sh` **9/9 全绿**（新增第 4 步 `tools/verify-ai.ts`：时间注入 / 结构化校验与重试分支 / 双格式可识别 / 未配置→unconfigured / 坏返回→validation / 澄清产出 / 坏日期不落 due / 低置信可见 / 估时校准窗口+MAD 剔离群+最少样本阈值）。`cargo test` 全绿、`tsc --noEmit` 干净。
+- Playwright 冒烟 9 项：AI 入口在纪念之后、AI 页对话空态 + 示例 chips、待接入说明气泡、**未配置降级气泡**（去配置/手动添加）、顶栏按钮展开右侧抽屉、抽屉内为对话式（无对话框）、抽屉与页面共享会话、任务页无内嵌 AI 输入。
+- 期间修掉：校准测试把 `est_pomodoros` 当分钟（应为番茄数 × focus_len）。
+
+---
+
+## 2026-10-21 · 侧边栏「日历 + 纪念」自成一组；修好验收脚本两处失效
+
+### 现象
+① 用户要求：侧边栏里「日历」「纪念」要用分割线**成组隔开**（我先理解成「在两项之间插线」，返工一次）。
+② 顺带发现 `bash tools/check-all.sh --with-shots` 自启动页可配置（e1a72b6）后**一直红着**：第一处 `.nav-item` 点击被启动即展开的专注界面拦到超时；即便跑通，`侧边栏导航应为 7 项` 也早已过期（日历加入时已是 8 项）。
+
+### 根因
+- ① 日历/纪念原本紧跟在「已完成/记录」之后，与归档区粘成一坨，视觉上分不出层次。
+- ② 一是 `preview` 的全新档案走 `DEFAULT_SETTINGS.startup_page='timer'`，App 直接 `openScreen(true)`，而 `.timer-screen` 是整窗覆盖层、会拦截全部点击；脚本里唯一的关闭动作在「计时模式自检」之后，够不着前面的导航点击。二是导航项总数断言写死 7，没随新增入口更新。
+
+### 修复
+- ① `Sidebar.tsx`：在「已完成/记录」与「日历」之间加一条 `.nav-divider`，**组内两项不加线**，下方清单区的条件分割线保持不变。`.nav-item` 序号（主分类 0–4、归档 5–6）不受影响，`tools/shoot.mjs` 的 `NAV` 映射继续有效。
+- ② `tools/shoot.mjs` 两处：
+  - 首屏收起专注界面（`.timer-close`，退化到 Esc），**放在 `shot('S1-tasks')` 之前**——否则 S1 会截成专注界面而不是任务视图；
+  - 侧边栏结构断言升级：总数 9（主分类5+归档2+日历+纪念）+ 断言第 7/8 项类名为 `.nav-calendar`/`.nav-countdown`（**类名而非文案**，zh/en 都成立）+ 断言两项无时长/角标 + 断言 `.nav-calendar` 前一条是 `.nav-divider`（把分组要求钉进验收，将来再加入口只改计数不靠猜）。
+
+### 验证
+- `check-all.sh --with-shots` **9/9 全绿**（8 个静态/构建步骤 + 截图验收 16 条断言全过）。
+- 用 `git stash` 验证过：该截图失败在**干净 HEAD 上同样复现**，与本次改动无关，属既有失效。
+- 侧边栏 DOM 序列核验：`nav-item×5 → nav-divider → nav-archive×2 → nav-divider → nav-calendar → nav-countdown`。
+
+---
+
 ## 2026-10-21 · 新增功能：倒数纪念日（独立日期域）
 
 ### 需求
