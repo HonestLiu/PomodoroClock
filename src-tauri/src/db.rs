@@ -102,6 +102,26 @@ CREATE TABLE IF NOT EXISTS notifications (
   created_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS countdowns (
+  id            TEXT PRIMARY KEY,
+  title         TEXT NOT NULL,
+  date          TEXT NOT NULL,
+  kind          TEXT NOT NULL DEFAULT 'days_left',
+  repeat        TEXT NOT NULL DEFAULT 'once',
+  interval_days INTEGER,
+  note          TEXT DEFAULT '',
+  color         TEXT DEFAULT '',
+  icon          TEXT DEFAULT '',
+  pinned        INTEGER NOT NULL DEFAULT 0,
+  remind_enabled INTEGER NOT NULL DEFAULT 0,
+  remind_days   INTEGER NOT NULL DEFAULT 0,
+  reminded_at   INTEGER,
+  sort_order    INTEGER DEFAULT 0,
+  created_at    INTEGER NOT NULL,
+  updated_at    INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_countdowns_date ON countdowns(date);
+
 CREATE TABLE IF NOT EXISTS timer_state (
   id         INTEGER PRIMARY KEY CHECK (id = 1),
   phase      TEXT NOT NULL DEFAULT 'idle',
@@ -544,6 +564,7 @@ pub fn clear_all(conn: &mut Connection) -> AppResult<()> {
     tx.execute("DELETE FROM users", [])?;
     tx.execute("DELETE FROM goals", [])?;
     tx.execute("DELETE FROM timer_state", [])?;
+    tx.execute("DELETE FROM countdowns", [])?;
     // 簿记一并清掉：本地已无这些行，墓碑/脏标记/shadow 都失去意义。
     // folders 不参与 clear_all（沿用原行为），故保留 folders 的 shadow。
     tx.execute("DELETE FROM sync_dirty", [])?;

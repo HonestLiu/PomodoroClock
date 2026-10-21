@@ -44,6 +44,10 @@
 | 37 | P3 | — | **邮箱修改未做**：账号页邮箱只读。PB 禁止直接 `PATCH { email }`（实测 400 `validation_values_mismatch`），要走 `request-email-change` → 新邮箱收确认信 → `confirm-email-change` 的完整验证流程，且需该实例 SMTP 可达。当前定位「邮箱=账号标识、改邮箱≈换账号」，故不做；若要支持，需补 UI 双步流程 + 邮箱被占用的冲突提示 | 产品决策 / 云同步 | M | 与 #34（listRule 不公开）叠加时，改邮箱失败只能靠 PB 错误码区分 |
 | 36 | P3 | — | **头像文件 URL 公开可读**：`GET /api/files/users/{recordId}/{filename}` 不带 Authorization 也返回 200（PB 文件字段默认行为），知道 recordId + 文件名即可访问。当前可接受（头像本就展示用）；若要求私有，需在 PB 侧改 file 字段保护/走代理签名 URL，代价是 `<img>` 不能直连 | 云同步 / 隐私 | M | 端到端实测确认 |
 | 38 | P2 | P2 | **`adoptCloudIfFirstRun` 首次接管会清空本机 lists/folders/tasks/records**（`syncData.ts` → `sync_reset_rows`）：标记存在 webview localStorage，清掉 localStorage / 换 bundle identifier 会重新武装；本机独有、尚未推送的行会被永久删除。改为「只覆盖云端存在的行，本机独有行保留」 | sync ★ | M | — |
+| 39 | P3 | P2 | 倒数纪念日·数据层+纯函数：`countdowns` 表（SQLite `db.rs` + IDB `idb.ts` 双份）、`lib/countdown.ts`（自然日差/今天·明天·昨天/每年重复含闰年 02-29→平年 02-28/已过·未来文案），`verify-countdown.ts` 入 check-all | countdown ★1 | S | ✅ 已完成 |
+| 40 | P3 | P2 | 倒数纪念日·页面：侧边栏「纪念」入口 + `CountdownPage`（卡片/列表双视图、置顶+剩余天数排序、已过/未来分区、空态引导）+ `CountdownEditModal` 创建/编辑 + 二次确认删除 + i18n zh/en | countdown ★2 | M | ✅ 已完成 |
+| 41 | P3 | P2 | 倒数纪念日·提醒：`lib/countdownRemind.ts`（当天/提前 N 天，自然日零点触发）+ App 30s 巡检 + `notifications(type=countdown_remind)` + `reminded_at` 按触发日去重 + 权限降级提示 | notify ★ | M | ✅ 已完成 |
+| 42 | P3 | P2 | 倒数纪念日·增强：每月/自定义间隔 `advanceOnce`、首页小组件 `CountdownWidget`、深色主题核对 | countdown ★3 | S | 🔶 部分（每月/自定义已做，首页小组件未做） |
 
 ## 现状备注（2026-10-18 核验）
 - **#1–#6 属实**：任务更多菜单/右键（`TaskView.tsx`）、拖拽排序（`sort_order` 写回）、系统通知（`lib/systemNotify.ts` + `Cargo.toml` notification 插件 + `timerStore.ts::checkExpiry` 门控，真机弹窗待验）、搜索回车定位（`SearchOverlay.tsx:38-59`）、清单拖拽+默认清单、会话恢复提示（`timerStore` 恢复后 `wasRestored`）。#14 导出/导入未实现（仅 `api/local.ts:399` 测试注释）；#15 未装插件（`Cargo.toml` 无 autostart）。

@@ -29,6 +29,7 @@
 | 系统级设置：开机自启 | ⬜ | 开关已存（`SettingsModal.tsx:47`），但 `tauri-plugin-autostart` 未安装、无系统行为（`Cargo.toml` 无该依赖） |
 | 导出/导入 JSON | ⬜ | 规格预留，未实现 |
 | 搜索增强 | ✅ | 即时过滤/分组、↑↓、回车定位高亮（`components/SearchOverlay.tsx:2,27-59`） |
+| 倒数纪念日（独立日期域：倒数/已过/每年重复/月/自定义 + 提醒） | ✅ 新增 | `docs/05-modules/countdown.md`；独立表 `countdowns`（SQLite+IDB 双份，IDB v4）、纯函数 `lib/countdown.ts`（43 项断言入 check-all）、独立 `useCountdownStore`；提醒走 `notifications(type=countdown_remind)`；双视图+置顶排序+空态；P2 首页小组件未做 |
 | 成就/高级版/好友 | 🔶 占位 | 符合"规格定义占位"；成就页已按 stats 实时算 4 条进度（`PlaceholderModal.tsx:33-50`），无解锁持久化 |
 | 账号中心 + PocketBase 云同步 | ✅ 新增 | 设置→账号即软件账号：登录/注册、改密码（需当前密码）、忘记密码（重置邮件）、同步区、头像上传/移除（PB 文件字段）、昵称就地编辑（`users.name`，邮箱只读）、退出（**会话级、不清本地数据**）；离线优先、本地为真相源；冲突按 rev→updated→device 裁决，PB 不可达静默降级（详见 `03-architecture.md` §账户与云同步）；端到端 36/36 已实测 |
 | 可访问性（键盘/焦点/语义/错误兜底） | ✅ | 模态 Esc+焦点陷阱（`components/useModalA11y.ts`）、菜单全键盘、拖拽键盘替代（`Alt+↑/↓`）、设置 tablist、`ErrorBoundary`；验收见 `06` G 组 |
@@ -47,7 +48,7 @@
 | **P0 基线** ✅ | 可运行、5 屏还原、双运行时、出包 | 全量当前项目 | `tauri build` 通过、5 屏截图一致 |
 | **P1 交互打磨** ✅ | 让操作像"工具"而非"页面" | ✅ 任务更多菜单/右键/移清单；✅ 清单拖拽排序+默认清单；✅ 任务拖拽排序；✅ 系统通知接线；✅ 会话恢复提示；✅ 搜索回车定位 | `tasks.md` `lists.md` `notify.md` `search.md` |
 | **P2 产品完善**（进行中） | 可日常使用、观感专业 | ✅ i18n 词表+切换；✅ 深色主题全屏核对；✅ 番茄钟设置全量 + 自动下一轮；✅ 通知设置项；✅ 目标进度环；✅ 外观背景切换；⬜ 白噪音按模式；⬜ 导出/导入 JSON；⬜ 应用内帮助/空态文案 | `settings.md` `timer.md` `report.md` |
-| **P3 增强** | 深度数据价值 | ✅ 专注趋势图（近 30 天，`charts/TrendChart.tsx`）；⬜ 任务级统计、成就系统完善、清单综合报告 | `report.md` `growth.md` |
+| **P3 增强** | 深度数据价值 | ✅ 专注趋势图（近 30 天，`charts/TrendChart.tsx`）；⬜ 任务级统计、成就系统完善、清单综合报告；⬜ **倒数纪念日**（`countdown.md`：独立域/每年重复/提醒，M1 数据层+页面、M2 重复/提醒/验收） | `report.md` `growth.md` `countdown.md` |
 | **P4 远期** | 平台与生态 | ✅ 账号系统 + 云同步（PocketBase，提前落地）；⬜ **Windows/Linux 真机验证**、多设备冲突压测、Tauri mobile | `growth.md` |
 
 ## 阶段切换规则
@@ -62,3 +63,4 @@ P1 已全部落地（见 `08-changelog.md`）。当前按性价比排序：
 4. 开机自启（需先加 `tauri-plugin-autostart` 依赖）
 5. ✅ 倒计时/正计时语义已落地（2026-10-18）；剩「每模式独立时长」与「白噪音按模式」
 6. 成就系统实质化与解锁持久化
+7. **倒数纪念日**（新需求，独立数据域，设计与验收见 `docs/05-modules/countdown.md`）

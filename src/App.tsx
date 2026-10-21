@@ -11,6 +11,7 @@ import { TaskView } from '@/pages/TaskView';
 import { RecordsView } from '@/pages/RecordsView';
 import { DoneView } from '@/pages/DoneView';
 import { CalendarPage } from '@/pages/calendar/CalendarPage';
+import { CountdownPage } from '@/pages/CountdownPage';
 import { ReportModal } from '@/modals/ReportModal';
 import { SettingsModal } from '@/modals/SettingsModal';
 import { TimerScreen } from '@/modals/TimerScreen';
@@ -21,6 +22,7 @@ import { CreateFolderModal } from '@/modals/CreateFolderModal';
 import { CreateListModal } from '@/modals/CreateListModal';
 import { ConfirmDialog, type ConfirmSpec } from '@/modals/ConfirmDialog';
 import { useDataStore } from '@/stores/dataStore';
+import { useCountdownStore } from '@/stores/countdownStore';
 import { useStatsStore } from '@/stores/statsStore';
 import { useTimerStore } from '@/stores/timerStore';
 import { useUiStore } from '@/stores/uiStore';
@@ -30,6 +32,7 @@ import type { NoiseKind } from '@/lib/noise';
 import { api, on, subscribe, isTauri } from '@/api';
 import { useI18nStore, tStatic } from '@/i18n';
 import { scanTaskReminders, defaultRemindDeps } from '@/lib/remindScan';
+import { scanCountdownReminders, defaultCountdownRemindDeps } from '@/lib/countdownRemind';
 
 export default function App() {
   const [booted, setBooted] = useState(false);
@@ -48,6 +51,7 @@ export default function App() {
     (async () => {
       await api.get_user();      // 确保本地库初始化（首次运行写入 §6.3 数据）
       await bootstrap();
+      void useCountdownStore.getState().bootstrap(); // 倒数纪念日（独立域）
       await refreshStats();
       // 先加载设置（含启动页），再决定是否展开专注界面
       await initTimer({ openScreen: false });
@@ -61,6 +65,7 @@ export default function App() {
       useI18nStore.getState().setLang(useTimerStore.getState().settings.language as 'zh' | 'en');
       if (onTimer) useTimerStore.getState().openScreen(true);
       else if (startup === 'calendar') useUiStore.getState().navigate({ name: 'calendar' });
+      else if (startup === 'countdown') useUiStore.getState().navigate({ name: 'countdown' });
       else if (startup) useUiStore.getState().navigate({ name: startup });
       setBooted(true);
       // 云同步：不阻塞启动（PB 不可达时静默降级，本地照常可用）
@@ -82,6 +87,12 @@ export default function App() {
         useDataStore.getState().tasks,
         useTimerStore.getState().settings,
         defaultRemindDeps(),
+      );
+      // 倒数纪念日提醒（独立域，复用同一 30s 巡检）
+      void scanCountdownReminders(
+        useCountdownStore.getState().items,
+        useTimerStore.getState().settings,
+        defaultCountdownRemindDeps(),
       );
     };
     run();
@@ -239,7 +250,8 @@ export default function App() {
           {route.name === 'calendar' ? <CalendarPage />
             : route.name === 'records' ? <RecordsView />
             : route.name === 'completed' ? <DoneView />
-              : <TaskView />}
+              : route.name === 'countdown' ? <CountdownPage />
+                : <TaskView />}
         </main>
       </div>
 

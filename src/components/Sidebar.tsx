@@ -4,7 +4,7 @@
 import { useMemo, useState, type CSSProperties } from 'react';
 import {
   CalendarDays, CalendarClock, CalendarRange, CheckCircle2, ChevronDown, ChevronRight, Folder, FolderPlus,
-  GripVertical, History, ListTodo, Plus, Search, Sun, Sunrise, User as UserIcon,
+  GripVertical, Heart, History, ListTodo, Plus, Search, Sun, Sunrise, User as UserIcon,
 } from 'lucide-react';
 import { useUiStore } from '@/stores/uiStore';
 import { useDataStore } from '@/stores/dataStore';
@@ -263,6 +263,16 @@ export function Sidebar() {
         >
           <CalendarRange size={15} style={{ color: '#9B7BD4', flex: '0 0 auto' }} aria-hidden />
           <span className="nav-label">{t('nav.calendar')}</span>
+        </button>
+
+        {/* 倒数纪念日（独立日期域，docs/05-modules/countdown.md）：纯导航无时长/角标 */}
+        <button
+          className="nav-item nav-countdown"
+          aria-current={activeKey === 'countdown' ? 'page' : undefined}
+          onClick={() => ui.navigate({ name: 'countdown' })}
+        >
+          <Heart size={15} style={{ color: '#E85D3F', flex: '0 0 auto' }} aria-hidden />
+          <span className="nav-label">{t('nav.countdown')}</span>
         </button>
 
         {/* 清单夹 + 顶层自定义清单：有内容时再补一条分割线（排除内置「任务」清单） */}

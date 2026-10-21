@@ -200,6 +200,13 @@ pub fn run() {
             commands::lists::set_default_list,
             commands::lists::set_list_folder,
             commands::lists::set_list_icon,
+            // 倒数纪念日（独立数据域，本地优先）
+            commands::countdown::list_countdowns,
+            commands::countdown::create_countdown,
+            commands::countdown::update_countdown,
+            commands::countdown::delete_countdown,
+            commands::countdown::reorder_countdowns,
+            commands::countdown::mark_countdown_reminded,
             // 清单夹
             commands::folders::list_folders,
             commands::folders::create_folder,

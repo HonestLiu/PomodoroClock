@@ -1,0 +1,193 @@
+/* 倒数纪念日（docs/05-modules/countdown.md）—— 独立卡片/列表双视图
+   复用全局 .field/.switch/.seg/.btn/.modal/.icon-btn/.text-input/.acct-hint。 */
+
+.countdown-page {
+  padding: 24px 28px 90px;
+  max-width: 1080px;
+}
+
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.page-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+}
+.page-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 双视图 */
+.cd-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+.cd-list { display: flex; flex-direction: column; gap: 8px; }
+
+.cd-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 6px 0 8px;
+}
+
+/* 卡片 */
+.cd-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+  transition: box-shadow 0.15s, transform 0.05s;
+}
+.cd-card:hover { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06); }
+
+.cd-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cd-card-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.cd-card:hover .cd-card-actions { opacity: 1; }
+
+/* 头像（图标或色首字） */
+.cd-avatar {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  line-height: 1;
+  font-weight: 600;
+}
+
+.cd-title {
+  font-size: 14px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cd-pin { color: var(--accent-focus); flex: 0 0 auto; }
+
+.cd-big {
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-1);
+}
+.cd-big.today { color: var(--accent-focus); }
+
+.cd-sub { font-size: 12px; color: var(--text-2); }
+.cd-note {
+  font-size: 12px;
+  color: var(--text-2);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* 列表行 */
+.cd-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.cd-row:hover { border-color: var(--accent-focus); }
+.cd-row-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cd-row-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cd-row .cd-big { font-size: 18px; flex: 0 0 auto; }
+
+.cd-del { color: var(--text-2); }
+.cd-del:hover { color: var(--accent-focus); }
+
+/* 空态 */
+.cd-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 70px 0;
+  color: var(--text-2);
+  font-size: 14px;
+}
+
+/* 编辑弹窗独有（结构同 TaskEditModal：.modal > .modal-head + .modal-body，
+   padding 来自 .modal-body，这里只放本模块特有的两行选择器样式） */
+.cd-icons { display: flex; flex-wrap: wrap; gap: 6px; }
+.cd-ic {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  font-size: 15px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.cd-ic:hover { border-color: var(--accent-focus); }
+.cd-ic.active { border-color: var(--accent-focus); box-shadow: 0 0 0 1px var(--accent-focus); }
+
+.cd-colors { display: flex; flex-wrap: wrap; gap: 6px; }
+.colorpick {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: var(--bg-card);
+  font-size: 12px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.colorpick.active { border-color: var(--text-1); }
+
+.form-error { color: var(--accent-focus); font-size: 12px; margin: 10px 0 0; }
+.cd-modal .acct-hint { margin-top: 10px; }

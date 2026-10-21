@@ -1,9 +1,10 @@
 // invoke 接口签名 —— PRD §8.4
 
 import type {
-  FocusRecord, Folder, Goal, GridCell, LeadRemind, ListDistribution, Notification, Recurrence, Settings,
+  Countdown, FocusRecord, Folder, Goal, GridCell, LeadRemind, ListDistribution, Notification, Recurrence, Settings,
   Stats, Task, TaskDuration, TaskList, TaskPriority, TimerState, User,
 } from '@/types';
+import type { CountdownKind, CountdownRepeat } from '@/types';
 
 export interface ListTasksArgs {
   listId?: string | null;
@@ -62,6 +63,21 @@ export interface CreateRecordArgs {
   startAt: number;
   endAt: number;
   durationMin: number;
+}
+
+/** 倒数纪念日：创建 / 更新共用（编辑时整体替换，字段齐全） */
+export interface CreateCountdownArgs {
+  title: string;
+  date: string;
+  kind: CountdownKind;
+  repeat: CountdownRepeat;
+  intervalDays?: number | null;
+  note?: string;
+  color?: string;
+  icon?: string;
+  pinned?: number;
+  remindEnabled?: number;
+  remindDays?: number;
 }
 
 /** 全部命令的前端调用面 */
@@ -123,6 +139,14 @@ export interface Api {
   create_notification(args: { type: string; title: string; body: string }): Promise<Notification>;
   mark_notif_read(id: string): Promise<void>;
   mark_all_notifs_read(): Promise<void>;
+
+  list_countdowns(): Promise<Countdown[]>;
+  create_countdown(args: CreateCountdownArgs): Promise<Countdown>;
+  update_countdown(id: string, args: CreateCountdownArgs): Promise<Countdown>;
+  delete_countdown(id: string): Promise<void>;
+  reorder_countdowns(ids: string[]): Promise<void>;
+  /** 提醒去重标记（巡检命中后写入） */
+  mark_countdown_reminded(id: string): Promise<void>;
 
   clear_all_data(): Promise<void>;
   logout(): Promise<void>;

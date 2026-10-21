@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 一键验收：类型 → 一致性红线 → 种子数据口径 → 计时模式口径 → Rust 查询测试 → 构建 → 可选截图验收。
+# 一键验收：类型 → 一致性红线 → 种子数据口径 → 计时模式口径 → 日历/倒数纪念日口径 → Rust 查询测试 → 构建 → 可选截图验收。
 #
 # 为什么要它：这些检查以前分散在 README/docs 各处手工执行，漏跑一项就会把回归带进提交
 # （本项目发生过：首启种子写空库导致 16 项数据口径失败，而 build/tsc 全绿）。
@@ -48,6 +48,7 @@ step_parity() { bash tools/check-runtime-parity.sh; }
 step_seed() { npx tsx tools/verify-data.ts > /tmp/check-all-seed.log 2>&1 && tail -1 /tmp/check-all-seed.log; }
 step_timer() { npx tsx tools/verify-timer.ts > /tmp/check-all-timer.log 2>&1 && tail -1 /tmp/check-all-timer.log; }
 step_calendar() { npx tsx tools/verify-calendar.ts > /tmp/check-all-calendar.log 2>&1 && tail -1 /tmp/check-all-calendar.log; }
+step_countdown() { npx tsx tools/verify-countdown.ts > /tmp/check-all-countdown.log 2>&1 && tail -1 /tmp/check-all-countdown.log; }
 step_rust() { (cd src-tauri && cargo test --test queries 2>&1 | tail -3); }
 step_build() { npm run build > /tmp/check-all-build.log 2>&1 && grep -E 'dist/|built in' /tmp/check-all-build.log | tail -8; }
 step_shots() {
@@ -80,6 +81,7 @@ step "运行时一致性红线（UI 禁直连 db）" step_parity
 step "种子数据口径（PRD §7.2 / verify-data.ts）" step_seed
 step "计时模式口径（番茄钟/倒计时/正计时 / verify-timer.ts）" step_timer
 step "日历 7 视图模型层（lib/calendar / verify-calendar.ts）" step_calendar
+step "倒数纪念日口径（自然日差/每年重复/每月/自定义/提醒 / verify-countdown.ts）" step_countdown
 step "Rust 查询测试（cargo test --test queries）" step_rust
 if [ "$SKIP_BUILD" = 0 ]; then
   step "生产构建（tsc + vite build）" step_build

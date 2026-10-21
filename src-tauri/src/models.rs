@@ -81,6 +81,42 @@ pub struct Goal {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Countdown {
+    pub id: String,
+    pub title: String,
+    pub date: String,
+    pub kind: String,
+    pub repeat: String,
+    pub interval_days: Option<i64>,
+    pub note: String,
+    pub color: String,
+    pub icon: String,
+    pub pinned: i64,
+    pub remind_enabled: i64,
+    pub remind_days: i64,
+    pub reminded_at: Option<i64>,
+    pub sort_order: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateCountdownArgs {
+    pub title: String,
+    pub date: String,
+    pub kind: String,
+    pub repeat: String,
+    pub interval_days: Option<i64>,
+    pub note: Option<String>,
+    pub color: Option<String>,
+    pub icon: Option<String>,
+    pub pinned: i64,
+    pub remind_enabled: i64,
+    pub remind_days: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Notification {
     pub id: String,
     pub r#type: String,

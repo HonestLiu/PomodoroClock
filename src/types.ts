@@ -83,6 +83,31 @@ export interface Goal {
   daily_target_min: number;
 }
 
+/** 倒数纪念日类型：days_left=还有 N 天 / days_elapsed=已经 N 天 / yearly=每年重复 */
+export type CountdownKind = 'days_left' | 'days_elapsed' | 'yearly';
+/** 重复规则：once=一次性 / yearly=每年 / monthly=每月 / custom_days=每 N 天 */
+export type CountdownRepeat = 'once' | 'yearly' | 'monthly' | 'custom_days';
+
+/** 倒数纪念日（独立数据域，不参与 tasks/focus_records 统计；本地优先，不同步云端） */
+export interface Countdown {
+  id: string;
+  title: string;
+  date: string;          // 'YYYY-MM-DD'（本地时区，必填）
+  kind: CountdownKind;
+  repeat: CountdownRepeat;
+  interval_days: number | null; // repeat='custom_days' 时有效
+  note: string;
+  color: string;         // 图标色（可选，空=>默认）
+  icon: string;          // emoji/字形（可选）
+  pinned: number;        // 置顶 0/1
+  remind_enabled: number;
+  remind_days: number;   // 提前 N 天（0=当天）
+  reminded_at: number | null; // 本周期已提醒时间去重（内部）
+  sort_order: number;
+  created_at: number;
+  updated_at: number;
+}
+
 export interface Notification {
   id: string;
   type: string; // focus_done / break_done / task_remind
@@ -150,7 +175,7 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 /** 启动页配置值：'timer' = 番茄钟展开视图，其余为侧边栏页面 */
-export type StartupPage = 'timer' | SmartKey | 'calendar';
+export type StartupPage = 'timer' | SmartKey | 'calendar' | 'countdown';
 
 /** 侧边栏 / 路由使用的分类键
  *  - `completed` = 已完成任务归档（所有 completed=1 的任务）

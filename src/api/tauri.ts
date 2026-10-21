@@ -74,6 +74,13 @@ export const tauriApi: Api = {
   mark_notif_read: (id) => mutate('notifications', () => invoke('mark_notif_read', { id })),
   mark_all_notifs_read: () => mutate('notifications', () => invoke('mark_all_notifs_read')),
 
+  list_countdowns: () => invoke('list_countdowns'),
+  create_countdown: (args) => mutate('countdowns', () => invoke('create_countdown', { args })),
+  update_countdown: (id, args) => mutate('countdowns', () => invoke('update_countdown', { id, args })),
+  delete_countdown: (id) => mutate('countdowns', () => invoke('delete_countdown', { id })),
+  reorder_countdowns: (ids) => mutate('countdowns', () => invoke('reorder_countdowns', { ids })),
+  mark_countdown_reminded: (id) => invoke('mark_countdown_reminded', { id }),
+
   clear_all_data: () => mutate('all', () => invoke('clear_all_data')),
   // 退出登录不改数据：只清前端会话，不应广播 data://changed（否则会触发一次无意义的全量重载）
   logout: () => invoke('logout'),

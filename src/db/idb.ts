@@ -6,7 +6,7 @@
 // 替换 src/api 的适配器（见 src/api/index.ts）。
 
 import type {
-  FocusRecord, Folder, Goal, Notification, Task, TaskList, TimerState, User,
+  Countdown, FocusRecord, Folder, Goal, Notification, Task, TaskList, TimerState, User,
 } from '@/types';
 import { DEFAULT_SETTINGS } from '@/types';
 import { buildSeed } from './seed';
@@ -21,13 +21,15 @@ export interface DBShape {
   settings: { key: string; value: string }[];
   notifications: Notification[];
   timer_state: TimerState[];
+  countdowns: Countdown[];
 }
 
 const DB_NAME = 'focus_pomodoro';
 // 3：tasks 引入提醒事项字段（due_time/url/urgent/repeat/lead_remind/tags/flag/priority/reminded_at）。
+// 4：新增倒数纪念日独立域（countdowns 表）。
 // 升级即清空重播种（既有模式），旧库不兼容。
 
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const STORE = 'kv';
 const KEY = 'db';
 
@@ -42,6 +44,7 @@ export function emptyDB(): DBShape {
     settings: [],
     notifications: [],
     timer_state: [],
+    countdowns: [],
   };
 }
 

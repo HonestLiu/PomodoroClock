@@ -4,6 +4,33 @@
 
 ---
 
+## 2026-10-21 · 新增功能：倒数纪念日（独立日期域）
+
+### 需求
+用户新增「倒数纪念日」模块：记录重要日期，直观看到「还有 N 天 / 已经 N 天 / 就是今天」。要求**数据逻辑上独立**，不把纪念日当普通任务处理（不进任务/清单/已完成/专注记录的统计口径）。
+
+### 实现
+- **数据层**：独立表 `countdowns`（SQLite `db.rs::SCHEMA` + IndexedDB `DBShape`，`DB_VERSION` 3→4）。字段 `title/date/kind/repeat/interval_days/note/color/icon/pinned/remind_enabled/remind_days/reminded_at/sort_order`；本地优先、不同步云端。`clear_all_data` 一并清空。
+- **命令面**：`list/create/update/delete/reorder_countdowns` + `mark_countdown_reminded`，Rust（`commands/countdown.rs`，含 `*_impl` 便于单测）与 `api/local.ts` / `api/tauri.ts` 三份镜像。
+- **纯函数**：`lib/countdown.ts` —— 自然日差（UTC 归一，**不用 24h 差**，规避 DST）、每年重复自动翻年、**闰年 2/29 在平年按 2/28 计入**、每月**锚点步进**（避免月末截断吃掉原日）、自定义间隔、已过周年数、排序比较、提醒触发日与去重；`lib/countdownText.ts` 文案与 i18n 解耦。
+- **UI**：侧边栏「纪念」入口（`Heart`）→ `CountdownPage`（卡片/列表双视图、置顶+剩余天数排序、未来/已过分区、空态引导）+ `CountdownEditModal`（标题/日期/类型/重复/间隔/备注/图标/颜色/置顶/提醒）+ `CountdownCard`。
+- **提醒**：`lib/countdownRemind.ts` 挂进 `App.tsx` 既有 30s 巡检；应用内通知 `type='countdown_remind'` + 可选系统通知；**去重键=触发日**（同日只提醒一次），改期/改提前天数后 `reminded_at` 置空自动重新武装（`update_countdown_impl`）。
+- i18n zh/en 各 +30 键（键名与枚举值一致：`cd.kind.days_left` 等）；`tools/verify-countdown.ts` 接入 `check-all.sh`（现 8 步）。
+
+### 验证
+- `check-all.sh` **8/8 全绿**（tsc / 运行时红线 / 种子 / 计时 / 日历 / **倒数纪念日 43 项断言** / Rust 17 / build）。
+- Rust 单测新增 4 项（`countdown.rs::tests`）：建+列回读、**改日期重新武装提醒**（未改则保留 `reminded_at`）、入参校验（坏日期/坏类型/缺 interval）、删除。`cargo test --lib` 10/10。
+- 浏览器 UI 冒烟 7 项：空态 → 新增倒数日（「还有 41 天」）→ 新增每年重复（「1/15 · 第 26 个周年」）→ **刷新持久化** → 删除二次确认 → 控制台无错误。
+- Tauri 真机：启动后 `countdowns` 表自动建表，应用内创建记录落库正常。
+
+### 期间修掉的自造缺陷（防复发）
+1. `nextDateKey` 早退判据用错：曾按 `kind` 直接返回 `date`，导致「倒数日 + 每年/每月」不推进。改为**推进靠 `repeat`（`kind=yearly` 隐式每年）、展示靠 `kind`**，并加回归断言。
+2. 每月推进曾「从上次结果累加」，1/31→2/28 后一路变成 3/28、4/28，原日被永久吃掉。改为**从原锚点推 n 个月**（月末截断可逆），`prevDateKey` 同口径。
+3. i18n 键名曾写成 camelCase（`cd.kind.daysLeft`），而枚举是 `days_left` → 选项显示成原始键。**键名必须与枚举值一致**。
+4. 编辑弹窗一度「有偏移」：标签贴左边被裁、开关整排不渲染、输入框撑到右边缘。根因三条 —— 内容直接挂在 `.modal` 下而**漏了 `.modal-body`**（`.modal` 无 padding，靠 `.modal-body` 提供 `0 20px 20px`）；开关写成 `.slider` 而全局约定是 `<label class="switch"><input/><span class="track"/></label>`；弹窗**没给宽度**。修复后结构与 `TaskEditModal` 逐层同款（`.overlay > .modal + width > .modal-head + .modal-body > .field`，操作条内联 `flex-end/gap 8/margin-top 16`）。**弹窗一律照抄 TaskEditModal 的层级与类名，不要自造 `.xx-form` 包裹层。**
+
+---
+
 ## 2026-10-20 · 侧边栏自建清单「凭空消失」（folder_id 被同步层写成空串）
 
 ### 现象

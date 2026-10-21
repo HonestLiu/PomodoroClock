@@ -4,6 +4,7 @@
 import type {
   FocusRecord, Folder, Goal, Notification, Task, TaskList, TimerState, User,
 } from '@/types';
+import type { Countdown } from '@/types';
 import { DEFAULT_SETTINGS } from '@/types';
 import { tStatic } from '@/i18n/store';
 import {
@@ -14,7 +15,7 @@ import {
   pomodoroGrid, recordsInRange, taskDurations, tasksForCategory,
 } from '@/db/queries';
 import type { Period } from '@/types';
-import type { Api, CreateListArgs, CreateRecordArgs, CreateTaskArgs, ListTasksArgs, UpdateTaskPatch } from './types';
+import type { Api, CreateListArgs, CreateRecordArgs, CreateTaskArgs, ListTasksArgs, UpdateTaskPatch, CreateCountdownArgs } from './types';
 import { broadcastDataChanged } from './events';
 import { parseDateKey, toDateKey } from '@/lib/date';
 import { defaultListIcon } from '@/lib/listIcon';
@@ -30,6 +31,17 @@ function normalizeList<T extends TaskList>(l: T): TaskList {
   // 同步层会把 NULL 外键拉成 ""（PocketBase 文本字段规范化）：空串一律当「无归属」，
   // 否则侧边栏既不算顶层也不属于任何清单夹，清单会凭空消失。
   return { ...base, folder_id: base.folder_id || null };
+}
+
+/** 倒数纪念日入参校验（与 Rust commands/countdown.rs::validate 同口径） */
+function validateCountdown(args: CreateCountdownArgs): void {
+  if (!args.title.trim()) throw new Error(tStatic('err.listNameRequired'));
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(args.date)) throw new Error(tStatic('err.badFormat'));
+  if (!['days_left', 'days_elapsed', 'yearly'].includes(args.kind)) throw new Error(tStatic('err.badFormat'));
+  if (!['once', 'yearly', 'monthly', 'custom_days'].includes(args.repeat)) throw new Error(tStatic('err.badFormat'));
+  if (args.repeat === 'custom_days' && (args.intervalDays === undefined || args.intervalDays === null || args.intervalDays < 1)) {
+    throw new Error(tStatic('err.badFormat'));
+  }
 }
 
 export const localApi: Api = {
@@ -267,6 +279,94 @@ export const localApi: Api = {
       for (const t of d.tasks) if (t.list_id === id) t.list_id = null;
     });
     broadcastDataChanged('lists');
+  },
+
+  // ── 倒数纪念日（独立数据域，本地优先） ──────────────────────────────
+  async list_countdowns() {
+    await ready();
+    return getDB().countdowns
+      .map((c) => ({ ...c }))
+      .sort((a, b) => a.sort_order - b.sort_order || a.created_at - b.created_at);
+  },
+
+  async create_countdown(args: CreateCountdownArgs) {
+    await ready();
+    validateCountdown(args);
+    const out = mutate((d) => {
+      const c: Countdown = {
+        id: uid('cd'),
+        title: args.title.trim(),
+        date: args.date,
+        kind: args.kind,
+        repeat: args.repeat,
+        interval_days: args.intervalDays ?? null,
+        note: args.note ?? '',
+        color: args.color ?? '',
+        icon: args.icon ?? '',
+        pinned: args.pinned ?? 0,
+        remind_enabled: args.remindEnabled ?? 0,
+        remind_days: args.remindDays ?? 0,
+        reminded_at: null,
+        sort_order: d.countdowns.length,
+        created_at: Date.now(),
+        updated_at: Date.now(),
+      };
+      d.countdowns.push(c);
+      return { ...c };
+    });
+    broadcastDataChanged('countdowns');
+    return out;
+  },
+
+  async update_countdown(id, args: CreateCountdownArgs) {
+    await ready();
+    validateCountdown(args);
+    const out = mutate((d) => {
+      const c = d.countdowns.find((x) => x.id === id);
+      if (!c) throw new Error(tStatic('err.listNotFound'));
+      // 日期/提前天数/开关任一变化 → 重新武装提醒
+      const rearm = c.date !== args.date || c.remind_days !== (args.remindDays ?? 0)
+        || (c.remind_enabled !== 0) !== ((args.remindEnabled ?? 0) !== 0);
+      c.title = args.title.trim();
+      c.date = args.date;
+      c.kind = args.kind;
+      c.repeat = args.repeat;
+      c.interval_days = args.intervalDays ?? null;
+      c.note = args.note ?? '';
+      c.color = args.color ?? '';
+      c.icon = args.icon ?? '';
+      c.pinned = args.pinned ?? 0;
+      c.remind_enabled = args.remindEnabled ?? 0;
+      c.remind_days = args.remindDays ?? 0;
+      if (rearm) c.reminded_at = null;
+      c.updated_at = Date.now();
+      return { ...c };
+    });
+    broadcastDataChanged('countdowns');
+    return out;
+  },
+
+  async delete_countdown(id) {
+    await ready();
+    mutate((d) => { d.countdowns = d.countdowns.filter((c) => c.id !== id); });
+    broadcastDataChanged('countdowns');
+  },
+
+  async reorder_countdowns(ids) {
+    await ready();
+    mutate((d) => {
+      const byId = new Map(d.countdowns.map((c) => [c.id, c]));
+      ids.forEach((cid, i) => { const c = byId.get(cid); if (c) c.sort_order = i; });
+    });
+    broadcastDataChanged('countdowns');
+  },
+
+  async mark_countdown_reminded(id) {
+    await ready();
+    mutate((d) => {
+      const c = d.countdowns.find((x) => x.id === id);
+      if (c) { c.reminded_at = Date.now(); c.updated_at = Date.now(); }
+    });
   },
 
   async list_tasks(args: ListTasksArgs = {}) {
