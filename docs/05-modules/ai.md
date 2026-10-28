@@ -11,7 +11,10 @@
   - **独立 AI 页** `pages/AiPage.tsx`（网页式对话：消息流 + 输入条贴底 + 待接入能力 chips），侧边栏入口 `nav-ai` 排在「纪念」之后（与日历/纪念同组、组前一条分割线）。
   - **其他页面只留一个 AI 按钮**（顶栏 Sparkles）→ 点开**右侧抽屉** `components/AiDrawer.tsx` 做临时 AI 操作；抽屉与 AI 页**共享同一会话**。原先嵌在任务页的输入框已移除。
 - ✅ 验收：`tools/verify-ai.ts` 入 `check-all.sh`；Playwright 冒烟 9 项（入口位置 / 对话空态 / 示例 chips / 待接入说明 / 未配置降级 / 抽屉展开 / 抽屉内无对话框 / 共享会话 / 任务页无内嵌输入）。
-- ⬜ **M3–M5**：任务拆解 / 每日计划 / 日报周报（输入框上方 chips 提示，点击给「待接入」说明气泡，不假装可用）。
+- ✅ **M3 功能二 任务拆解**：`lib/ai/decompose.ts` + 气泡内拆解树（≤3 层、验收标准、依赖无环、勾选子树采纳落库、一键撤销）；LLM 挂了按连接词做确定性细分。
+- ✅ **M4 功能三 每日计划**：`lib/ai/timebox.ts`（确定性装箱：容量=可用×0.82、同项目聚块、单块≤90、拒绝超载）+ `lib/ai/plan.ts`（must/should 过滤 → LLM triage+理由 → 装箱）；LLM 挂了降级为「按优先级→截止」排序。
+- ✅ **M5 功能四 日报/周报**：`lib/ai/report.ts`（数据全部确定性聚合，五段式（完成情况/偏差/校准/风险/下阶段≤3），LLM 仅叙事+归因）；周期无数据返回空态不调 LLM。
+- ⬜ **递进项（暂未做）**：`estimate_calib` 持久化闭环（目前校准为派生计算）、每日计划 adopt 落库写 due/顺序（当前只读建议）。
 
 ## 全局约束 → 落地（对应需求 1–7）
 
@@ -252,13 +255,13 @@ priority(high/medium/low/none), subtasks[], repeat(沿用 R 规则), dependsOn[]
 ## 验收清单（每项 P0）
 - [ ] 全局：所有 AI 输出先进预览、确认才落库；批量带 batch_id 可一键撤销。
 - [ ] 全局：结构化 JSON + 校验重试；LLM 失败/超时任一功能退化为手动表单 / 确定性排序 / 空态。
-- [ ] 时间注入：三个功能 prompt 均带 NOW/星期/tz；「下周五」类表达式本地化正确（`verify-ai.ts` 断言）。
-- [ ] 功能一：多任务+父子拆分、字段 confidence/source_span、低置信强调、clarify 点选、原文高亮。
-- [ ] 功能二：≥3 层树、acceptance_criteria、依赖无环、部分采纳、子树重拆、草稿树编辑。
-- [ ] 功能三：容量≤可用×0.82 且宁少勿多、must/should/defer+理由、依赖/同项目聚合装箱、超载给冲突提示不发满单、手动重排后增量重算不重调 LLM。
-- [ ] 功能四：五段报告、钉子任务/因子/风险/≤3 建议、落 `estimate_calib` 闭环。
-- [ ] 校准表：滑动窗口+MAD、min 样本阈值；功能一二三估算带 factor。
-- [ ] 双运行时红线：SQLite 与 IndexedDB 行为一致；`check-runtime-parity` 不违例。
+- [x] 时间注入：三个功能 prompt 均带 NOW/星期/tz；「下周五」类表达式本地化正确（`verify-ai.ts` 断言）。
+- [x] 功能一：多任务+父子拆分、字段 confidence/source_span、低置信强调、clarify 点选、原文高亮。
+- [~] 功能二：≥3 层树、acceptance_criteria、依赖无环、部分采纳、草稿树编辑 ✅；**子树重拆**未做（后续在节点右键补）。
+- [~] 功能三：容量≤可用×0.82 且宁少勿多、must/should+理由、同项目聚块、超载给冲突提示不发满单 ✅；**依赖约束装箱 / 手动重排增量重算**未做。
+- [~] 功能四：五段报告、钉子任务/因子/风险/≤3 建议、确定性聚合 ✅；**落 `estimate_calib` 表闭环**未做（当前派生计算）。
+- [x] 校准表：滑动窗口+MAD、min 样本阈值；功能一二三估算带 factor。
+- [x] 双运行时红线：新模块为纯 TS（Adapter 同源数据），不触碰 DB 边界；`check-runtime-parity` 不违例。
 
 ## 里程碑（`07-backlog` 拆条）
 - **AI-M1 基础设施**：`lib/ai/providers.ts` + `runStructuredLLM` + 时间注入 + 预览态/回滚 + `ai_batches`/`estimate_calib` 表 + fake LLM 测试推进。

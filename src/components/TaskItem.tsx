@@ -47,9 +47,20 @@ export function TaskItem({ task, onReorder, showListSource = false }: {
   const highlight = useUiStore((s) => s.highlight);
   const clearHighlight = useUiStore((s) => s.clearHighlight);
   const setDraggingTask = useUiStore((s) => s.setDraggingTask);
+  const selectedTaskIds = useUiStore((s) => s.selectedTaskIds);
+  const toggleTaskSelect = useUiStore((s) => s.toggleTaskSelect);
   const { t } = useI18n();
 
   const [dragOver, setDragOver] = useState(false);
+
+  // 多选：Cmd/Ctrl 点选。capture 阶段拦截，阻止子控件(编辑/勾选/播放)触发。
+  const selected = selectedTaskIds.includes(task.id);
+  function handleRowClickCapture(e: React.MouseEvent) {
+    if (!(e.metaKey || e.ctrlKey)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    toggleTaskSelect(task.id);
+  }
 
   function onDragStart(e: React.DragEvent) {
     setDraggingTask(task.id);
@@ -190,8 +201,9 @@ export function TaskItem({ task, onReorder, showListSource = false }: {
   return (
     <div
       data-task-id={task.id}
-      className={`task-item${task.completed ? ' done' : ''}${menu ? ' menu-open' : ''}${flash ? ' highlight' : ''}${dragOver ? ' drag-target' : ''}${onReorder ? ' draggable-row' : ''}`}
+      className={`task-item${task.completed ? ' done' : ''}${menu ? ' menu-open' : ''}${flash ? ' highlight' : ''}${dragOver ? ' drag-target' : ''}${onReorder ? ' draggable-row' : ''}${selected ? ' task-selected' : ''}`}
       draggable={!!onReorder && task.completed === 0}
+      onClickCapture={handleRowClickCapture}
       onDragStart={onReorder ? onDragStart : undefined}
       onDragEnd={() => { setDraggingTask(null); setDragOver(false); }}
       onDragOver={(e) => { if (onReorder) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(true); } }}

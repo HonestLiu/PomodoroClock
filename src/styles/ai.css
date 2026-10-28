@@ -76,6 +76,21 @@
   font-size: 11.5px; color: var(--text-2);
   background: rgba(74, 125, 224, 0.10); border-radius: 4px; padding: 2px 6px;
 }
+/* ── 多选批量工具栏（功能一候选） ─────────────────────── */
+.ai-batch { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ai-batch .btn { height: 28px; padding: 0 10px; font-size: 12.5px; }
+.ai-batch-del { color: #b3422e; }
+.ai-batch-del:hover { border-color: rgba(179, 66, 46, 0.6); background: rgba(179, 66, 46, 0.06); }
+.ai-batch-set--on { border-color: var(--accent-blue); background: rgba(74, 125, 224, 0.12); color: var(--accent-blue); }
+.ai-batch-hint { font-size: 12px; color: var(--text-2); }
+.ai-batch-panel {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 7px 8px;
+}
+.ai-batch-panel .text-input { height: 26px; width: auto; min-width: 86px; font-size: 12px; }
+.ai-batch-panel .text-input[type='date'], .ai-batch-panel .text-input[type='time'] { min-width: 108px; }
+.ai-batch-panel .num-input { height: 26px; width: 86px; font-size: 12px; }
+.ai-batch-panel select { max-width: 110px; }
 /* 低置信（约束 4：不编造，视觉强调） */
 .ai-lowconf {
   font-size: 11px; font-weight: 600;
@@ -222,3 +237,70 @@
 
 /* 抽屉里的紧凑对话：铺满抽屉高度 */
 .ai-drawer-body .ai-chat { height: 100%; }
+
+/* chip 选中态（当前待输入模式） */
+.chip--active { border-color: var(--accent-blue); background: rgba(74, 125, 224, 0.12); color: var(--accent-blue); }
+
+/* ── 功能二：拆解树 ──────────────────────────────────── */
+.ai-tree { display: flex; flex-direction: column; gap: 6px; }
+.ai-tnode { display: flex; flex-direction: column; gap: 3px; }
+.ai-tnode-row { display: flex; align-items: center; gap: 7px; }
+.ai-tnode-row .ai-check { margin-top: 0; flex: 0 0 auto; }
+.ai-tnode-title { font-weight: 600; line-height: 1.4; }
+.ai-tnode-tag {
+  font-size: 10.5px; line-height: 1; color: var(--text-2);
+  background: var(--bg-sidebar, #f2f1ed); border-radius: 8px; padding: 2px 6px;
+}
+.ai-tnode-est { font-size: 11px; color: var(--text-2); background: var(--bg-sidebar, #f2f1ed); border-radius: 4px; padding: 1px 6px; white-space: nowrap; }
+.ai-tnode-dep { font-size: 11px; color: #a05b0a; background: rgba(217, 164, 65, 0.15); border-radius: 4px; padding: 1px 6px; white-space: nowrap; }
+.ai-tnode-accept { font-size: 12px; color: #4d9a5b; margin-left: 25px; line-height: 1.5; }
+.ai-tnode-note { font-size: 12px; color: var(--text-2); margin-left: 25px; line-height: 1.5; }
+.ai-bubble-note { margin: 0; font-size: 12.5px; color: var(--accent-blue); }
+.ai-tnode-nest {
+  margin-left: 8px; margin-top: 3px; padding-left: 13px;
+  border-left: 1px dashed var(--border);
+  display: flex; flex-direction: column; gap: 6px;
+}
+
+/* ── 功能三：每日计划 ────────────────────────────────── */
+.ai-plan-cap { display: flex; gap: 8px; font-size: 12px; color: var(--text-2); }
+.ai-plan-conflict {
+  font-size: 12.5px; color: #a05b0a; background: rgba(217, 164, 65, 0.14);
+  border: 1px dashed rgba(217, 164, 65, 0.55); border-radius: 7px; padding: 6px 9px;
+}
+.ai-plan-block {
+  border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card);
+  padding: 6px 9px; display: flex; flex-direction: column; gap: 3px;
+}
+.ai-plan-block-head { font-size: 12px; font-weight: 600; color: var(--accent-blue); padding-bottom: 2px; border-bottom: 1px solid var(--border); }
+.ai-plan-item { display: flex; align-items: baseline; gap: 6px; font-size: 13px; }
+.ai-plan-item-title { flex: 1 1 auto; }
+.ai-plan-item-est { flex: 0 0 auto; font-size: 11px; color: var(--accent-focus); font-weight: 600; }
+.ai-plan-item-reason { flex: 0 0 auto; font-size: 11.5px; color: var(--text-2); }
+.ai-plan-deferred { margin-top: 4px; font-size: 12px; color: var(--text-2); }
+.ai-plan-deferred-title { margin: 4px 0; }
+.ai-plan-deferred-item {
+  display: inline-block; margin: 0 6px 4px 0; font-size: 11.5px; color: var(--text-1);
+  background: var(--bg-sidebar, #f2f1ed); border-radius: 999px; padding: 2px 8px;
+}
+
+/* ── 功能四：日报 / 周报 ─────────────────────────────── */
+.ai-report-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.ai-report-stat {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;
+  display: flex; flex-direction: column; align-items: center; padding: 6px 4px;
+}
+.ai-report-stat span { font-size: 11px; color: var(--text-2); }
+.ai-report-stat b { font-size: 15px; color: var(--accent-focus); }
+.ai-report-projects-title { margin: 8px 0 2px; font-size: 12px; font-weight: 600; color: var(--text-1); }
+.ai-report-proj { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; font-size: 12.5px; padding: 1px 0; }
+.ai-report-proj-name { color: var(--text-1); }
+.ai-report-proj-min { color: var(--accent-focus); font-weight: 600; }
+.ai-report-proj-pct { color: var(--text-2); }
+.ai-report-risk { margin-top: 6px; font-size: 12.5px; }
+.ai-report-risk-title { margin: 0 0 2px; color: #a05b0a; font-size: 12.5px; font-weight: 600; }
+.ai-report-risk-item { display: inline-block; margin: 0 6px 4px 0; font-size: 12px; color: #a05b0a; background: rgba(217, 164, 65, 0.12); border-radius: 999px; padding: 2px 8px; }
+.ai-report-sec { margin-top: 6px; }
+.ai-report-sec-title { font-size: 13px; color: var(--accent-blue); }
+.ai-report-sec-body { margin: 2px 0 0; font-size: 12.5px; line-height: 1.7; white-space: pre-wrap; color: var(--text-1); }
+.ai-report-next ul { margin: 3px 0 0; padding-left: 18px; font-size: 12.5px; line-height: 1.7; }

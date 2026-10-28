@@ -53,6 +53,8 @@ interface UiState {
   highlight: string | null;
   /** 拖拽中的任务 id（tasks.md ★2，跨视图/移至清单） */
   draggingTaskId: string | null;
+  /** 多选：当前选中的任务 id（Cmd/Ctrl 点选；跨任务/清单视图，导航时清空） */
+  selectedTaskIds: string[];
 
   navigate(route: Route): void;
   openReport(v?: boolean): void;
@@ -84,6 +86,8 @@ interface UiState {
   clearHighlight(): void;
 
   setDraggingTask(id: string | null): void;
+  toggleTaskSelect(id: string): void;
+  clearTaskSelect(): void;
 }
 
 export const useUiStore = create<UiState>((set, get) => ({
@@ -109,8 +113,9 @@ export const useUiStore = create<UiState>((set, get) => ({
   confirm: null,
   highlight: null,
   draggingTaskId: null,
+  selectedTaskIds: [],
 
-  navigate: (route) => set({ route, searchOpen: false }),
+  navigate: (route) => set({ route, searchOpen: false, selectedTaskIds: [] }),
   openReport: (v = true) => set({ reportOpen: v }),
   openSettings: (tab) => set({ settingsOpen: true, settingsTab: tab ?? get().settingsTab }),
   setSettingsTab: (settingsTab) => set({ settingsTab }),
@@ -138,4 +143,11 @@ export const useUiStore = create<UiState>((set, get) => ({
   triggerHighlight: (highlight) => set({ highlight }),
   clearHighlight: () => set({ highlight: null }),
   setDraggingTask: (draggingTaskId) => set({ draggingTaskId }),
+  toggleTaskSelect: (id) =>
+    set((s) => ({
+      selectedTaskIds: s.selectedTaskIds.includes(id)
+        ? s.selectedTaskIds.filter((x) => x !== id)
+        : [...s.selectedTaskIds, id],
+    })),
+  clearTaskSelect: () => set({ selectedTaskIds: [] }),
 }));

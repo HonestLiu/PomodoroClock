@@ -28,6 +28,12 @@ interface DataState {
   toggleTask(id: string): Promise<void>;
   reorderTasks(ids: string[]): Promise<void>;
   deleteTask(id: string): Promise<void>;
+  /** 多选批量：同一补丁应用到多条任务（一次重载） */
+  batchPatch(ids: string[], patch: UpdateTaskPatch): Promise<void>;
+  /** 多选批量：删除多条（一次重载） */
+  batchDelete(ids: string[]): Promise<void>;
+  /** 多选批量：切换完成态（含重复任务推进，一次重载） */
+  batchToggle(ids: string[]): Promise<void>;
 
   createList(name: string, icon?: ListIconSpec): Promise<void>;
   renameList(id: string, name: string): Promise<void>;
@@ -126,6 +132,34 @@ export const useDataStore = create<DataState>((set, get) => ({
     },
   async reorderTasks(ids) { await api.reorder_tasks(ids); await get().reload(); },
   async deleteTask(id) { await api.delete_task(id); await get().reload(); },
+
+  async batchPatch(ids, patch) {
+    for (const id of ids) await api.update_task(id, patch);
+    await get().reload();
+  },
+  async batchDelete(ids) {
+    for (const id of ids) await api.delete_task(id);
+    await get().reload();
+  },
+  async batchToggle(ids) {
+    for (const id of ids) {
+      const before = get().tasks.find((t) => t.id === id);
+      await api.toggle_task(id);
+      // 重复任务（repeat != none）：完成时按规则推进到下一次（真正重复）
+      if (before && before.completed === 0 && before.repeat !== 'none' && before.due_date) {
+        const next = nextOccurrence({ date: before.due_date, time: before.due_time ?? null }, before.repeat);
+        if (next) {
+          await api.create_task({
+            title: before.title, notes: before.notes, url: before.url, listId: before.list_id,
+            dueDate: next.date, dueTime: next.time, urgent: before.urgent, repeat: before.repeat,
+            leadRemind: before.lead_remind, tags: before.tags, flag: before.flag,
+            priority: before.priority, estPomodoros: before.est_pomodoros,
+          });
+        }
+      }
+    }
+    await get().reload();
+  },
 
   async createList(name, icon) {
     await api.create_list({

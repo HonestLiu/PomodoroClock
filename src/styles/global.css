@@ -426,6 +426,42 @@ input:focus:not(:focus-visible), textarea:focus:not(:focus-visible) {
 .task-item:hover { background: rgba(0, 0, 0, 0.018); }
 :root[data-theme='dark'] .task-item:hover { background: rgba(255, 255, 255, 0.03); }
 
+/* 多选高亮（Cmd/Ctrl 点选） */
+.task-item.task-selected {
+  background: rgba(74, 125, 224, 0.10);
+  box-shadow: inset 3px 0 0 var(--accent-blue);
+}
+:root[data-theme='dark'] .task-item.task-selected { background: rgba(74, 125, 224, 0.22); }
+
+/* ── 任务多选批量操作条 ─────────────────────────────── */
+.batch-bar {
+  position: sticky; bottom: 12px; z-index: 40;
+  margin: 12px 0 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--accent-blue);
+  border-radius: 12px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.14);
+  padding: 8px 10px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.batch-bar-top { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.batch-count { font-size: 12.5px; font-weight: 600; color: var(--accent-blue); margin-right: 4px; }
+.batch-bar .btn { height: 28px; padding: 0 10px; font-size: 12.5px; }
+.batch-bar .btn.batch-del { color: #b3422e; }
+.batch-bar .btn.batch-del:hover { border-color: rgba(179, 66, 46, 0.6); background: rgba(179, 66, 46, 0.06); }
+.batch-bar .btn.batch-set--on { border-color: var(--accent-blue); background: rgba(74, 125, 224, 0.12); color: var(--accent-blue); }
+.batch-spacer { flex: 1 1 auto; }
+.batch-panel {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  border-top: 1px solid var(--border); padding-top: 8px;
+}
+.batch-field { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); }
+.batch-field .text-input, .batch-field .num-input { height: 26px; width: auto; min-width: 92px; font-size: 12px; }
+.batch-field .text-input[type='date'] { min-width: 118px; }
+.batch-field select { max-width: 110px; }
+.batch-toggle { display: inline-flex; gap: 4px; }
+.batch-toggle .chip { padding: 4px 9px; font-size: 11.5px; }
+
 .check {
   width: 17px; height: 17px; border-radius: 50%;
   border: 1.5px solid var(--accent-task);

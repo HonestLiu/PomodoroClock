@@ -3,7 +3,12 @@
 
 import { timeContext, validateObject, aiConfig, isAiConfigured, runStructuredLLM } from '@/lib/ai/providers';
 import { parseTasks } from '@/lib/ai/nlParse';
+import { decomposeGoal, type DecomNode } from '@/lib/ai/decompose';
+import { buildDailyPlan } from '@/lib/ai/plan';
+import { buildReport } from '@/lib/ai/report';
+import { fitBlocks, DEFAULT_AVAILABLE_MIN, type PlanEntry } from '@/lib/ai/timebox';
 import { calibrationSummary, factorFor, calibPromptLine } from '@/lib/ai/calib';
+import { toDateKey, addDays } from '@/lib/date';
 import { DEFAULT_SETTINGS, type Settings, type Task, type FocusRecord, type TaskList } from '@/types';
 
 let failures = 0;
@@ -18,6 +23,8 @@ function ok(label: string, cond: boolean) {
 }
 
 const settings = (patch: Partial<Settings> = {}): Settings => ({ ...DEFAULT_SETTINGS, ...patch });
+/** 已配置好 Key 的假设置（测试时直接走 fake engine） */
+const aiReady = settings({ ai_provider: 'openai', ai_api_key: 'k' });
 const lists: TaskList[] = [{
   id: 'l1', name: '发布版', sort_order: 0, is_smart: 0,
   icon_type: 'dot', icon_color: '', icon_glyph: '', folder_id: null, created_at: 1, updated_at: 1,
@@ -111,6 +118,81 @@ check('按 (list,tag) 取因子', factorFor(calib, 'l1', null), 2);
 check('无历史 → 1.0', factorFor(calib, 'nope', null), 1);
 ok('注入 prompt 含 factor 行', calibPromptLine(calib).includes('2×'));
 check('样本<3 不产出', calibrationSummary([mk('s1', 'l9', 1)], [rec('s1', 50, 1)], 25), []);
+
+console.log('\n--- 功能二：任务拆解（fake 全链路） ---');
+const dec = await decomposeGoal({ goal: '做一套智能家居控制面板', settings: aiReady, lists, calib: [], engine: 'fake' });
+check('拆解状态 ok', dec.status, 'ok');
+ok('拆出 ≥2 个子任务', (dec.root?.children.length ?? 0) >= 2);
+function maxDepth(n: DecomNode, d = 0): number {
+  return Math.max(d, ...n.children.map((c) => maxDepth(c, d + 1)));
+}
+ok('平铺拆解：深度 = 1（无父子嵌套）', maxDepth(dec.root!) === 1);
+ok('每个子任务都是叶子（无下级）', dec.root!.children.every((c) => c.children.length === 0));
+check('AI 生成简短清单名（非整句）', dec.listName, '智能家居');
+ok('任务项被充实：tags/notes/priority 非空', dec.root!.children.some((c) => (c.tags?.length ?? 0) > 0 && !!c.notes && c.priority === 'high'));
+// 降级：LLM 返回坏结构 → 按连接词确定性细分
+const decFall = await decomposeGoal({ goal: '甲和乙以及丙', settings: aiReady, lists, calib: [], engine: 'fake', fake: () => ({ foo: 1 }) });
+ok('LLM 坏返回 → 确定性细分仍可用', decFall.status === 'ok' && decFall.degraded === true);
+check('连接词切成 3 个子任务', decFall.root?.children.length ?? 0, 3);
+
+console.log('\n--- 功能三：每日计划（规则 + 装箱 + 降级） ---');
+const cap = Math.round(DEFAULT_AVAILABLE_MIN * 0.82);
+const open = (id: string, estMin: number, due: string | null, prio: Task['priority'], list: string): Task => ({
+  ...mk(id, list, Math.round(estMin / 25)), completed: 0, completed_at: null,
+  priority: prio, due_date: due, tags: [],
+});
+// 5 个 must，各 100 分钟 → 容量 393，只能放 3 个 → 超载冲突
+const over = await buildDailyPlan({
+  tasks: [open('o1', 100, toDateKey(new Date()), 'high', 'l1'),
+    open('o2', 100, toDateKey(new Date()), 'high', 'l1'),
+    open('o3', 100, toDateKey(new Date()), 'high', 'l1'),
+    open('o4', 100, toDateKey(new Date()), 'high', 'l1'),
+    open('o5', 100, toDateKey(new Date()), 'high', 'l1')],
+  records: [], lists, settings: aiReady, calib: [], engine: 'fake', fake: () => ({ plan: [] }),
+});
+check('容量 = 可用×0.82', over.capacity_min, cap);
+ok('宁少勿多：块内 ≤ 容量', over.blocks.reduce((s, b) => s + b.items.reduce((x, i) => x + i.est_min, 0), 0) <= over.capacity_min);
+ok('超载必须项被推迟 → conflict', over.conflict != null && over.conflict.overrun_min > 0);
+check('超载 → 容量内装 3 个、推迟 2 个', over.blocks.reduce((s, b) => s + b.items.length, 0), 3);
+// LLM 坏返回 → 静默降级为确定性排序（degraded，仍可用）
+const plDeg = await buildDailyPlan({
+  tasks: [open('p1', 30, toDateKey(addDays(new Date(), 1)), 'medium', 'l1')],
+  records: [], lists, settings: aiReady, calib: [], engine: 'fake', fake: () => ({ wrong: 1 }),
+});
+check('LLM 坏返回 → 降级搞定', plDeg.degraded, true);
+check('空待办 → empty（不调 LLM）', (await buildDailyPlan({ tasks: [], records: [], lists, settings: aiReady, calib: [] })).status, 'empty');
+
+console.log('\n--- 功能四：日报（确定性聚合 + 五段 + 闭环校准） ---');
+const now = new Date();
+const doneT = { ...mk('done1', 'l1', 1), completed: 1, completed_at: now.getTime(), due_date: toDateKey(addDays(now, -1)) };
+const riskT = { ...mk('risk1', 'l1', 1), completed: 0, completed_at: null, due_date: toDateKey(addDays(now, 2)) };
+const rep = await buildReport({
+  tasks: [doneT, riskT],
+  records: [{ id: 'r1', task_id: 'done1', list_id: 'l1', start_at: now.getTime(), end_at: now.getTime(), duration_min: 25, phase: 'focus', created_at: now.getTime() }],
+  lists, settings: aiReady, calib, what: 'day', engine: 'fake', fake: () => ({ sections: [], next_steps: [] }),
+});
+check('今日专注 25 分', rep.total_min, 25);
+check('专注天数 1', rep.focus_days, 1);
+check('完成 1 / 待办 1', rep.done_tasks, 1);
+check('延期完成 1（钉子任务）', rep.delay_count, 1);
+ok('识别钉子任务', rep.nail_tasks.some((n) => n.title === 'done1'));
+ok('识别近一周临期风险', rep.upcoming_risk.some((r) => r.title === 'risk1'));
+check('五段式报告齐全', rep.sections.length, 5);
+ok('下阶段建议非空', rep.next_steps.length > 0);
+// 周期性空数据 → 空态，不调 LLM
+const repEmpty = await buildReport({ tasks: [], records: [], lists, settings: aiReady, calib: [], what: 'day', fake: () => ({ sections: [] }) });
+check('无数据 → empty', repEmpty.status, 'empty');
+
+console.log('\n--- 装箱纯函数（timebox） ---');
+const ents: PlanEntry[] = [
+  { id: 'a', title: 'A', list_name: 'X', est_min: 50, priority: 'high', due_date: null },
+  { id: 'b', title: 'B', list_name: 'X', est_min: 40, priority: 'medium', due_date: null },
+  { id: 'c', title: 'C', list_name: 'Y', est_min: 400, priority: 'low', due_date: null },
+];
+const fit = fitBlocks(ents, 120); // 容量 98
+ok('A+B 同项目聚一块', fit.blocks.length >= 1 && fit.blocks[0]?.items[0]?.id === 'a');
+ok('C(400)>容量 → 推迟', fit.deferred.some((d) => d.id === 'c'));
+check('容量=120×0.82', fit.capacity_min, Math.round(120 * 0.82));
 
 console.log(`\n${failures === 0 ? '✅ 全部通过' : `❌ ${failures} 项失败`}`);
 process.exit(failures === 0 ? 0 : 1);

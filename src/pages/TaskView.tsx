@@ -6,6 +6,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { StatCards, countCard, minutesCard } from '@/components/StatCards';
 import { AddTask } from '@/components/AddTask';
 import { TaskItem } from '@/components/TaskItem';
+import { TaskBatchBar } from '@/components/TaskBatchBar';
 import { useDataStore } from '@/stores/dataStore';
 import { useStatsStore } from '@/stores/statsStore';
 import { useTimerStore } from '@/stores/timerStore';
@@ -125,10 +126,11 @@ export function TaskView() {
         placeholder={t('task.add', { list: title })}
       />
 
-      <div className="task-list" onKeyDown={onListKeyDown}>
+      <div className="task-list" onKeyDown={onListKeyDown} onClick={(e) => { if (e.target === e.currentTarget) useUiStore.getState().clearTaskSelect(); }}>
         {view.pending.length === 0 && <div className="empty">{t('task.empty')}</div>}
         {view.pending.map((t) => <TaskItem key={t.id} task={t} onReorder={onReorder} showListSource={showListSource} />)}
       </div>
+      <TaskBatchBar />
       {/* 键盘重排的读屏播报（视觉隐藏） */}
       <div className="sr-only" role="status" aria-live="polite">{moveMsg}</div>
 

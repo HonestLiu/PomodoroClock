@@ -4,6 +4,101 @@
 
 ---
 
+## 2026-10-28 · AI 任务拆解：充实任务字段 + AI 生成清单名
+
+### 变更
+- **充实任务项**：拆解输出的每个任务除了 title / est_min / 验收标准，AI 现在还补 **notes（备注）、tags（标签数组，≤4）、priority（优先级）**。采纳落库时一并写入；预览树里显示优先级色点、标签 chips、备注行。
+- **AI 生成清单名**：新增 `list_name` 输出字段，AI 基于目标概括一个 2～8 字简短清单名（如「做一套智能家居控制面板」→「智能家居」），不再把用户整句提问当清单名。降级（LLM 挂/空结果）时用截短后的目标做名字。
+
+### 实现
+- `lib/ai/decompose.ts`：`DecomNode` 增 `notes/tags/priority`；`DecomposeOutcome` 增 `listName`；schema 增 `list_name`；`cleanTags/cleanPriority` 归一化。
+- `aiChatStore.ts`：`AiMessage.decomListName`；`adoptTree` 用 AI 清单名建清单 + 写入 notes/tags/priority。
+- `AiChat.tsx` / `ai.css`：预览树显示优先级点 / 标签 / 备注；气泡顶行显示目标清单名。
+- `i18n`：`ai.decompose.list`。
+
+### 验证
+`verify-ai.ts` 增：清单名=AI 生成的「智能家居」、任务项 tags/notes/priority 非空。`tsc` 干净；`check-all.sh` **9/9 全绿**。
+
+---
+
+## 2026-10-28 · 任务多选批量操作 + 拆解改平铺输出
+
+### 一、任务多选批量操作（跨任务/清单/已完成视图）
+用户期望的「多选」是**任务清单整体**（Cmd/Ctrl + 点选，类似 Finder），而非仅 AI 候选。
+
+- **选择**：`TaskItem` 行上 **Cmd/Ctrl + 单击** = 选/取消选（capture 阶段拦截，避免误触发编辑/勾选/播放）；选中行蓝色描边高亮。`uiStore` 新增 `selectedTaskIds`，navigate 时清空、Esc / 点空白处 / 「清除选择」结束多选。
+- **批量条** `TaskBatchBar.tsx`（`TaskView` 与 `DoneView` 复用，sticky 底栏）：**完成/取消**（`batchToggle`，含重复任务自动推进）、**移到清单**（子菜单）、**批量设置**（优先级 / 重复 / 紧急 开·关 / 旗标 开·关 / 截止日期 / 预估番茄，即时应用到所有选中项）、**删除所选**（二次确认）、清除选择。
+- `dataStore` 新增 `batchPatch` / `batchDelete` / `batchToggle`（循环批量 + 一次 `reload`）。
+
+### 二、AI 任务拆解改「平铺」输出（修复父子混杂）
+- **现象**：拆解按 ≤3 层树生成父子层级，而任务列表以平铺展示，导致上级任务与子任务视觉混杂。
+- **修复**：`decompose.ts` 系统提示改为**只生成一层平铺子任务（≤12 条，含 est_min + 验收标准）**，禁止再套子任务；解析改为平铺 `tasks[]`。落库时所有子任务为顶层（`parentId=null`），目标名作为所属独立清单。验证由「深度≤3」改为「深度=1 且均为叶子」。
+
+### 验证
+`tsc --noEmit` 干净；`tools/check-all.sh` **9/9 全绿**（含 `verify-ai.ts` 平铺断言）。
+
+---
+
+## 2026-10-28 · AI 建任务候选支持多选批量操作
+
+### 变更
+AI 自然语言建任务的候选列表支持**多选批量**：勾选多项后出现批量工具栏。
+- **删除所选**:移除勾选的候选（被删父项的子候选自动提升为顶层，不误删子项）。
+- **批量设置**:面板内一次应用到所有勾选项 —— 清单 / 优先级 / 重复 / 截止日期 / 时间 / 预计时长。
+
+### 实现
+- `aiChatStore.ts` 新增 `removeItems`（批量删 + 孤儿提升）与 `bulkPatch`（同补丁应用到所选），类型 `AiBatchPatch`。
+- `AiChat.tsx` 新增 `renderBatchBar`（删除/批量设置工具栏 + 应用面板，立即生效）。
+- `ai.css` 新增 `.ai-batch*` 样式；`zh/en.ts` 增 `ai.batch.*`、`ai.fields.repeat`。
+
+### 验证
+`tsc --noEmit` 干净；`tools/check-all.sh` **9/9 全绿**。
+
+---
+
+## 2026-10-28 · 任务拆解修正：独立清单 + 树排版
+
+### 现象
+1. AI 任务拆解「采纳所选」后，拆解出的任务混进了默认清单（如「B做清单」），没有独立的归属清单。
+2. 拆解树的排版错乱：子任务被横向挤到父任务右侧、层层右移，像文本堆叠而非层级树；时长徽标显示为断开的「估算#400」。
+
+### 根因
+1. `aiChatStore.ts::adoptTree` 调 `api.create_task` 时**未传 `listId`**，`local.ts` 回退到 `default_list_id`（用户默认清单）。
+2. `AiChat.tsx::renderTreeNode` 中子节点 `.ai-tnode-nest` 作为父节点同一 `flex` 行内的兄弟项渲染 → 子级旁置而非向下缩进；`est` 徽标用 `t('ai.est')#${est_min}` 拼接产生错乱文案。
+
+### 修复
+- **独立清单**：`adoptTree` 先以目标名 `api.create_list({ name: root.title })` 建一个专属清单，再把所有拆解任务 `listId` 指向它；撤销时连同清空该清单（`AiMessage.createdListId`）。
+- **树排版**：`renderTreeNode` 重排为 勾选行 → 验收标准 → 子节点纵向层级的四叉结构；子层用 `.ai-tnode-nest` 深色缩进 + 左虚线引导线；时长改 `formatMinutesShort`，去掉了 `#` 拼接。
+
+### 验证
+`tsc --noEmit` 干净；`tools/check-all.sh` **9/9 全绿**。
+
+### 防复发
+- 新建清单/任务必须在调用点显式指定 `listId`，不得依赖 `default_list_id` 兜底（兜底仅面向手动表单）。
+- 树形 UI 一律「行 + 子层」嵌套结构，子层放父节点纵向层内，禁作 flex 行兄弟。
+
+---
+
+## 2026-10-28 · AI 能力 M3–M5 落地：任务拆解 / 每日计划 / 日报·周报
+
+### 现象
+AI 页此前只有「自然语言建任务」可用，剩余三个功能（拆解/计划/日报周报）的 chips 点击只会弹一句「待接入」说明，不能真用。
+
+### 变更（把三张 chips 从占位变成真实能力）
+- **功能二 任务拆解** `lib/ai/decompose.ts`：目标 → 结构化输出 **≤3 层任务树**（每节点含 est_min + 验收标准 + 依赖），温度 0，深度截断 + 依赖无环修剪；用户在气泡里勾选任意子树 →「采纳所选」落库为带 `parent_id` 的任务树 → 可一键撤销。**降级**：LLM 挂了按连接词（和/以及/、/，/；）做确定性细分，仍可勾选采纳。
+- **功能三 每日计划** `lib/ai/timebox.ts`（纯函数，离线可测）：**容量 = 可用×0.82（18% 缓冲）、同项目聚块、单块 ≤90、拒绝超载**。`lib/ai/plan.ts`：必须项（有截止且 ≤今+2 天）优先 → LLM 只做 triage 排序 + 一句 reason（**不把时间算术交给 LLM**）→ 确定性装箱；超载给冲突提示、宁少勿多。**降级**：LLM 失败按「优先级→截止」确定性排序（degraded）。空待办返回空态不调 LLM。
+- **功能四 日报/周报** `lib/ai/report.ts`：**数字全部确定性聚合**（专注时长/天数、完成率、延期钉子任务、项目分布、近一周临期风险、工时校准 factor），LLM 只写五段叙述 + ≤3 条下阶段建议。周期无数据→空态不调 LLM；LLM 失败自动用真实数据生成确定性段落（degraded 标注）。
+- **UI（`AiChat.tsx` + `aiChatStore.ts`）**：chips 点击切换下次回车的 **pendingMode**，推一条引导提示；`decompose/plan/report` 三种助手气泡分别渲染 树/计划块/五段报告。拆解与建任务可采纳可撤销；计划与报告为只读建议。`plan`/`report` 支持空回车走默认参数（计划=今天、日报=今天），或输入「明天」「本周」等。
+
+### 验证
+`tools/verify-ai.ts` 新增功能二/三/四断言（拆解树深度与无环、连接词降级、容量×0.82、超载冲突、LLM 坏返回降级、空态、五段报告/钉子任务/风险/校准闭环），入 `check-all.sh`，**9/9 全绿**；`tsc` 干净。
+
+### 遗留/递进
+- `estimate_calib` 持久化闭环（写完样本表）与每日计划「采纳落库写 due/顺序」本期未做（目前校准为派生计算、计划为只读建议）。
+- 拆解/计划/报告的系统 prompt 为中文，报表叙述语言跟随模型（当前为中文），与界面双语不冲突。
+
+---
+
 ## 2026-10-21 · 修：AI 一直「暂时不可用」（模型名 + 桌面 CSP + 错误不可行动）
 
 ### 现象

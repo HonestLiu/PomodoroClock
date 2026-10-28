@@ -5,6 +5,7 @@
 import { useMemo } from 'react';
 import { countCard, minutesCard, StatCards, type StatCardDef } from '@/components/StatCards';
 import { TaskItem } from '@/components/TaskItem';
+import { TaskBatchBar } from '@/components/TaskBatchBar';
 import { useDataStore } from '@/stores/dataStore';
 import { useStatsStore } from '@/stores/statsStore';
 import { completedTaskGroups, type Dataset } from '@/lib/derive';
@@ -53,6 +54,7 @@ export function DoneView() {
           {g.tasks.map((task) => <TaskItem key={task.id} task={task} />)}
         </section>
       ))}
+      <TaskBatchBar />
     </div>
   );
 }
