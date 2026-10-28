@@ -35,6 +35,7 @@ import { api, on, subscribe, isTauri } from '@/api';
 import { useI18nStore, tStatic } from '@/i18n';
 import { scanTaskReminders, defaultRemindDeps } from '@/lib/remindScan';
 import { scanCountdownReminders, defaultCountdownRemindDeps } from '@/lib/countdownRemind';
+import { syncPBServer } from '@/lib/pb';
 
 export default function App() {
   const [booted, setBooted] = useState(false);
@@ -57,6 +58,8 @@ export default function App() {
       await refreshStats();
       // 先加载设置（含启动页），再决定是否展开专注界面
       await initTimer({ openScreen: false });
+      // 数据库里的同步服务器地址（settings.pb_url）优先于编译期 env/默认，启动即校正 pb 客户端
+      syncPBServer(useTimerStore.getState().settings);
       const startup = useTimerStore.getState().settings.startup_page;
       // 启动页：'timer' 展开番茄钟专注界面；其余跳到对应侧边栏页面（且不覆盖该页面）
       const onTimer = startup === 'timer';
@@ -109,6 +112,15 @@ export default function App() {
     if (!booted) return;   // 启动期的 settings 初始化不触发推送
     scheduleSyncPush();
   }, [settingsSig, booted]);
+
+  // 同步服务器地址变了（设置里改 / 脚本改了 DB 值重启）-> 校正 pb 客户端并重连云端会话。
+  // reconnectIfServerChanged 只在 baseUrl 实际变化时才动手，其余 settings 改动不受影响。
+  const pbServerUrl = settings.pb_url;
+  useEffect(() => {
+    if (!booted) return;
+    syncPBServer(useTimerStore.getState().settings);
+    void useAuthStore.getState().reconnectIfServerChanged();
+  }, [pbServerUrl, booted]);
 
   // 切换语言后清掉残留的同步提示：syncMessage 存的是「已渲染好的文案」，
   // 不清掉会出现「英文界面挂着中文提示」的怪现象（提示本身是瞬时状态，清掉无害）。

@@ -227,6 +227,10 @@ export const zh = {
 
   // 云同步（PocketBase）
   'sync.section': '同步',
+  'sync.server': '同步服务器',
+  'sync.serverPlaceholder': 'https://...（留空用编译期默认）',
+  'sync.serverReset': '恢复默认',
+  'sync.serverHint': '当前生效：{v}',
   'sync.syncing': '同步中…', 'sync.ready': '待同步',
   'sync.email': '邮箱', 'sync.password': '密码', 'sync.passwordConfirm': '确认密码',
   'sync.login': '登录', 'sync.register': '注册',

@@ -117,6 +117,8 @@ export async function pushConfig(): Promise<SyncMeta> {
   const payload: Partial<Settings> = { ...settings };
   // API Key 只留本机：配置同步（configs.data）不上传它，避免泄露到云端
   delete payload.ai_api_key;
+  // 同步服务器地址也是本机设置（不同设备可能连不同服务器），不当共享配置上传
+  delete payload.pb_url;
 
   let saved: ConfigRecord;
   if (remote) {

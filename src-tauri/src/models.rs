@@ -189,6 +189,8 @@ pub struct Settings {
     pub ai_base_url: String,
     pub ai_api_key: String,
     pub ai_model: String,
+    /// 同步服务器（PocketBase）地址。空 = 用编译期默认（VITE_PB_URL → 内置）。仅本机存、不入库云端。
+    pub pb_url: String,
 }
 
 impl Default for Settings {
@@ -216,6 +218,7 @@ impl Default for Settings {
             ai_base_url: String::new(),
             ai_api_key: String::new(),
             ai_model: String::new(),
+            pb_url: String::new(),
         }
     }
 }

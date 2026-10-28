@@ -546,6 +546,7 @@ pub fn load_settings(conn: &Connection) -> AppResult<Settings> {
             "ai_base_url" => s.ai_base_url = v,
             "ai_api_key" => s.ai_api_key = v,
             "ai_model" => s.ai_model = v,
+            "pb_url" => s.pb_url = v,
             "noise" => s.noise = v,
             "wallpaper" => s.wallpaper = v,
             "motto" => s.motto = v,

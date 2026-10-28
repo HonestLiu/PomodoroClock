@@ -4,16 +4,42 @@
 import PocketBase, { LocalAuthStore } from 'pocketbase';
 import { tStatic } from '@/i18n';
 
-/** 云端地址：优先读 VITE_PB_URL，回退到内置默认（离线开发也能连上已部署实例） */
-export const PB_URL: string =
+// 云端地址解析（docs/09-sync-server.md）：
+//   settings.pb_url（数据库，运行时/脚本可改）→ VITE_PB_URL（编译期）→ 内置默认（离线开发兜底）。
+// `pb` 单例在模块加载时先以兜底地址建立；启动加载设置后由 syncPBServer() 校正到 pb_url。换言之，
+// 下面的 PB_URL 不再是一锤定音的常量，而是"编译期兜底"。真正生效的地址看 pb.baseUrl。
+export const PB_FALLBACK_URL: string =
   (import.meta.env.VITE_PB_URL as string | undefined)?.trim() ||
   'http://62.234.82.11:28193';
+
+/** 把用户配置/环境量规整成可用地址：去首尾空格、去掉尾部斜杠、空串视为"未配置"。 */
+export function normalizePBUrl(raw: string): string {
+  return raw.trim().replace(/\/+$/, '');
+}
+
+/** 在"编译期兜底 + 数据库覆盖"之间取最终生效地址。 */
+export function resolvePBUrl(pbUrlSetting?: string): string {
+  const fromSetting = normalizePBUrl(pbUrlSetting ?? '');
+  return fromSetting || PB_FALLBACK_URL;
+}
+
+/** 运行时切换同步服务器：直接改写 pb 的 baseUrl（后续所有请求 / 刷新登录都用新地址）。 */
+export function applyPBServer(url: string): string {
+  const next = normalizePBUrl(url) || PB_FALLBACK_URL;
+  if (pb.baseUrl !== next) pb.baseUrl = next;
+  return next;
+}
+
+/** 从设置同步服务器地址并重新指向 pb 客户端；返回生效地址。 */
+export function syncPBServer(settings: { pb_url?: string }): string {
+  return applyPBServer(resolvePBUrl(settings?.pb_url));
+}
 
 export const USERS = 'users';
 export const CONFIGS = 'configs';
 
 /** LocalAuthStore 把 token + 用户记录持久化到 localStorage，刷新/重启后仍保持登录 */
-export const pb = new PocketBase(PB_URL, new LocalAuthStore());
+export const pb = new PocketBase(PB_FALLBACK_URL, new LocalAuthStore());
 
 // React 里同一请求被误判为重复会中断，关掉以避免抖动误判
 pb.autoCancellation(false);
@@ -82,7 +108,7 @@ export async function pbUpdateProfile(patch: {
 export function pbAvatarFileUrl(user: PbUser | null, thumb?: number): string {
   const name = typeof user?.avatar === 'string' ? user.avatar.trim() : '';
   if (!user?.id || !name) return '';
-  const base = `${PB_URL}/api/files/${USERS}/${encodeURIComponent(user.id)}/${encodeURIComponent(name)}`;
+  const base = `${pb.baseUrl}/api/files/${USERS}/${encodeURIComponent(user.id)}/${encodeURIComponent(name)}`;
   return thumb ? `${base}?thumb=${thumb}x${thumb}` : base;
 }
 

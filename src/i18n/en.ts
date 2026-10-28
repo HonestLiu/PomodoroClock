@@ -220,6 +220,10 @@ export const en = {
 
   // Cloud sync (PocketBase)
   'sync.section': 'Sync',
+  'sync.server': 'Sync server',
+  'sync.serverPlaceholder': 'https://… (leave empty for default)',
+  'sync.serverReset': 'Reset to default',
+  'sync.serverHint': 'Active: {v}',
   'sync.syncing': 'Syncing…', 'sync.ready': 'Not synced yet',
   'sync.email': 'Email', 'sync.password': 'Password', 'sync.passwordConfirm': 'Confirm password',
   'sync.login': 'Sign in', 'sync.register': 'Create account',

@@ -191,6 +191,9 @@ export interface Settings {
   ai_base_url: string;
   ai_api_key: string;
   ai_model: string;
+  /** 同步服务器（PocketBase）地址。空 = 用编译期默认（VITE_PB_URL → 内置）。仅在本地存、不入库号。
+   *  生效路径见 docs/09-sync-server.md；可用 scripts/set-sync-server.mjs 一键写入本机 DB。 */
+  pb_url: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -216,6 +219,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ai_base_url: '',
   ai_api_key: '',
   ai_model: '',
+  pb_url: '',
 };
 
 /** 启动页配置值：'timer' = 番茄钟展开视图，其余为侧边栏页面 */

@@ -17,7 +17,7 @@ import { useTimerStore } from '@/stores/timerStore';
 import { useAuthStore } from '@/stores/authStore';
 import { pendingCounts, dataSyncError, forceFullSync } from '@/lib/syncData';
 import { api } from '@/api';
-import { pbAvatarFileUrl } from '@/lib/pb';
+import { pb, pbAvatarFileUrl } from '@/lib/pb';
 import { listAggregate } from '@/lib/derive';
 import { resolveListIconColor } from '@/lib/listIcon';
 import { formatMinutesShort } from '@/lib/date';
@@ -27,6 +27,9 @@ import type { Settings, StartupPage } from '@/types';
 import type { ConfirmSpec } from './ConfirmDialog';
 import { useI18nStore, useI18n, type ZhKey } from '@/i18n';
 import { useModalA11y } from '@/components/useModalA11y';
+
+/** 设置写入串行链（见 patch）：保证多次编辑按序落库，避免并发快照回退 */
+let writeChain: Promise<unknown> = Promise.resolve();
 
 const TABS: Array<{ key: SettingsTab; labelKey: ZhKey; icon: typeof UserIcon }> = [
   { key: 'account', labelKey: 'settings.tab.account', icon: UserIcon },
@@ -54,13 +57,20 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
   useEffect(() => { setSettings(timer.settings); }, [timer.settings]);
   if (!ui.settingsOpen) return null;
 
+  // 设置写入串行化：输入框逐键会把多个 patch 并发砸进来，若各自 await 返回后
+  // 用整份快照覆盖 timer.settings，慢/早的响应会盖掉更新的字段（表现为“改完又变旧”）。
+  // 改为按序落库 + 只用本次写入的键做增量合并，杜绝旧快照回退。每次调用返回统一排队串。
   async function patch<K extends keyof Settings>(key: K, value: Settings[K]) {
-    const next = { ...settings, [key]: value };
-    setSettings(next);
-    const saved = await api.set_setting(key, String(value));
-    timer.setSettings(saved);
-    // 每日目标同时写入 goals 表（报表日历口径）
-    if (key === 'daily_target_min') await api.set_goal(Number(value));
+    setSettings((prev) => ({ ...prev, [key]: value }));
+    const queued = writeChain.then(async () => {
+      const saved = await api.set_setting(key, String(value));
+      const current = useTimerStore.getState().settings;
+      timer.setSettings({ ...current, [key]: saved[key] });
+      // 每日目标同时写入 goals 表（报表日历口径）
+      if (key === 'daily_target_min') await api.set_goal(saved.daily_target_min);
+    });
+    writeChain = queued;
+    return queued;
   }
 
   /** AI 连通性测试：用当前表单配置发一条最小请求，给出可行动结论 */
@@ -134,7 +144,7 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
             aria-labelledby={`settings-tab-${activeTab.key}`}
           >
             {/* ── 账号（S5）：软件账号 = PocketBase 账号，一页两态 ── */}
-            {ui.settingsTab === 'account' && <AccountPane onConfirm={onConfirm} />}
+            {ui.settingsTab === 'account' && <AccountPane onConfirm={onConfirm} onPatch={patch} />}
 
             {/* ── 高级版（占位，规格定义） ── */}
             {ui.settingsTab === 'premium' && (
@@ -480,7 +490,12 @@ function NumField({
 }
 
 /** 账号页（S5）：软件账号 = PocketBase 账号。未登录→登录/注册卡；已登录→账号卡 + 同步区。 */
-function AccountPane({ onConfirm }: { onConfirm(spec: ConfirmSpec): void }) {
+function AccountPane({
+  onConfirm, onPatch,
+}: {
+  onConfirm(spec: ConfirmSpec): void;
+  onPatch<K extends keyof Settings>(key: K, value: Settings[K]): Promise<unknown>;
+}) {
   const { t } = useI18n();
   const cloud = useAuthStore();
   const signedIn = cloud.status === 'signedIn';
@@ -506,6 +521,9 @@ function AccountPane({ onConfirm }: { onConfirm(spec: ConfirmSpec): void }) {
   const pwdMismatch = np2.length > 0 && np1 !== np2;
   // 退出登录后留在账号页，用一行提示代替「整个弹层消失」
   const [notice, setNotice] = useState('');
+  // 同步服务器地址（数据库 setting.pb_url；'' = 用编译期默认）
+  const currentServer = useTimerStore((s) => s.settings.pb_url);
+  const [serverDraft, setServerDraft] = useState(currentServer);
   // 头像：点圆形按钮 -> 隐藏的 file input（PB users.avatar 文件字段）
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -557,6 +575,12 @@ function AccountPane({ onConfirm }: { onConfirm(spec: ConfirmSpec): void }) {
       ? await cloud.login(email.trim(), pwd)
       : await cloud.register(email.trim(), pwd, nick.trim());
     if (ok) { setPwd(''); setPwd2(''); setNick(''); }
+  }
+
+  /** 保存同步服务器地址：写入数据库 setting.pb_url（留空=回编译期默认）；
+   *  App 侧 settings 变化 effect 会据此校正 pb 客户端并按需重连云端会话（docs/09-sync-server.md）。 */
+  function applyServer() {
+    void onPatch('pb_url', serverDraft.trim());
   }
 
   /** 已登录改密码：交给 authStore（内部走 PB，<8 位/不一致各有提示） */
@@ -810,7 +834,7 @@ function AccountPane({ onConfirm }: { onConfirm(spec: ConfirmSpec): void }) {
             </div>
           </div>
 
-          {/* ── 同步 ── */}
+          {/* ── 同步（状态/推送，已登录相关） ── */}
           <div className="acct-section">
             <div className="section-title">{t('sync.section')}</div>
             <div className="field">
@@ -927,6 +951,35 @@ function AccountPane({ onConfirm }: { onConfirm(spec: ConfirmSpec): void }) {
           )}
         </div>
       )}
+
+      {/* ── 同步服务器（设备本地）：两态都显示 —— 未登录也必须能先定服务器再登录（docs/09-sync-server.md） ── */}
+      <div className="acct-section">
+        <div className="section-title">{t('sync.section')}</div>
+        <div className="field">
+          <span className="field-label">{t('sync.server')}</span>
+          <div className="field-body">
+            <input
+              className="text-input" value={serverDraft} placeholder={t('sync.serverPlaceholder')}
+              aria-label={t('sync.server')} spellCheck={false}
+              onChange={(e) => setServerDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur(); void applyServer(); } }}
+            />
+            <button
+              className="btn primary" disabled={serverDraft === currentServer}
+              onClick={() => void applyServer()}
+            >
+              {t('common.save')}
+            </button>
+            <button className="btn" disabled={!currentServer} title={t('sync.serverReset')}
+              onClick={() => { setServerDraft(''); void onPatch('pb_url', ''); }}>
+              {t('sync.serverReset')}
+            </button>
+            <span className="field-hint">
+              {t('sync.serverHint', { v: pb.baseUrl })}
+            </span>
+          </div>
+        </div>
+      </div>
 
       {/* 本地数据：两态都有，删除的是本地库 */}
       <div className="acct-section">
@@ -1200,7 +1253,7 @@ function AboutPane() {
   const { lists, tasks, records } = useDataStore();
   const cloud = useAuthStore();
   const signedIn = cloud.status === 'signedIn';
-  const pbUrl = (import.meta.env.VITE_PB_URL as string | undefined)?.trim() ?? '';
+  const pbUrl = pb.baseUrl;
 
   return (
     <>

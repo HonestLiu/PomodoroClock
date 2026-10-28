@@ -96,7 +96,11 @@ Rust 侧不重复结算，保证一次番茄恰好归档一条记录。
 | 路由 | react-router-dom v6（内存路由） | `uiStore` 内存路由状态 | 依赖不可得；同一 §2.3 路由表语义（`/tasks`、`/today`…、`/lists/:id`） |
 | 图表 | ECharts 5 | 手写 SVG 组件 | 依赖不可得；`charts/` 下热力网格、环形图、日历、进度条均为 SVG，视觉与数据映射一致 |
 | 白噪音 | 打包本地音频资源 | Web Audio 合成（滤波噪声） | 5 段本地环境音循环播放、音量可调、失败静默降级（§8.8-5）；选择入口统一为**弹窗**（6 项含「无」、圆形封面取自 mp3 内嵌图、试听→确定才落库、取消回滚）。样式来自用户设计稿，超出 PRD |
-| 云同步 | §8.6 列为可扩展项（非目标） | PocketBase 云端对齐层 | 设置 → 账号即软件账号（登录/注册、改密码、忘记密码、头像上传/移除、昵称就地编辑（邮箱只读）、同步区、退出）；退出登录只清会话、不清本地数据；本地仍为断网时真相源；集合 `users`/`configs`；地址 `VITE_PB_URL`（回退 `http://62.234.82.11:28193`）；PB 不可达时静默降级、不阻塞本地；端到端 36/36 已实测 |
+| 云同步 | §8.6 列为可扩展项（非目标） | PocketBase 云端对齐层 | 设置 → 账号即软件账号（登录/注册、改密码、忘记密码、头像上传/移除、昵称就地编辑（邮箱只读）、同步区、退出）；退出登录只清会话、不清本地数据；本地仍为断网时真相源；集合 `users`/`configs`；地址按「`settings.pb_url`（库内可配）＞ `VITE_PB_URL` ＞ 内置 `http://62.234.82.11:28193`」优先级解析；PB 不可达时静默降级、不阻塞本地；端到端 36/36 已实测 |
+
+> **同步服务器配置**：PocketBase 服务器地址可在库内一键设置，多机可连不同后端。见
+> [`docs/09-sync-server.md`](docs/09-sync-server.md)，一行脚本：
+> `node scripts/set-sync-server.mjs https://pb.example.com`（写的是 `settings` 表里的值；`""` 恢复编译期默认）。
 
 另：
 
@@ -150,3 +154,21 @@ cd src-tauri && cargo test --test queries                           # Rust 统�
 | 浏览器 | IndexedDB `focus_pomodoro` |
 
 两者共用 §6.2 表结构与 §7.2 口径，切换运行时数据语义一致。
+
+---
+
+## 文档索引
+
+完整规格与开发文档见 `docs/`（入口 `docs/00-README.md`）：
+
+| 文档 | 内容 |
+| --- | --- |
+| [`01-vision.md`](docs/01-vision.md) | 产品愿景 |
+| [`02-roadmap.md`](docs/02-roadmap.md) | 路线图 + 当前状态 + 差距 |
+| [`03-architecture.md`](docs/03-architecture.md) | 双运行时架构 / 数据流 |
+| [`04-data.md`](docs/04-data.md) | 数据契约与口径 |
+| [`05-modules/*.md`](docs/05-modules/) | 各功能域模块规范 |
+| [`06-acceptance.md`](docs/06-acceptance.md) | 全量验收清单 |
+| [`07-backlog.md`](docs/07-backlog.md) | 待办池 |
+| [`08-changelog.md`](docs/08-changelog.md) | 变更记录 |
+| [`09-sync-server.md`](docs/09-sync-server.md) | **同步服务器（PocketBase）配置 + 一键脚本** |

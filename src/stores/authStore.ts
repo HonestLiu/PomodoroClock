@@ -3,7 +3,7 @@
 
 import { create } from 'zustand';
 import {
-  pb, currentUser, pbLogin, pbLogout, pbRefreshAuth, pbRegister, pbErrorMessage, collectionExists,
+  pb, PB_FALLBACK_URL, currentUser, pbLogin, pbLogout, pbRefreshAuth, pbRegister, pbErrorMessage, collectionExists,
   pbUpdateProfile, pbRequestPasswordReset, pbUploadAvatar, pbDeleteAvatar, pbUpdateName, CONFIGS, type PbUser,
 } from '@/lib/pb';
 import {
@@ -36,6 +36,8 @@ interface AuthState {
   pullNow(): Promise<boolean>;
   /** 云端来了更新（由 realtime 触发），跑裁决后应用 */
   acceptRemote(rec: ConfigRecord): Promise<void>;
+  /** 同步服务器地址变化后重连：若 pb.baseUrl 相比上次确实变了，则停旧的订阅并重新初始化登录态 */
+  reconnectIfServerChanged(): Promise<void>;
   /** 改密码（已登录）：必须带当前密码（PB users 集合强制 oldPassword） */
   changePassword(oldPassword: string, newPassword: string): Promise<boolean>;
   /** 上传头像：先做客户端类型/大小校验，失败只落在 syncMessage，不抛给 UI */
@@ -52,6 +54,12 @@ interface AuthState {
 /** 本地配置发生变化时调用；已登录则防抖推送（避免每个键都打一次 HTTP） */
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
 let unsubRealtime: (() => void) | null = null;
+// 本地有设置改动、正等待推送（防抖窗口或推送在途）。
+// 该标记期间禁止云端 pull 覆盖本地：避免刚编辑的配置又被一条较旧的实时事件回退成旧值，
+// 随后 refreshSettings 再把旧值推回云端、永久固化（表现为“改完设置退出再进又变回旧的”）。
+let pushPending = false;
+// 上次连接的同步服务器地址：pb_url 变化时据此判断是否真需要重连，避免无关设置改动打断登录态。
+let lastServer = PB_FALLBACK_URL;
 
 /** 检查后端是否齐备；configs 集合缺失时返回引导文案（用于提示用户补配 PB） */
 async function backendHint(): Promise<string> {
@@ -174,6 +182,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (e) {
       set({ syncState: 'error', syncMessage: pbErrorMessage(e) });
       return false;
+    } finally {
+      // 推送已收敛（成功则云端=本地，失败则保留本地为最高权威、允许后续拉取重试对齐）
+      pushPending = false;
     }
   },
 
@@ -182,6 +193,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ syncState: 'busy', syncMessage: '' });
     void syncDataNow();
     try {
+      // 本地有改动正待推送时，拉取会带回旧配置覆盖刚编辑的内容：本次跳过，等推送收敛。
+      if (pushPending) {
+        set({ syncState: 'ok', syncMessage: tStatic('sync.keepLocal'), lastSyncAt: Date.now() });
+        return true;
+      }
       const dir = await pullConfig();
       const me = currentUser();
       const meta = me ? readMeta(me.id) : null;
@@ -202,6 +218,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   async acceptRemote(rec) {
     try {
+      // 本地编辑待推送期间忽略实时事件：它们的云端数据较旧，拉下来会回退刚改的配置。
+      if (pushPending) return;
       const me = currentUser();
       const direction = resolveAfterRemote(me ? readMeta(me.id) : null, rec);
       if (direction !== 'pull') return;   // 本地更新：不覆盖，稍后由防抖推送反向同步
@@ -215,6 +233,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   clearMessage() { set({ syncMessage: '' }); },
+
+  async reconnectIfServerChanged() {
+    const current = pb.baseUrl;
+    if (current === lastServer) return;   // 服务器没变：不打断当前登录态
+    lastServer = current;
+    // 服务器变了：停掉旧的实时订阅 / 数据同步 / 待推送，用新地址重新初始化会话。
+    // 旧服务器的登录 token 大概率在新服务器无效，init() 会据此优雅切到未登录。
+    stopDataSync();
+    unsubRealtime?.();
+    unsubRealtime = null;
+    if (pushTimer) { clearTimeout(pushTimer); pushTimer = null; }
+    pushPending = false;
+    pbLogout();
+    await get().init();
+  },
 
   async changePassword(oldPassword, newPassword) {
     if (newPassword.length < 8) {
@@ -351,12 +384,15 @@ async function refreshSettings(): Promise<void> {
 
 /** 本地 settings 变化 -> 防抖推送（需已登录） */
 export function scheduleSyncPush(): void {
-  const { status, syncState } = useAuthStore.getState();
+  const { status } = useAuthStore.getState();
   if (status !== 'signedIn') return;
-  if (syncState === 'busy') return;
+  // 记录“本地有改动”，推送落地前挡住实时/手动拉取，避免旧配置回退刚编辑的值。
+  pushPending = true;
+  // busy 也不提前返回：正有同步在跑但本键没被覆盖时，仍需再排一次推送收敛云端。
+  // 并发 pushConfig 是幂等 upsert（rev 顺延），重复推送无害。
   if (pushTimer) clearTimeout(pushTimer);
   pushTimer = setTimeout(() => {
     pushTimer = null;
     void useAuthStore.getState().pushNow();
-  }, 1200);
+  }, 300);
 }

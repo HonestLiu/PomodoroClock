@@ -4,6 +4,89 @@
 
 ---
 
+## 2026-10-28 · 番茄钟暂停：记录时长不再把暂停时间算进去
+
+### 现象
+番茄钟里点击**暂停**，后台仍把墙钟流逝一起累计。完成归档后 `focus_record` 的时长被拉得很长——比如 25 分钟的番茄，中间暂停过，记录里变成 59 分钟，把暂停段都算进去了。
+
+### 根因
+`timer/engine.ts` 里番茄钟/倒计时的 `startState` 在「恢复」时**只顺延 `end_at`，却不动 `start_at`**（它保持第一次起表时间）。于是 `finalizeFocus` 用 `end_at - start_at` 算时长时 = 真实专注时长 + 全部暂停墙钟。正计时（stopwatch）没这问题，因为它的 `startState` 已在恢复时把 `start_at` 折算回已用时。
+
+### 修复
+- `pauseState` 恢复时**保留 `end_at`**（不再清空）。`isExpired` 要求 `running`，paused 态带旧 `end_at` 不会误触发到期。
+- `startState`（非正计时）恢复时由 `gap = now + paused_remaining - 恢复前的 end_at` 反推本次暂停时长，把 `start_at` **前移该 gap**。于是 `end_at - start_at` 在任意次暂停/恢复后都恒等于原始阶段时长（倒计时只累计运行时），`finalizeFocus` 无需改动即写入真实专注时长。
+- 重启恢复路径（`init` 对已结算会话调 `finalizeFocus`）同样受益：持久化的 `start_at` 已是折算后的值。
+
+### 验证
+`tools/verify-timer.ts` 新增回归项「番茄钟多次暂停后 end_at - start_at 恒为 25 分钟」，22/22 通过；`tsc --noEmit` 干净；`tools/check-all.sh` **9/9 全绿**。
+
+### 防复发
+凡「暂停-恢复」型计时，恢复逻辑必须连同 `start_at` 一起折算暂停段，否则归档时长会掺入暂停墙钟；仅顺延 `end_at` 不够。
+
+---
+
+## 2026-10-28 · 同步服务器字段：未登录也能设置（bug 修复）
+
+### 现象
+「同步服务器」字段嵌在账号页**已登录分支**里，未登录（默认态）时设置页看不到，无法在登录前先指定服务器——而登录恰恰要连该服务器。
+
+### 根因
+`SettingsModal` 的 `AccountPane` 整页是 `signedIn ? (账号+同步区) : (登录卡)` 二元分支，「同步服务器」字段落在已登录分支内。
+
+### 修复
+把「同步服务器」字段抽成账号页**顶部公共区**（在 分支之外）渲染，登录与否都显示；已登录分支的「同步」区只保留状态/推送/拉取。服务器是本机项，与登录态无关，改成前缀即可先设置再登录。
+
+### 验证
+`tsc --noEmit` 干净；`tools/check-all.sh` **9/9 全绿**。
+
+### 防复发
+设备本地、且须在登录前生效的设置（同步服务器地址、AI Key 等）不得放进 `signedIn ?` 分支。
+
+---
+
+## 2026-10-28 · 同步服务器（PocketBase）可配置 + 一键脚本
+
+### 变更
+- **运行时可配同步服务器**：新增设置项 `pb_url`（数据库 `settings` 表 / IndexedDB 均持久化）。生效优先级：
+  `settings.pb_url`（库内可配）＞ `VITE_PB_URL`（编译期）＞ 内置默认 `http://62.234.82.11:28193`。
+- **UI 入口**：设置页「账户 → 同步 → 同步服务器」——输入新地址保存、一键恢复默认，并实时显示「当前生效」。
+- **运行时常量解析**：`src/lib/pb.ts` 新增 `resolvePBUrl / applyPBServer / syncPBServer`；应用启动与 `pb_url` 变化时将其写进 `pb.baseUrl`。
+- **自动重连**：`authStore.reconnectIfServerChanged()` 在服务器地址变化时重建 PocketBase 客户端并重连会话（首个订阅在旧/新地址间切换）。
+- **一键脚本** `scripts/set-sync-server.mjs`：Node 22.5+ 内置 `node:sqlite`，零依赖直接写库（含自动定位库路径、去尾部斜杠、空串清空、读回校验）。
+
+### 实现要点
+- `types.ts` `Settings.pb_url`（默认 `''`）；`sync.ts::pushConfig` 不上传 `pb_url`（与 `ai_api_key` 同为**设备本地项**）。
+- Rust 侧补齐：`models.rs::Settings` 加 `pub pb_url: String`，`db.rs::load_settings` allowlist 加 `"pb_url" => s.pb_url = v`；`set_setting` 本就逐键写，无需改。
+
+### 验证
+`tsc --noEmit` 干净；`cargo check` 通过；`tools/check-all.sh` **9/9 全绿**；脚本三态（写入/去尾斜杠/空串恢复）已实测。文档 `docs/09-sync-server.md`，README 与 `docs/00-README.md` 已加索引。
+
+### 防复发
+新增设置键时，Rust 侧必须同步 `models.rs::Settings` 字段 + `db.rs::load_settings` allowlist，否则 Tauri 运行时读取即丢弃；设备本地项（api key、同步服务器地址）不得经配置同步上传云端。
+
+---
+
+## 2026-10-28 · 设置保存机制优化：修复「改完退出再进又变旧」
+
+### 现象
+许多设置保存不生效；或字段已填上新内容（如 AI 模型名），退出设置页再进去又变回旧值。
+
+### 根因（两条叠加）
+1. **并发快照回退**：`SettingsModal.patch` 每次变更就 `await set_setting` 并发发出，返回后**用整份快照覆盖 `timer.settings`**。输入框逐键会产生多个并发请求，较早/较慢的响应会盖掉刚更新的值（同一字段回退到中间态、不同字段互相踩踏）。
+2. **云端实时回退**：本端编辑后的推送有 1.2s 防抖窗口；期间 PB 实时订阅（`acceptRemote`）或手动拉取若判到 `pull`，会用**云端旧配置**写回本地并 `refreshSettings` 覆盖 `timer.settings`，随后防抖推送又把旧值推回云端，永久固化。
+
+### 修复
+- **`SettingsModal.patch` 串行化 + 增量合并**：新增模块级 `writeChain` 按序落库；每次只用**本次写入的键**合并进 `timer.settings`，不再把整份快照整体回填，杜绝旧快照覆盖。
+- **`authStore` 推送期挡拉取**：新增 `pushPending` 标记，本地有改动待推送时，`pullNow` / `acceptRemote` 跳过 pull，不让旧配置回退本地；推送落地（成功或失败）后清除。防抖 1200ms → **300ms**；`scheduleSyncPush` 不再因 busy 提前返回（并发 pushConfig 是幂等 upsert，重复推送无害），保证编辑终会推向云端收敛。
+
+### 验证
+`tsc --noEmit` 干净；`tools/check-all.sh` 8/8 全绿；`vite build` 通过（仅既有 chunk 体积告警）。
+
+### 防复发
+凡写设置路径，一律「按序落库 + 只合并本次键」，严禁用异步整份快照整体回填；云同步侧，本地有改动待推送期间禁止任何 `pull` 覆盖本地。
+
+---
+
 ## 2026-10-28 · AI 任务拆解：充实任务字段 + AI 生成清单名
 
 ### 变更
