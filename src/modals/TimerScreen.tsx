@@ -15,7 +15,7 @@ function resolveWallpaper(raw: string): string {
   return wallpaper;
 }
 import { useDataStore } from '@/stores/dataStore';
-import { todayPendingTasks, todayRecords, todayPomodoroCount, todayDueTasks, type Dataset } from '@/lib/derive';
+import { todayPendingTasks, todayRecords, todayPomodoroCount, timerTaskCandidates, type Dataset } from '@/lib/derive';
 import { formatClock, formatHM, formatMinutes } from '@/lib/date';
 import { stopNoise } from '@/lib/noise';
 import { useNoiseStore } from '@/stores/noiseStore';
@@ -53,8 +53,8 @@ export function TimerScreen() {
     () => ({ tasks, lists, records: allRecords }),
     [tasks, lists, allRecords],
   );
-  // 番茄钟任务选择/面板只展示今日到期的未完成任务
-  const todayTasks = useMemo(() => todayDueTasks(ds), [ds, revision]);
+  // 番茄钟任务选择框候选：全部未完成任务，当天前置、到期越临近越靠前（见 derive.timerTaskCandidates）
+  const candidates = useMemo(() => timerTaskCandidates(ds), [ds, revision]);
   // 阶段结束反馈：展示 2.5s 后自动清除（须位于 `if (!screenOpen) return null` 之前，保证 hook 顺序一致）
   useEffect(() => {
     if (!feedback) return;
@@ -138,10 +138,10 @@ export function TimerScreen() {
       <select
         value={state.task_id ?? ''}
         onChange={(e) => setTask(e.target.value || null)}
-        style={{ display: todayTasks.length ? 'block' : 'none' }}
+        style={{ display: candidates.length ? 'block' : 'none' }}
       >
         <option value="">{t('timer.untitled')}</option>
-        {todayTasks.map((t) => (
+        {candidates.map((t) => (
           <option key={t.id} value={t.id}>{t.title}</option>
         ))}
       </select>
@@ -150,7 +150,7 @@ export function TimerScreen() {
         placeholder={taskName}
         onChange={(e) => setNewTask(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter') commitNewTask(); }}
-        style={{ display: todayTasks.length ? 'none' : 'block' }}
+        style={{ display: candidates.length ? 'none' : 'block' }}
       />
       {est > 0 && <span className="est">{est.toFixed(1).replace(/\.0$/, '')}</span>}
     </div>

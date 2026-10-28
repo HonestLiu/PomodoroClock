@@ -114,12 +114,35 @@ export function tasksInList(ds: Dataset, listId: string, includeCompleted = fals
     .sort((a, b) => a.sort_order - b.sort_order || a.created_at - b.created_at);
 }
 
-/** 今日到期的未完成任务（番茄钟任务选择框用） */
-export function todayDueTasks(ds: Dataset): Task[] {
+/**
+ * 番茄钟任务选择框候选：全部未完成任务。
+ * 排序：当天到期任务前置；其余按「到期时刻越临近越靠前」（逾期=最临近→最先，无到期日排最后）。
+ */
+export function timerTaskCandidates(ds: Dataset): Task[] {
   const today = todayKey();
+  // 到期时刻戳：带 due_time 用（日期+时间），否则用日期当日（无到期日返 null）
+  const dueTs2 = (t: Task): number | null => {
+    if (!t.due_date) return null;
+    const d = parseDateKey(t.due_date).getTime();
+    if (t.due_time) {
+      const [hh, mm] = t.due_time.split(':').map(Number);
+      return d + (hh || 0) * 3_600_000 + (mm || 0) * 60_000;
+    }
+    return d;
+  };
+  const fallback = (a: Task, b: Task) => a.sort_order - b.sort_order || a.created_at - b.created_at;
   return ds.tasks
-    .filter((t) => t.completed === 0 && t.due_date === today)
-    .sort((a, b) => a.sort_order - b.sort_order || a.created_at - b.created_at);
+    .filter((t) => t.completed === 0)
+    .sort((a, b) => {
+      const aToday = a.due_date === today ? 0 : 1;
+      const bToday = b.due_date === today ? 0 : 1;
+      if (aToday !== bToday) return aToday - bToday; // 当天前置
+      const ka = dueTs2(a), kb = dueTs2(b);
+      if (ka === null && kb === null) return fallback(a, b);
+      if (ka === null) return 1;  // 无到期日排最后
+      if (kb === null) return -1;
+      return ka - kb || fallback(a, b); // 越临近越靠前
+    });
 }
 
 export function searchTasks(ds: Dataset, q: string): Task[] {
