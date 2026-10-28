@@ -37,7 +37,15 @@ export function isExpired(state: TimerState, now: number): boolean {
   return state.end_at !== null && now >= state.end_at;
 }
 
-/** 开始 / 继续 */
+/**
+ * 开始 / 继续。
+ *
+ * 暂停修复（PRD §7.1 / §8.8）：暂停期间墙钟流逝，但不该算进专注时长。为让
+ * `end_at - start_at` 恒等于「实际专注时长」（不含暂停），恢复时把暂停覆盖的墙钟时长
+ * 折算进 `start_at` —— else 分支里 `gap = now + paused_remaining - 暂停前的 end_at`。
+ * `pauseState` 保留 end_at（不再清空）正是为了这里能反推暂停时长；`end_at - start_at`
+ * 因此在任意次暂停/恢复后都保持为原始阶段时长（倒计时累计只随运行时走）。
+ */
 export function startState(state: TimerState, durationMs: number, now: number): TimerState {
   const remaining = state.paused_remaining_ms ?? durationMs;
   if (state.mode === 'stopwatch') {
@@ -45,10 +53,15 @@ export function startState(state: TimerState, durationMs: number, now: number): 
     const startAt = state.start_at === null ? now : now - (state.paused_remaining_ms ?? 0);
     return { ...state, running: true, start_at: startAt, end_at: null, paused_remaining_ms: null };
   }
+  // 重启时 end_at 已被 pauseState 清空，gap 退化为 0；仅「暂停后恢复」才需要折算
+  const prevEnd = state.end_at;
+  const gap = state.paused_remaining_ms !== null && prevEnd !== null
+    ? now + state.paused_remaining_ms - prevEnd
+    : 0;
   return {
     ...state,
     running: true,
-    start_at: state.start_at ?? now,
+    start_at: (state.start_at ?? now) + gap,
     end_at: now + remaining,
     paused_remaining_ms: null,
   };
@@ -59,7 +72,9 @@ export function pauseState(state: TimerState, now: number): TimerState {
   return {
     ...state,
     running: false,
-    end_at: null,
+    // 保留 end_at（不清空）：startState 恢复时据此反推暂停时长并把 start_at 前移，
+    // 否则 finalizeFocus 会把暂停时间一并写入 focus_record（duration 被拉得很长）。
+    // isExpired 要求 running，因此 paused 态带旧 end_at 不会误触发到期。
     paused_remaining_ms: remainingMs(state, now),
   };
 }

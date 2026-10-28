@@ -91,6 +91,21 @@ const MIN = 60_000;
   check('倒计时恢复后仍剩 15 分钟', displayMs(resumed, t0 + 30 * MIN, 25 * MIN) === 15 * MIN);
 }
 
+// ── 5b. 番茄钟暂停：记录时长不得把暂停时间算进去（回归：duration 被拉很长） ──
+{
+  const t0 = 4_500_000;
+  let st = startState(idle('pomodoro'), 25 * MIN, t0);          // 25:00 起表
+  st = pauseState(st, t0 + 5 * MIN);                             // 专注 5 分钟后暂停
+  st = startState(st, 25 * MIN, t0 + 35 * MIN);                  // 暂停 30 分钟后恢复
+  st = pauseState(st, t0 + 45 * MIN);                            // 又跑 10 分钟后再次暂停
+  st = startState(st, 25 * MIN, t0 + 100 * MIN);                 // 再次恢复（暂停 55 分钟）
+  check('番茄钟多次暂停后 end_at - start_at 恒为 25 分钟（不含暂停）',
+    st.end_at !== null && st.start_at !== null && st.end_at - st.start_at === 25 * MIN,
+    `end-start=${st.start_at !== null && st.end_at !== null ? (st.end_at - st.start_at) / MIN : '?'}min`);
+  check('多次暂停后剩余仍正确', remainingMs(st, t0 + 100 * MIN) === 10 * MIN,
+    `剩余 ${remainingMs(st, t0 + 100 * MIN) / MIN}min`);
+}
+
 // ── 6. 休息阶段只属于番茄钟循环 ──────────────────────────────────
 {
   check('番茄钟休息 = 5 分钟',
