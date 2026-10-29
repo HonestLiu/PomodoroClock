@@ -13,7 +13,7 @@
 - ✅ 外观页白噪音行＝「选择白噪音」按钮 + 当前值提示（`音色 · 音量%`）——点开的是全局选择弹窗（见 `03-architecture.md` §白噪音选择弹窗），不再是下拉框；「专注时播放/休息时播放」两个开关仍在。
 - ✅ 通知两开关（应用内 / 系统）、番茄钟时长与自动下一轮真实生效。
 - ✅ 通用页「启动页」下拉（`startup_page`）：默认 `timer`＝启动即展开专注界面；可选今天/明天/本周/已计划/任务/已完成/记录/日历，启动时 `App.tsx` 先 `initTimer({ openScreen: false })` 载入设置再分流导航，选页面时不再弹专注界面。TS `Settings.startup_page` 与 Rust `Settings.startup_page`/`load_settings` 双侧锁步（`04-data.md`）。
-- 🔶 `autostart` 字段已存但**无系统行为**（缺 `tauri-plugin-autostart`）。
+- ✅ `autostart` 开机自启已接线：`tauri-plugin-autostart`（`Cargo.toml` + `capabilities` `autostart:default`）+ `lib/autostart.ts`；设置通用页开关 → enable/disable 写系统自启，`App.tsx` 启动时以库内 value 对齐系统。macOS LaunchAgent / Windows Run / Linux autostart。
 - 🔶 高级版为规格占位（静态三档价格卡，订阅流程未实现）。
 
 ## 规则
@@ -26,7 +26,7 @@
   - 退出登录是**会话级、可逆**操作：只清 PB 会话（token + LocalAuthStore），**不碰任何本地表**（`api/local.ts::logout` 仅 `await ready()`；`commands/user.rs::logout` 无参 `Ok(())`；`api/tauri.ts` 不再包 `mutate('all', …)` 广播），任务与专注记录全部保留；**不关闭设置弹层**，原地切回登录卡并提示。PRD FR-S2 的「注销账号 → 登出并清理」**已废弃该口径**——不可逆清理改由「删除数据」（`clear_all_data`）单独承担。
 - **深色主题（★）**：`theme` 切换即时写入 `documentElement.dataset.theme`；逐屏（侧边栏/任务/报表/设置/专注界面）核对对比度与图片适配（局画面固定浅色或加深遮罩）。
 - **i18n（★）**：新增 `src/i18n/`（`zh.ts` / `en.ts` 词表 + `t()` 读取 + `useI18n`）。关键 UI 文案走词表；`language` 切换即时更新；首次跟随系统（`navigator.language`）；持久化到 `settings.language`。**范围**：先覆盖主界面/设置/报表/常用错误文案；番茄钟界面走页文案。
-- 开机自启（P2）：安装 `tauri-plugin-autostart`，`autostart` 开关控制系统层面开关（当前为占位）。
+- ✅ 开机自启（P2）：`tauri-plugin-autostart` 已接线（`lib/autostart.ts` + 设置开关 + 启动对齐），macOS/Windows/Linux 写系统自启。
 
 - **可访问性**：左侧导航 `role=tablist/tab/tabpanel` + 方向键（`SettingsModal.tsx::onNavKey`）；模态 Esc/Tab 焦点陷阱见 `components/useModalA11y.ts`；开关输入视觉隐藏保证键盘可达（`styles/global.css` 的 `.switch input`）。
 
@@ -35,7 +35,7 @@
 - ★2 ✅ 深色主题全屏核对与微调。
 - ★3 ✅ 通知设置拆分：「应用内通知」「系统通知」两个开关。
 - ★4 关于页补版本号动态、开源许可文本。
-- ★5（P2）开机自启插件接线（设置项已在，装插件后接线）。
+- ★5（P2）✅ 开机自启插件接线（`tauri-plugin-autostart` + `lib/autostart.ts` + 设置开关 + 启动对齐）。
 
 ## 数据影响
 - `settings` KV 新增：`system_notify`(bool, 默认 true)、`startup_page`(string, 默认 `'timer'`，见通用页「启动页」)。语言/主题已在。

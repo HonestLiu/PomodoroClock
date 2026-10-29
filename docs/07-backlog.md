@@ -20,7 +20,7 @@
 | 12 | P2 | P2 | 近 30 天专注趋势图 | report ★1 | M | ✅ 已完成 |
 | 13 | P2 | P2 | 目标达成环 | report ★3 | S | ✅ 已完成 |
 | 14 | P2 | P2 | 导出/导入 JSON | 数据 | M | — |
-| 15 | P2 | P2 | 开机自启接线(`tauri-plugin-autostart`；设置项 `autostart` 已在但无行为) | settings ★5 | S | install 依赖 |
+| 15 | P2 | P2 | 开机自启接线(`tauri-plugin-autostart`；设置项 `autostart` 已在但无行为) | settings ★5 | S | ✅ 已完成（2026-10-28：`tauri-plugin-autostart` + `lib/autostart.ts`，设置开关 enable/disable 写系统自启，`App.tsx` 启动对齐） |
 | 16 | P2 | P2 | 任务到期提醒(`task_remind`) | notify ★3 | M | ✅ 已完成（2026-10-19 随「提醒事项字段」落地：`lib/taskRemind.ts` + `lib/remindScan.ts`，App 30s 巡检，应用内+系统通知、`reminded_at` 去重） |
 | 17 | P3 | — | 规模期/任务级统计、周报 | report ★2 | L | #12 |
 | 18 | P3 | — | 成就系统实质化（当前成就页只有 4 条实时进度，无解锁持久化） | growth | L | — |
@@ -55,7 +55,7 @@
 | 47 | AI | P1 | **AI-M5 日报/周报 + 估时校准闭环**：五段报告（完成/偏移钉子任务/工时因子/风险/≤3 建议）、`actual_minutes` 在完成时准备、样本写 `estimate_calib`（滑动窗口+MAD）、功能一/二/三估算带 factor | ai ★★ | M | #43,#46 |
 
 ## 现状备注（2026-10-18 核验）
-- **#1–#6 属实**：任务更多菜单/右键（`TaskView.tsx`）、拖拽排序（`sort_order` 写回）、系统通知（`lib/systemNotify.ts` + `Cargo.toml` notification 插件 + `timerStore.ts::checkExpiry` 门控，真机弹窗待验）、搜索回车定位（`SearchOverlay.tsx:38-59`）、清单拖拽+默认清单、会话恢复提示（`timerStore` 恢复后 `wasRestored`）。#14 导出/导入未实现（仅 `api/local.ts:399` 测试注释）；#15 未装插件（`Cargo.toml` 无 autostart）。
+- **#1–#6 属实**：任务更多菜单/右键（`TaskView.tsx`）、拖拽排序（`sort_order` 写回）、系统通知（`lib/systemNotify.ts` + `Cargo.toml` notification 插件 + `timerStore.ts::checkExpiry` 门控，真机弹窗待验）、搜索回车定位（`SearchOverlay.tsx:38-59`）、清单拖拽+默认清单、会话恢复提示（`timerStore` 恢复后 `wasRestored`）。#14 导出/导入未实现（仅 `api/local.ts:399` 测试注释）；#15 已于 2026-10-28 接线完成（`tauri-plugin-autostart` + `lib/autostart.ts`）。
 - **占位页按规格保留**：高级版/好友/成就均为 `PlaceholderModal.tsx`（注释指向 PRD FR-G3）；高级版 tab 有 ¥18/月、¥168/年、¥398 静态卡，文案明确"订阅流程未实现"；成就页用 `stats` 实时算 4 条进度（初次专注/坚持不懈/目标达成/任务达人），但**无解锁持久化**。故 #18 仍成立，且不应在验收里按"功能缺失"扣分。
 - **首启数据双端一致**：两端都先 `ensure_bootstrap`（默认用户/目标/计时状态），再写同一份 §6.3 演示数据（`db/seed.ts::buildSeed` / `db.rs::seed_demo`）并置 `demo_seeded=1`；仅「空库 + 未播种」才播种。「删除数据」「注销账号」都回到空业务表 + 默认用户 + 已播种标记，不重播种。详见 `04-data.md` §首启与清空。
 - **白噪音入口已统一为选择弹窗**：工具条与外观页都调 `uiStore.openNoise(true)`，播放状态收进 `stores/noiseStore.ts`；弹窗封面是 5 个 mp3 的 ID3 内嵌图（`tools/extract-noise-covers.sh` 重抠），换音频忘重跑会缺图——`tools/shoot.mjs` 会因封面未解码直接失败，故按「有自动化护栏的约定」处理，不单列风险行。按模式自动播放（`noise_on_focus/break`）仍未接线。

@@ -285,7 +285,7 @@ export const zh = {
   'ach.master': '任务达人', 'ach.masterDesc': '完成 10 个任务',
   'ach.done': '已达成', 'ach.todo': '未达成', 'ach.total': '累计专注 {v}',
   'general.theme': '主题', 'appearance.light': '浅色', 'appearance.dark': '深色',
-  'general.autostart': '开机自启', 'general.autostartHint': '需 tauri-plugin-autostart（未打包）',
+  'general.autostart': '开机自启', 'general.autostartHint': '登录系统时自动启动应用（桌面端生效）',
   'general.float': '悬浮番茄小窗', 'general.floatHint': '右下角常驻计时小窗',
   'general.startupPage': '启动页',
   'general.startupPageHint': '启动时打开的页面；选番茄钟则展开专注界面',

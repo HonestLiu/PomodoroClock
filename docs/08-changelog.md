@@ -4,6 +4,26 @@
 
 ---
 
+## 2026-10-28 · 开机自启真实落地（tauri-plugin-autostart 接线）
+
+### 变更
+设置通用页「开机自启」开关从「只写库」升级为**真实写系统自启**：
+
+- 引入 `tauri-plugin-autostart`（Cargo 2.7.0 + `@tauri-apps/plugin-autostart` npm 2.7.0），`capabilities` 加 `autostart:default`；`lib.rs` 注册 `.plugin(autostart::init(MacosLauncher::LaunchAgent, None))`。
+- 新增 `src/lib/autostart.ts`：`setAutoStart()` enable/disable 写系统（macOS LaunchAgent / Windows 注册表 Run / Linux autostart）、`isAutoStart()` 查询、`syncAutoStart()` 启动对齐——均 Tauri-only，浏览器运行时静默降级。
+- 设置开关 `onChange` → `setAutoStart`（系统）+ `patch('autostart')`（库，真相源）。
+- `App.tsx` 启动 `initTimer` 后调 `syncAutoStart(settings.autostart)`，仅当系统状态与库不一致才改写。
+- i18n hint 由「需 tauri-plugin-autostart（未打包）」改为功能描述。
+- 文档同步：`04-data.md`/`02-roadmap.md`/`05-modules/settings.md`/`07-backlog.md`(#15) 标记由「占位」→「已实现」。
+
+### 验证
+`tsc --noEmit` 干净；`cargo check` + `cargo build`（含新依赖 auto-launch/dirs/nix 等）链接通过；`tools/check-all.sh` **9/9 全绿**；本机运行 debug 二进制 6s 无 panic 被杀，无残留 LaunchAgent（默认关闭）。开关真机效果待用户在设置页点按后确认。
+
+### 防复发
+凡是「设置项只有库、无系统行为」的占位，交付前应接线真实行为并回改文档状态；跨平台系统集成优先复用官方 tauri-plugin（capabilities 权限 + 二端 npm/crate 同步装）。
+
+---
+
 ## 2026-10-28 · 番茄钟暂停：记录时长不再把暂停时间算进去
 
 ### 现象

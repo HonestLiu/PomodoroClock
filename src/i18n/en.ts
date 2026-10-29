@@ -278,7 +278,7 @@ export const en = {
   'ach.done': 'Unlocked', 'ach.todo': 'Locked', 'ach.total': 'Total focus {v}',
   'general.theme': 'Theme', 'appearance.light': 'Light', 'appearance.dark': 'Dark',
   'general.autostart': 'Launch at login',
-  'general.autostartHint': 'Requires tauri-plugin-autostart (not bundled)',
+  'general.autostartHint': 'Automatically launch at login (desktop runtime)',
   'general.float': 'Floating timer', 'general.floatHint': 'Always-on timer at the bottom right',
   'general.startupPage': 'Startup page',
   'general.startupPageHint': 'Page opened on launch; Pomodoro expands the focus screen',

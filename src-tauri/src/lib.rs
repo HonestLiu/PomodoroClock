@@ -92,6 +92,11 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
+        // 开机自启（PRD FR-S3 通用页）：macOS 用 LaunchAgent，Windows 注册表 Run，Linux autostart
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .setup(|app| {
             // SQLite 位于 app_data_dir/focus.db（PRD §8.6）
             let dir = app.path().app_data_dir()?;

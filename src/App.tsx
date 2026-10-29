@@ -36,6 +36,7 @@ import { useI18nStore, tStatic } from '@/i18n';
 import { scanTaskReminders, defaultRemindDeps } from '@/lib/remindScan';
 import { scanCountdownReminders, defaultCountdownRemindDeps } from '@/lib/countdownRemind';
 import { syncPBServer } from '@/lib/pb';
+import { syncAutoStart } from '@/lib/autostart';
 
 export default function App() {
   const [booted, setBooted] = useState(false);
@@ -60,6 +61,8 @@ export default function App() {
       await initTimer({ openScreen: false });
       // 数据库里的同步服务器地址（settings.pb_url）优先于编译期 env/默认，启动即校正 pb 客户端
       syncPBServer(useTimerStore.getState().settings);
+      // 开机自启对齐：以库内设置转为真相源，仅在系统状态不一致时改写（Tauri 下真实生效）
+      void syncAutoStart(useTimerStore.getState().settings.autostart);
       const startup = useTimerStore.getState().settings.startup_page;
       // 启动页：'timer' 展开番茄钟专注界面；其余跳到对应侧边栏页面（且不覆盖该页面）
       const onTimer = startup === 'timer';

@@ -27,6 +27,7 @@ import type { Settings, StartupPage } from '@/types';
 import type { ConfirmSpec } from './ConfirmDialog';
 import { useI18nStore, useI18n, type ZhKey } from '@/i18n';
 import { useModalA11y } from '@/components/useModalA11y';
+import { setAutoStart } from '@/lib/autostart';
 
 /** 设置写入串行链（见 patch）：保证多次编辑按序落库，避免并发快照回退 */
 let writeChain: Promise<unknown> = Promise.resolve();
@@ -206,7 +207,11 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
                     <label className="switch">
                       <input
                         type="checkbox" checked={settings.autostart} aria-label={t('general.autostart')}
-                        onChange={(e) => void patch('autostart', e.target.checked)}
+                        onChange={(e) => {
+                          const on = e.target.checked;
+                          void setAutoStart(on);   // 真实写系统自启（浏览器降级）
+                          void patch('autostart', on); // 持久化设置（始终为真相源）
+                        }}
                       />
                       <span className="track" />
                     </label>

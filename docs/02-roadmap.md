@@ -26,7 +26,7 @@
 | 深色主题 | ✅ | `App.tsx:54` 写 `documentElement.dataset.theme`；CSS `:root[data-theme='dark']`（`styles/global.css:29`）；设置下拉 `SettingsModal.tsx:383` |
 | 番茄钟设置全量 | 🔶 部分 | 时长/自动下一轮/长休息均已接状态机（`timerStore.ts::setSettings/setMode`）；**白噪音按模式**（`noise_on_focus/break`）仅存设置、未接入播放 |
 | 白噪音选择弹窗 | ✅ 新增 | 工具条白噪音与外观页「选择白噪音」统一打开全局弹窗（`components/NoisePicker.tsx`，`uiStore.noiseOpen`）：6 项（无 + 5 音色，圆形封面取自 mp3 ID3 内嵌图）+ 音量滑杆 + 取消/确定；试听在内存、确定才落库、取消回滚（`stores/noiseStore.ts`）。**样式来自用户提供的设计稿，超出 PRD 范围**；验收见 `06` C 组与 G 组脚本断言 |
-| 系统级设置：开机自启 | ⬜ | 开关已存（`SettingsModal.tsx:47`），但 `tauri-plugin-autostart` 未安装、无系统行为（`Cargo.toml` 无该依赖） |
+| 系统级设置：开机自启 | ✅ 已实现 | `tauri-plugin-autostart` 已装（`Cargo.toml`），设置通用页开关 → `lib/autostart.ts` enable/disable 写系统自启；`App.tsx` 启动时以库内 value 对齐系统。macOS LaunchAgent / Windows Run / Linux autostart |
 | 导出/导入 JSON | ⬜ | 规格预留，未实现 |
 | 搜索增强 | ✅ | 即时过滤/分组、↑↓、回车定位高亮（`components/SearchOverlay.tsx:2,27-59`） |
 | AI 能力（4 功能：NL 建任务/拆解/每日计划/日报周报） | 🔶 M1+M2 已落地 | 设置页可配 Claude/OpenAI 的 URL+Key+模型（Key 只存本机）；**独立 AI 页（网页式对话）**+侧边栏入口（纪念之后）+顶栏单个 AI 按钮开右侧抽屉（共享会话）；NL 解析在气泡内确认才落库、可整批撤销；未配置→降级。M3–M5 待办 |
@@ -61,7 +61,7 @@ P1 已全部落地（见 `08-changelog.md`）。当前按性价比排序：
 1. 导出/导入 JSON（数据可迁移，用户最可能先要）
 2. 白噪音按模式（`noise_on_focus/break` 设置已在，只差播放接线）
 3. 应用内帮助 / 空态文案收尾
-4. 开机自启（需先加 `tauri-plugin-autostart` 依赖）
+4. ✅ 开机自启已接线（`tauri-plugin-autostart`，`lib/autostart.ts` + 设置开关 + 启动对齐）
 5. ✅ 倒计时/正计时语义已落地（2026-10-18）；剩「每模式独立时长」与「白噪音按模式」
 6. 成就系统实质化与解锁持久化
 7. **倒数纪念日**（新需求，独立数据域，设计与验收见 `docs/05-modules/countdown.md`）

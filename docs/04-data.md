@@ -38,7 +38,7 @@ focus_records ──(task_id 可空)──> tasks     notifications 独立   tim
 | noise_volume | float | 0.5 | ✅ 有 UI 写入（0–1 浮点，弹窗滑杆；确定时总是写） |
 | notify_enabled / system_notify | bool | true/true | ✅ 应用内 / 系统通知两个独立门控（`timerStore.ts::checkExpiry`） |
 | noise_on_focus / noise_on_break | bool | false | 🔶 **只写未读**：设置页可改，计时器尚未据此自动播放 |
-| autostart | bool | false | 🔶 **只写未读**：`tauri-plugin-autostart` 未安装，无系统行为 |
+| autostart | bool | false | ✅ **已读入行为**：设置通用页开关 → `lib/autostart.ts` 调 `tauri-plugin-autostart` enable/disable 写系统自启（macOS LaunchAgent / Windows Run / Linux autostart）；`App.tsx` 启动时以库内值为真相源对齐系统。浏览器运行时常量无系统行为 |
 | motto | str | '' | 🔶 遗留字段：编辑资料入口已随账号页重构移除，当前无 UI 写入、无消费方（`types.ts` 仍留默认值） |
 | startup_page | str | timer | ✅ 已读入行为：启动时 `App.tsx` 分流——`timer` 展开专注界面，其余（`today`/`tomorrow`/`week`/`scheduled`/`tasks`/`completed`/`records`/`calendar`）`navigate` 到对应侧边栏页面；写入＝设置通用页「启动页」下拉。TS/Rust 双侧锁步（`types.ts`、`models.rs`、`db.rs::load_settings`） |
 
