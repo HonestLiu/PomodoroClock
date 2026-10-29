@@ -2,7 +2,7 @@
 // macOS 使用 titleBarStyle: Overlay 保留系统红黄绿（见 src-tauri/tauri.conf.json）；
 // Windows/Linux 使用 decorations:false + 本组自绘按钮。
 
-import { Crown, Users, Bell, Trophy, BarChart3, Settings as SettingsIcon, Sparkles } from 'lucide-react';
+import { Crown, Bell, Trophy, BarChart3, Settings as SettingsIcon, Sparkles } from 'lucide-react';
 import { useUiStore } from '@/stores/uiStore';
 import { useDataStore, unreadCount } from '@/stores/dataStore';
 import { isTauri } from '@/api';
@@ -39,7 +39,6 @@ export function TitleBar() {
 
       <div className="titlebar-actions">
         <button className="icon-btn" title={t('title.premium')} aria-label={t('title.premium')} aria-pressed={ui.premiumOpen} onClick={() => ui.openPremium(!ui.premiumOpen)}><Crown size={16} aria-hidden /></button>
-        <button className="icon-btn" title={t('title.friends')} aria-label={t('title.friends')} aria-pressed={ui.friendsOpen} onClick={() => ui.openFriends(!ui.friendsOpen)}><Users size={16} aria-hidden /></button>
         <button className="icon-btn" title={t('notif.title')} aria-label={t('notif.title')} aria-expanded={ui.notifOpen} onClick={() => ui.openNotif(!ui.notifOpen)}>
           <Bell size={16} aria-hidden />
           {unread > 0 && <span className="badge" aria-hidden>{unread}</span>}
