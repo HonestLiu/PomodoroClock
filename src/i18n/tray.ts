@@ -1,0 +1,26 @@
+export const trayZh = {
+  'tray.ready': '准备专注 · {task}', 'tray.saving': '正在保存专注记录…',
+  'tray.status': '{phase} {time}{paused}{task}', 'tray.paused': ' · 已暂停',
+  'tray.todaySummary': '今日专注 {duration} · {n} 次',
+  'tray.phase.focus': '专注中', 'tray.phase.break': '休息中', 'tray.phase.countdown': '倒计时', 'tray.phase.stopwatch': '正计时',
+  'tray.start.focus': '开始专注 {duration}', 'tray.start.break': '开始休息 {duration}', 'tray.start.countdown': '开始倒计时 {duration}', 'tray.start.stopwatch': '开始正计时',
+  'tray.pause.focus': '暂停专注', 'tray.pause.break': '暂停休息', 'tray.pause.countdown': '暂停倒计时', 'tray.pause.stopwatch': '暂停正计时',
+  'tray.resume.focus': '继续专注', 'tray.resume.break': '继续休息', 'tray.resume.countdown': '继续倒计时', 'tray.resume.stopwatch': '继续正计时',
+  'tray.finishFocus': '结束本次专注并保存', 'tray.endBreak': '结束休息并开始专注', 'tray.endCountdown': '结束倒计时',
+  'tray.chooseTask': '选择任务开始专注', 'tray.withoutTask': '不关联任务，直接专注', 'tray.allTasks': '查看全部任务…',
+  'tray.float': '悬浮计时窗', 'tray.noise': '白噪音', 'tray.openTimer': '打开专注面板',
+  'tray.todayTasks': '今日任务', 'tray.report': '专注报表', 'tray.settings': '设置…', 'tray.quit': '退出应用',
+};
+export const trayEn: Record<keyof typeof trayZh, string> = {
+  'tray.ready': 'Ready · {task}', 'tray.saving': 'Saving focus session…',
+  'tray.status': '{phase} {time}{paused}{task}', 'tray.paused': ' · Paused',
+  'tray.todaySummary': 'Today: {duration} · {n} sessions',
+  'tray.phase.focus': 'Focusing', 'tray.phase.break': 'Resting', 'tray.phase.countdown': 'Countdown', 'tray.phase.stopwatch': 'Stopwatch',
+  'tray.start.focus': 'Focus for {duration}', 'tray.start.break': 'Rest for {duration}', 'tray.start.countdown': 'Start {duration} countdown', 'tray.start.stopwatch': 'Start stopwatch',
+  'tray.pause.focus': 'Pause focus', 'tray.pause.break': 'Pause break', 'tray.pause.countdown': 'Pause countdown', 'tray.pause.stopwatch': 'Pause stopwatch',
+  'tray.resume.focus': 'Resume focus', 'tray.resume.break': 'Resume break', 'tray.resume.countdown': 'Resume countdown', 'tray.resume.stopwatch': 'Resume stopwatch',
+  'tray.finishFocus': 'Finish and save focus session', 'tray.endBreak': 'End break and start focusing', 'tray.endCountdown': 'End countdown',
+  'tray.chooseTask': 'Focus on a task', 'tray.withoutTask': 'Focus without a task', 'tray.allTasks': 'View all tasks…',
+  'tray.float': 'Floating timer', 'tray.noise': 'Background sound', 'tray.openTimer': 'Open focus panel',
+  'tray.todayTasks': 'Today’s tasks', 'tray.report': 'Focus report', 'tray.settings': 'Settings…', 'tray.quit': 'Quit app',
+};

@@ -119,6 +119,9 @@ export async function pushConfig(): Promise<SyncMeta> {
   delete payload.ai_api_key;
   // 同步服务器地址也是本机设置（不同设备可能连不同服务器），不当共享配置上传
   delete payload.pb_url;
+  // 自定义专注背景列表为本地大体积 dataURI，塞进 configs.data 会撑爆云端记录，不共享
+  delete payload.wallpapers;
+  delete payload.growth_data; // 奖励账本只保存在本机，不能由配置同步覆盖余额
 
   let saved: ConfigRecord;
   if (remote) {
@@ -151,6 +154,7 @@ export async function applyRemote(rec: ConfigRecord): Promise<void> {
   const known = DEFAULT_SETTINGS as unknown as Record<string, unknown>;
   const writes: Array<Promise<unknown>> = [];
   for (const [k, v] of Object.entries(data)) {
+    if (k === 'growth_data') continue;
     if (!(k in known)) continue;
     // 跳过空值与非标量：String(undefined) 会写出 "undefined" 污染本地设置
     if (v === null || v === undefined) continue;

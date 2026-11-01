@@ -45,6 +45,7 @@ function validateCountdown(args: CreateCountdownArgs): void {
 }
 
 export const localApi: Api = {
+  async take_widget_launch() { return false; },
   async get_user() {
     await ready();
     let u = getDB().users[0];
@@ -586,7 +587,7 @@ export const localApi: Api = {
     // 浏览器运行时无菜单栏托盘，静默忽略
   },
 
-  async update_tray_toggle(_text: string) {
+  async update_tray_menu(_snapshot) {
     // 浏览器运行时无菜单栏托盘，静默忽略
   },
 

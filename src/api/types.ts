@@ -81,6 +81,31 @@ export interface CreateCountdownArgs {
   remindDays?: number;
 }
 
+/** 原生菜单快照：一次同步，Rust 按字段去重，不在每秒 tick 中重建菜单。 */
+export interface TrayMenuSnapshot {
+  status: string;
+  today: string;
+  toggle: string;
+  finish: string;
+  controlsEnabled: boolean;
+  finishEnabled: boolean;
+  taskMenuEnabled: boolean;
+  taskMenuTitle: string;
+  noTaskLabel: string;
+  noTaskSelected: boolean;
+  taskBrowseLabel: string;
+  tasks: Array<{ id: string; title: string; selected: boolean }>;
+  floatLabel: string;
+  floatChecked: boolean;
+  noiseLabel: string;
+  noiseChecked: boolean;
+  openTimerLabel: string;
+  todayLabel: string;
+  reportLabel: string;
+  settingsLabel: string;
+  quitLabel: string;
+}
+
 /** 全部命令的前端调用面 */
 export interface Api {
   get_user(): Promise<User>;
@@ -130,8 +155,9 @@ export interface Api {
   get_timer_state(): Promise<TimerState>;
   set_timer_state(state: TimerState): Promise<TimerState>;
   update_tray_title(text: string): Promise<void>;
-  update_tray_toggle(text: string): Promise<void>;
+  update_tray_menu(snapshot: TrayMenuSnapshot, force?: boolean): Promise<void>;
   set_tray_phase(phase: string): Promise<void>;
+  take_widget_launch(): Promise<boolean>;
 
   get_settings(): Promise<Settings>;
   set_setting(key: string, value: string): Promise<Settings>;
@@ -154,4 +180,4 @@ export interface Api {
 }
 
 /** Rust→前端事件（PRD §8.5）；浏览器运行时下由本地 emitter 承担 */
-export type AppEvent = 'timer://tick' | 'timer://state-changed' | 'timer://finished' | 'data://changed' | 'tray://menu' | 'menu://command';
+export type AppEvent = 'timer://tick' | 'timer://state-changed' | 'timer://finished' | 'data://changed' | 'tray://menu' | 'menu://command' | 'widget://open';

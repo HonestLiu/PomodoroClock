@@ -166,13 +166,15 @@ export interface TimerState {
 }
 
 export interface Settings {
+  /** 本机奖励账本 JSON；不参与云端配置覆盖。 */
+  growth_data: string;
   focus_len_min: number;
   break_len_min: number;
   long_break_len_min: number;
   long_break_every: number;
   daily_target_min: number;
   auto_start_next: boolean;
-  theme: 'light' | 'dark';
+  theme: 'system' | 'light' | 'dark';
   language: 'zh' | 'en';
   autostart: boolean;
   notify_enabled: boolean;
@@ -182,6 +184,8 @@ export interface Settings {
   noise_on_focus: boolean;
   noise_on_break: boolean;
   wallpaper: string;
+  /** 自定义专注背景列表（JSON 字符串，[{name,data}]，见 lib/wallpaper.ts）；大体积 dataURI，不同步云端 */
+  wallpapers: string;
   /** 座右铭（个人资料，随配置同步到云端） */
   motto: string;
   /** 启动页：'timer' = 番茄钟展开视图（默认）；其余 = 对应侧边栏页面。设置→通用 可改。 */
@@ -197,13 +201,14 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
+  growth_data: '',
   focus_len_min: 25,
   break_len_min: 5,
   long_break_len_min: 15,
   long_break_every: 4,
   daily_target_min: 180,
   auto_start_next: false,
-  theme: 'light',
+  theme: 'system',
   language: 'zh',
   autostart: false,
   notify_enabled: true,
@@ -213,6 +218,7 @@ export const DEFAULT_SETTINGS: Settings = {
   noise_on_focus: false,
   noise_on_break: false,
   wallpaper: 'waves',
+  wallpapers: '[]',
   motto: '',
   startup_page: 'timer',
   ai_provider: 'none',

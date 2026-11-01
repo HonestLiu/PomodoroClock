@@ -7,12 +7,10 @@ import {
 } from 'lucide-react';
 import wallpaper from '@/assets/wallpapers/waves.svg';
 import { useTimerStore } from '@/stores/timerStore';
+import { resolveCustomWallpaper } from '@/lib/wallpaper';
 
-const CUSTOM_PREFIX = 'custom:';
-
-function resolveWallpaper(raw: string): string {
-  if (raw.startsWith(CUSTOM_PREFIX)) return raw.slice(CUSTOM_PREFIX.length);
-  return wallpaper;
+function resolveWallpaper(raw: string, wallpapersJson: string): string {
+  return resolveCustomWallpaper(raw, wallpapersJson) ?? wallpaper;
 }
 import { useDataStore } from '@/stores/dataStore';
 import { todayPendingTasks, todayRecords, todayPomodoroCount, timerTaskCandidates, type Dataset } from '@/lib/derive';
@@ -160,7 +158,7 @@ export function TimerScreen() {
     <div className={`timer-screen${isMac ? ' macos' : ''}`} ref={rootRef}>
       {/* url() 必须加引号：Vite 内联的 SVG data URI 内含单引号（xmlns='...'），
           未加引号的 url(...) 是非法 CSS，整条 background-image 会被解析器丢弃（背景全丢） */}
-      <div className="timer-bg" style={{ backgroundImage: `url("${resolveWallpaper(settings.wallpaper)}")` }} />
+      <div className="timer-bg" style={{ backgroundImage: `url("${resolveWallpaper(settings.wallpaper, settings.wallpapers)}")` }} />
 
       {wasRestored && (
         <div className="timer-recover">

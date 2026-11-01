@@ -3,6 +3,17 @@
 
 use focus_pomodoro_lib::db;
 
+#[test]
+fn theme_defaults_to_system_and_preserves_manual_overrides() {
+    let conn = db::open_in_memory().unwrap();
+    db::ensure_bootstrap(&conn).unwrap();
+    assert_eq!(db::load_settings(&conn).unwrap().theme, "system");
+    for theme in ["dark", "light", "system"] {
+        conn.execute("INSERT INTO settings(key,value) VALUES('theme',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value", [theme]).unwrap();
+        assert_eq!(db::load_settings(&conn).unwrap().theme, theme);
+    }
+}
+
 fn seeded(db: &mut rusqlite::Connection) {
     db::ensure_bootstrap(&db).unwrap();
     db::seed_demo(db).unwrap();
@@ -430,3 +441,22 @@ fn grid_splits_record_across_hours_like_browser() {
     assert_eq!(at(10), Some((30, 1)), "10 点格摊 30 分钟");
 }
 
+
+#[test]
+fn growth_ledger_settings_roundtrip_and_clear() {
+    let mut conn = db::open_in_memory().unwrap();
+    db::ensure_bootstrap(&conn).unwrap();
+    assert_eq!(db::load_settings(&conn).unwrap().growth_data, "");
+    let ledger = r#"{"version":1,"fundCents":12345,"entries":[{"name":"奖励"}]}"#;
+    conn.execute(
+        "INSERT INTO settings (key,value) VALUES ('growth_data',?1)",
+        [ledger],
+    ).unwrap();
+    let settings = db::load_settings(&conn).unwrap();
+    assert_eq!(settings.growth_data, ledger);
+    let serialized = serde_json::to_value(settings).unwrap();
+    assert_eq!(serialized["growth_data"], ledger);
+    db::clear_all(&mut conn).unwrap();
+    db::ensure_bootstrap(&conn).unwrap();
+    assert_eq!(db::load_settings(&conn).unwrap().growth_data, "");
+}

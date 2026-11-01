@@ -1,55 +1,76 @@
-// 番茄/休息结束铃声 —— PRD §5.7
-// 播放打包的铃声音频；播放失败时静默降级（§8.8-5）。
-//
-// WKWebView / 移动端自动播放限制：首次 play() 必须在用户手势内触发，
-// 后续 play() 同一 Audio 元素则不受此限制。
-// 因此 `primeBell()` 在计时器 start/resume 的手势内调用以"解锁"，
-// `playBell()` 在倒计时结束时调用（此时同一元素可重播）。
-
+// 铃声使用 Web Audio 短音效，不创建 HTMLAudioElement 或媒体播放会话。
+// 白噪音仍由 noise.ts 的媒体播放器独立管理。
 import bellUrl from '@/assets/bell.mp3';
 
-let bell: HTMLAudioElement | null = null;
-let primed = false;
+let context: AudioContext | null = null;
+let buffer: AudioBuffer | null = null;
+let loading: Promise<AudioBuffer> | null = null;
+let source: AudioBufferSourceNode | null = null;
+let playbackVersion = 0;
 
-function getBell(): HTMLAudioElement {
-  if (!bell) {
-    bell = new Audio(bellUrl);
-    bell.preload = 'auto';
+function getContext(): AudioContext {
+  if (!context || context.state === 'closed') {
+    context = new AudioContext();
+    buffer = null;
+    loading = null;
   }
-  return bell;
+  return context;
 }
 
-/**
- * 在用户手势内预加载铃声（解锁自动播放）。
- * 在计时器 start / resume 时调用一次即可。
- */
+function loadBell(ctx: AudioContext): Promise<AudioBuffer> {
+  if (buffer) return Promise.resolve(buffer);
+  if (!loading) {
+    loading = fetch(bellUrl)
+      .then((response) => {
+        if (!response.ok) throw new Error('Bell audio unavailable');
+        return response.arrayBuffer();
+      })
+      .then((bytes) => ctx.decodeAudioData(bytes))
+      .then((decoded) => { buffer = decoded; return decoded; })
+      .catch((error: unknown) => { loading = null; throw error; });
+  }
+  return loading;
+}
+
+/** 用户点击开始/恢复时解锁上下文并预加载，绝不启动音源。 */
 export function primeBell(): void {
-  if (primed) return;
   try {
-    const el = getBell();
-    // 立即播放后暂停，在 WKWebView 中"解锁"此元素的自动播放权限
-    const p = el.play();
-    if (p) {
-      p.then(() => {
-        el.pause();
-        el.currentTime = 0;
-        primed = true;
-      }).catch(() => {
-        // 预加载失败 — 静默忽略，playBell 仍将尝试播放
-        primed = true;
-      });
-    } else {
-      primed = true;
-    }
-  } catch { primed = true; }
+    const ctx = getContext();
+    // resume 必须直接发生在用户手势内，不能等下载完成后才调用。
+    const version = playbackVersion;
+    void ctx.resume().then(() => {
+      if (version === playbackVersion && !source) return ctx.suspend();
+    }).catch(() => {});
+    void loadBell(ctx).catch(() => {});
+  } catch { /* 不支持 Web Audio 时静默降级，不回退到媒体播放器 */ }
 }
 
-/** 播放结束铃声（可重复调用，自动打断上一次） */
+/** 播放一次结束音效；重复调用打断旧音源，过期的异步请求不得补播。 */
 export function playBell(): void {
+  const version = ++playbackVersion;
   try {
-    const el = getBell();
-    el.currentTime = 0;
-    const p = el.play();
-    if (p) p.catch(() => { /* 自动播放被拦阻，静默降级 */ });
+    const ctx = getContext();
+    if (source) {
+      source.onended = null;
+      source.stop();
+      source.disconnect();
+      source = null;
+    }
+    void Promise.all([ctx.resume(), loadBell(ctx)]).then(([, decoded]) => {
+      if (version !== playbackVersion) return;
+      const next = ctx.createBufferSource();
+      next.buffer = decoded;
+      next.connect(ctx.destination);
+      next.onended = () => {
+        next.disconnect();
+        if (source === next) {
+          source = null;
+          // 播完暂停音频设备，缓存保留供下一次提醒使用。
+          void ctx.suspend().catch(() => {});
+        }
+      };
+      source = next;
+      next.start();
+    }).catch(() => { /* 加载/自动播放失败时静默降级 */ });
   } catch { /* 静默降级 */ }
 }

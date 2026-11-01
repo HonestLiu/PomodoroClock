@@ -62,8 +62,7 @@ export function NoisePicker() {
   }
 
   async function confirm() {
-    const store = useNoiseStore.getState();
-    store.select(pick);
+    // 试听已实时应用，确认只保存设置，保持当前播放进度。
     close();
     // 持久化：先写音量（弹窗里始终可能调过），再写音色（选「无」时不覆盖已存音色）
     const savedVolume = await api.set_setting('noise_volume', String(volume));

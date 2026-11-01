@@ -20,6 +20,8 @@ interface TimerStoreState {
   now: number;
   completedPomodoros: number; // 本轮会话内已完成的专注数（决定长休息）
   screenOpen: boolean;
+  /** 正在结算记录，临时禁止冲突的计时操作。 */
+  settling: boolean;
   /** 启动时是否存在未完成/已结算的上一次会话（触发恢复提示，timer.md ★1） */
   wasRestored: boolean;
   /** 阶段结束的短暂反馈文案（timer.md ★2，展示后自动清除） */
@@ -73,6 +75,7 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
   now: Date.now(),
   completedPomodoros: 0,
   screenOpen: false,
+  settling: false,
   wasRestored: false,
   feedback: null,
   rustRemaining: null,
@@ -163,7 +166,7 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
     // 专注/休息时长被改动后，未开始的会话要按新时长重算剩余，否则 start() 会用
     // 旧 paused_remaining_ms（旧时长）启动，设置里的时长改动不生效（PRD FR-S4）。
     const { state } = get();
-    if (!state.running && state.phase === 'idle') {
+    if (!expiryBusy && !state.running && state.phase === 'idle') {
       const next = idlePhase(state, 'focus', idleDurationFor(state.mode, settings));
       set({ state: next });
       void api.set_timer_state(next);
@@ -175,6 +178,7 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
   setFeedback: (feedback) => set({ feedback }),
 
   start() {
+    if (expiryBusy) return;
     const { state } = get();
     const dur = get().durationFor(state.phase === 'idle' ? 'focus' : state.phase);
     const next: TimerState = {
@@ -189,6 +193,7 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
   },
 
   pause() {
+    if (expiryBusy) return;
     const next = pauseState(get().state, Date.now());
     set({ state: next });
     void api.set_timer_state(next);
@@ -196,6 +201,7 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
   },
 
   resume() {
+    if (expiryBusy) return;
     const { state } = get();
     if (state.running) return;
     const next = startState(state, get().durationFor(state.phase), Date.now());
@@ -207,54 +213,72 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
   },
 
   toggleRun() {
+    if (expiryBusy) return;
     const { state } = get();
     if (state.running) get().pause();
     else if (state.phase === 'idle') get().start();
     else get().resume();
   },
 
-  /** 跳过：不写记录，直接切换阶段（PRD §7.1）。
+  /** 跳过：写已专注时长并切换阶段（PRD §7.1）。
    *  正计时（stopwatch）没有「休息」概念，skip 退化为重置到未开始；
-   *  倒计时（countdown）同理 —— 到期由 checkExpiry 自动处理，skip 只负责手动收尾。 */
-  skip() {
-    const { state, settings } = get();
-    // 只有番茄钟有「专注 → 休息」循环；倒计时与正计时跳过 = 重置到未开始
-    if (state.mode !== 'pomodoro') {
-      const next = idlePhase(state, 'idle', idleDurationFor(state.mode, settings));
+   *  倒计时（countdown）同理 —— 到期由 checkExpiry 自动处理，skip 只负责手动收尾。
+   *  番茄钟「专注中跳过」：仍把**已经实际专注的时长**（now − start_at，暂停段已排除）
+   *  记为 focus_record，即便不满一个番茄钟 —— 这是用户需求（2026-10-29）。不足 1 分钟丢弃。 */
+  async skip() {
+    if (expiryBusy) return;
+    expiryBusy = true;
+    set({ settling: true });
+    try {
+      const { state, settings } = get();
+      // 只有番茄钟有「专注 → 休息」循环；倒计时与正计时跳过 = 重置到未开始
+      if (state.mode !== 'pomodoro') {
+        const next = idlePhase(state, 'idle', idleDurationFor(state.mode, settings));
+        set({ state: next });
+        void api.set_timer_state(next);
+        emit('timer://state-changed', next);
+        return;
+      }
+      // 专注中（或已开始）跳过：先把已专注时长落库，再进休息
+      if (state.phase === 'focus' && state.start_at !== null) {
+        await recordSkippedFocus(state);
+      }
+      const nextPhase: TimerPhase = state.phase === 'focus' ? 'break' : 'focus';
+      const next = idlePhase(state, nextPhase, phaseDurationMs(
+        nextPhase, state.mode, settings.focus_len_min, settings.break_len_min,
+        settings.long_break_len_min, get().completedPomodoros, settings.long_break_every,
+      ));
       set({ state: next });
       void api.set_timer_state(next);
-      emit('timer://state-changed', next);
-      return;
-    }
-    const nextPhase: TimerPhase = state.phase === 'focus' ? 'break' : 'focus';
-    const next = idlePhase(state, nextPhase, phaseDurationMs(
-      nextPhase, state.mode, settings.focus_len_min, settings.break_len_min,
-      settings.long_break_len_min, get().completedPomodoros, settings.long_break_every,
-    ));
-    set({ state: next });
-    void api.set_timer_state(next);
-    emit('timer://state-changed', next);  // 托盘「开始/暂停」文案依赖此事件
+      emit('timer://state-changed', next);  // 托盘「开始/暂停」文案依赖此事件
+      // 跳过落库后刷新一次今日专注/任务列表（与 stop() 一致），否则侧边栏/今日面板要等外部刷新
+      try { const { useDataStore } = await import('@/stores/dataStore'); useDataStore.getState().reload(); } catch { /* noop */ }
+    } finally { expiryBusy = false; set({ settling: false }); }
   },
 
-  /** 正计时停止：写入 focus_record（时长 = now − start_at），再回到 idle。
+  /** 正计时停止：保存实际已用时（含暂停后结束），再回到 idle。
    *  番茄钟/倒计时不调这里（由 checkExpiry 自动结算）。 */
   async stop() {
+    if (expiryBusy) return;
     const { state, settings } = get();
-    if (state.mode !== 'stopwatch' || !state.running) {
-      get().reset();
-      return;
+    if (state.mode !== 'stopwatch' || state.phase !== 'focus' || state.start_at === null) {
+      get().reset(); return;
     }
-    const recorded = await finalizeFocus(state, settings);
-    const next = idlePhase(state, 'idle', idleDurationFor('stopwatch', settings));
-    set({ state: next, feedback: tStatic(recorded ? 'timer.feedback.focusDone' : 'timer.feedback.tooShort') });
-    await api.set_timer_state(next);
-    emit('timer://state-changed', next);
-    playBell();
-    // 停止后手动刷新一次今日专注/任务列表（数据 store），否则侧边栏/面板要等下一次外部刷新
-    try { const { useDataStore } = await import('@/stores/dataStore'); useDataStore.getState().reload(); } catch { /* noop */ }
+    expiryBusy = true;
+    set({ settling: true });
+    try {
+      const recorded = await recordSkippedFocus(state);
+      const next = idlePhase(state, 'idle', idleDurationFor('stopwatch', settings));
+      set({ state: next, feedback: tStatic(recorded ? 'timer.feedback.focusDone' : 'timer.feedback.tooShort') });
+      await api.set_timer_state(next);
+      emit('timer://state-changed', next);
+      playBell();
+      try { const { useDataStore } = await import('@/stores/dataStore'); void useDataStore.getState().reload(); } catch { /* noop */ }
+    } finally { expiryBusy = false; set({ settling: false }); }
   },
 
   reset() {
+    if (expiryBusy) return;
     const { state, settings } = get();
     const next = idlePhase({ ...state, phase: 'idle' }, 'focus', idleDurationFor(state.mode, settings));
     set({ state: next });
@@ -263,12 +287,14 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
   },
 
   setTask(taskId) {
+    if (expiryBusy) return;
     const next = { ...get().state, task_id: taskId };
     set({ state: next });
     void api.set_timer_state(next);
   },
 
   setMode(mode) {
+    if (expiryBusy) return;
     const { settings } = get();
     const next = idlePhase({ ...get().state, mode }, 'idle', idleDurationFor(mode, settings));
     set({ state: next });
@@ -288,6 +314,7 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
     }
     persistCounter = 0;
     expiryBusy = true;
+    set({ settling: true });
     try {
       const { settings } = get();
 
@@ -337,8 +364,9 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
         useUiStore.getState().setFloatVisible(true);
       }
     } finally {
-      // 归档/切段失败时不落锁，下一 tick 重试（至少一次语义），但绝不并发两次
+      // 归档/切段失败时释放锁，下一 tick 重试，但绝不并发两次。
       expiryBusy = false;
+      set({ settling: false });
     }
   },
 
@@ -390,6 +418,34 @@ async function finalizeFocus(state: TimerState, settings: Settings): Promise<boo
   await api.create_focus_record({
     taskId: state.task_id,
     startAt,
+    endAt,
+    durationMin,
+  });
+  return true;
+}
+
+/** 专注中途「跳过」时，把已经实际专注的时长落库（PRD §7.1 补充，2026-10-29）。
+ *  运行中：时长 = now − start_at（start_at 已按暂停修复把暂停段折算出去，即真实运行时长）；
+ *  暂停中：已用时 = 原始阶段时长(end_at−start_at) − paused_remaining_ms。
+ *  不足 1 分钟同样丢弃（点错马上跳过不污染数据）。 */
+async function recordSkippedFocus(state: TimerState): Promise<boolean> {
+  const now = Date.now();
+  let activeMs: number;
+  if (state.mode === 'stopwatch' && !state.running) {
+    activeMs = state.paused_remaining_ms ?? 0;
+  } else if (state.running) {
+    activeMs = now - (state.start_at ?? now);
+  } else if (state.start_at !== null && state.end_at !== null) {
+    activeMs = (state.end_at - state.start_at) - (state.paused_remaining_ms ?? 0);
+  } else {
+    return false; // 从未真正开始（idle 预置态）
+  }
+  const durationMin = Math.round(activeMs / 60_000);
+  if (durationMin < 1) return false;
+  const endAt = state.running ? now : (state.start_at as number) + activeMs;
+  await api.create_focus_record({
+    taskId: state.task_id,
+    startAt: state.start_at as number,
     endAt,
     durationMin,
   });

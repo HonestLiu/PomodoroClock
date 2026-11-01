@@ -1,0 +1,157 @@
+// 用法：先启动新的 Vite dev 服务，再运行 APP_URL=http://127.0.0.1:5174 node tools/verify-payments-ui.mjs
+import { strict as assert } from 'node:assert';
+import { chromium } from '/Users/lc/Develop/MyPageHome/node_modules/playwright/index.mjs';
+const browser = await chromium.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+const page = await browser.newPage({ viewport: { width: 1200, height: 960 }, locale: 'zh-CN' });
+const errors = [];
+page.on('pageerror', e => errors.push(e.message));
+const state = () => page.evaluate(async () => (await import('/src/stores/growthStore.ts')).useGrowthStore.getState().data);
+async function boot() {
+  await page.locator('.titlebar').waitFor();
+  await page.waitForTimeout(500);
+  if (await page.locator('.payment-modal').count() === 0 && await page.locator('.timer-close').isVisible()) await page.locator('.timer-close').click();
+}
+async function openMembership() {
+  await page.locator('.titlebar-actions button[title="会员"]').click();
+  await page.locator('.membership-panel').waitFor();
+}
+try {
+  await page.goto(process.env.APP_URL ?? 'http://127.0.0.1:5174/');
+  await boot();
+  // 模拟旧版账本，迁移应保留原基金与记录。
+  await page.evaluate(async () => {
+    const { api } = await import('/src/api/index.ts');
+    const { useGrowthStore } = await import('/src/stores/growthStore.ts');
+    const legacy = { ...useGrowthStore.getState().data };
+    delete legacy.paymentSettings; delete legacy.paymentOrders; delete legacy.membershipUntil;
+    await api.set_setting('growth_data', JSON.stringify(legacy));
+    await useGrowthStore.getState().reconcile([]);
+    if (!useGrowthStore.getState().data?.paymentSettings || useGrowthStore.getState().data.fundCents !== 0) throw new Error('Legacy migration failed');
+  });
+  await openMembership();
+  assert.equal(await page.locator('.membership-plans article').count(), 2);
+  assert.equal(await page.getByText('终身', { exact: true }).count(), 0);
+  await page.getByRole('button', { name: '支付 ¥6.00', exact: true }).click();
+  assert.equal(await page.locator('.payment-modal').count(), 0);
+  assert.equal((await state()).fundCents, 0);
+  assert.equal(await page.locator('.membership-panel input[name=weekly]').count(), 0);
+  await page.locator('.membership-modal .modal-head .icon-btn').click();
+  await page.locator('.titlebar-actions button[title="设置"]').click();
+  await page.locator('.settings-modal').evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(a => a.finished)));
+  await page.screenshot({ path: '/tmp/settings-account-redesign.png' });
+  for (const [name, file] of [['通用', 'general'], ['番茄钟', 'pomodoro'], ['清单管理', 'lists'], ['外观', 'appearance'], ['会员', 'membership'], ['关于', 'about']]) {
+    await page.getByRole('tab', { name, exact: true }).click();
+    assert.equal(await page.locator('#settings-page-title').textContent(), name);
+    assert.equal(await page.locator('.settings-pane').evaluate(el => el.scrollWidth <= el.clientWidth + 1), true, 'Settings content overflow');
+    assert.equal(await page.locator('.payment-config').count(), 0, 'Configuration exposed in daily settings');
+    await page.screenshot({ path: `/tmp/settings-${file}-redesign.png` });
+  }
+  assert.equal(await page.locator('.payment-config').count(), 0);
+  await page.locator('.settings-advanced > summary').click();
+  await page.getByRole('button', { name: /奖励计划管理/ }).click();
+  const fixture = await page.evaluate(() => {
+    const canvas = document.createElement('canvas'); canvas.width = canvas.height = 256;
+    const ctx = canvas.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, 256, 256);
+    ctx.fillStyle = '#222'; ctx.font = 'bold 30px sans-serif'; ctx.fillText('TEST ONLY', 36, 90);
+    ctx.font = '16px sans-serif'; ctx.fillText('UI fixture / not a pay code', 22, 130);
+    return canvas.toDataURL('image/png').split(',')[1];
+  });
+  for (const channel of ['wechat', 'alipay']) {
+    await page.locator(`input[name=${channel}Qr]`).setInputFiles({ name: `${channel}.png`, mimeType: 'image/png', buffer: Buffer.from(fixture, 'base64') });
+  }
+  await page.locator('input[name=weekly]').fill('6.50');
+  await page.locator('input[name=monthly]').fill('20');
+  await page.locator('input[name=accountNote]').fill('奖励专用账户（测试）');
+  await page.getByRole('button', { name: '保存收款设置' }).click();
+  await page.waitForFunction(async () => (await import('/src/stores/growthStore.ts')).useGrowthStore.getState().data.paymentSettings.weeklyCents === 650);
+  await page.locator('.settings-back').click();
+  assert.equal(await page.locator('.payment-config').count(), 0);
+  assert.equal(await page.locator('.settings-detail-link').isVisible(), false);
+  await page.locator('.settings-close').click();
+  await openMembership();
+  assert.equal(await page.locator('.payment-config').count(), 0);
+  await page.getByRole('button', { name: '支付 ¥6.50', exact: true }).click();
+  await page.locator('.payment-modal').waitFor();
+  assert.equal(await page.locator('.payment-qr-grid img').count(), 2);
+  assert.equal((await state()).fundCents, 0);
+  await page.locator('.payment-overlay').evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(animation => animation.finished)));
+  await page.screenshot({ path: '/tmp/membership-payment.png' });
+  await page.locator('.payment-cancel').click();
+  assert.equal((await state()).membershipUntil, 0);
+  assert.equal((await state()).fundCents, 0);
+  await page.getByRole('button', { name: '支付 ¥6.50', exact: true }).click();
+  await page.locator('.payment-modal').waitFor();
+  const pendingId = (await state()).paymentOrders.find(o => o.status === 'pending').id;
+  await page.reload();
+  await page.locator('.payment-modal').waitFor();
+  assert.equal((await state()).paymentOrders.find(o => o.status === 'pending').id, pendingId);
+  await page.getByRole('button', { name: '付款成功', exact: true }).click();
+  await page.locator('.payment-modal').waitFor({ state: 'detached' });
+  assert.equal((await state()).fundCents, 650);
+  const firstExpiry = (await state()).membershipUntil;
+  assert.equal(firstExpiry > Date.now() + 6 * 86400000, true);
+  await boot();
+  await openMembership();
+  await page.getByRole('button', { name: '支付 ¥6.50', exact: true }).click();
+  await page.getByRole('button', { name: '付款成功', exact: true }).evaluate(button => { button.click(); button.click(); });
+  await page.waitForFunction(async () => (await import('/src/stores/growthStore.ts')).useGrowthStore.getState().data.fundCents === 1300);
+  assert.equal((await state()).entries.length, 2);
+  assert.equal((await state()).membershipUntil > firstExpiry, true);
+  await page.getByRole('button', { name: '支付 ¥20.00', exact: true }).click();
+  await page.getByRole('button', { name: '付款成功', exact: true }).click();
+  await page.waitForFunction(async () => (await import('/src/stores/growthStore.ts')).useGrowthStore.getState().data.fundCents === 3300);
+  await page.screenshot({ path: '/tmp/membership-active.png' });
+  await page.locator('.membership-modal .modal-head .icon-btn').click();
+  await page.locator('.growth-entry').click();
+  await page.locator('.growth-tabs').getByRole('button', { name: '基金与规则', exact: true }).click();
+  await page.locator('input[name=amount]').fill('12.34');
+  await page.getByRole('button', { name: '存入基金', exact: true }).click();
+  await page.locator('.payment-modal').waitFor();
+  assert.equal((await state()).fundCents, 3300);
+  const expiry = (await state()).membershipUntil;
+  await page.getByRole('button', { name: '付款成功', exact: true }).click();
+  await page.waitForFunction(async () => (await import('/src/stores/growthStore.ts')).useGrowthStore.getState().data.fundCents === 4534);
+  assert.equal((await state()).membershipUntil, expiry);
+  await page.locator('.growth-tabs').getByRole('button', { name: '收支明细' }).click();
+  assert.equal(await page.locator('.growth-ledger > div').count(), 4);
+  const persisted = await state();
+  await page.reload(); await boot();
+  assert.deepEqual(await state(), persisted);
+  await page.locator('.titlebar-actions button[title="设置"]').click();
+  await page.getByRole('tab', { name: '外观', exact: true }).click();
+  await page.locator('.settings-pane select:has(option[value=dark])').selectOption('dark');
+  await page.getByRole('tab', { name: '通用', exact: true }).click();
+  await page.locator('.settings-pane select:has(option[value=en])').selectOption('en');
+  await page.getByRole('tab', { name: 'General', exact: true }).waitFor();
+  await page.locator('.settings-close').click();
+  await page.locator('.titlebar-actions button[title="Membership"]').click();
+  await page.getByRole('button', { name: 'Pay ¥20.00', exact: true }).click();
+  await page.setViewportSize({ width: 650, height: 760 });
+  assert.equal(await page.locator('.payment-modal').evaluate(el => el.scrollWidth <= el.clientWidth), true);
+  assert.equal(await page.locator('.payment-qr-grid img').count(), 2);
+  await page.screenshot({ path: '/tmp/payment-dark-en-narrow.png' });
+  await page.keyboard.press('Escape');
+  await page.locator('.payment-modal').waitFor({ state: 'detached' });
+  assert.equal((await state()).fundCents, 4534);
+  await page.locator('.membership-modal .modal-head .icon-btn').click();
+  await page.locator('.titlebar-actions button[title="Settings"]').click();
+  await page.getByRole('tab', { name: 'General', exact: true }).click();
+  assert.equal(await page.locator('.payment-config').count(), 0);
+  await page.screenshot({ path: '/tmp/settings-dark-en-650.png' });
+  await page.setViewportSize({ width: 390, height: 780 });
+  assert.equal(await page.locator('.settings-pane').evaluate(el => el.scrollWidth <= el.clientWidth + 1), true);
+  await page.getByRole('tab', { name: 'General', exact: true }).focus();
+  await page.keyboard.press('End');
+  assert.equal(await page.getByRole('tab', { name: 'About', exact: true }).getAttribute('aria-selected'), 'true');
+  await page.keyboard.press('Home');
+  assert.equal(await page.getByRole('tab', { name: 'Account', exact: true }).getAttribute('aria-selected'), 'true');
+  await page.screenshot({ path: '/tmp/settings-dark-en-390.png' });
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('.settings-modal').count(), 0);
+  await page.evaluate(async () => (await import('/src/api/index.ts')).api.clear_all_data());
+  await page.waitForFunction(async () => (await import('/src/stores/growthStore.ts')).useGrowthStore.getState().data?.membershipUntil === 0);
+  assert.equal((await state()).paymentSettings.wechatQr, '');
+  assert.equal((await state()).paymentOrders.length, 0);
+  assert.deepEqual(errors, []);
+  console.log('PASS payments UI: legacy migration, QR upload, weekly/monthly only, cancellation, restored pending order, honor-system confirmation, duplicate click, renewal, full fund credit, fund top-up, history, restart, dark/en/narrow, Escape, clear data');
+} finally { await browser.close(); }

@@ -12,12 +12,13 @@ const WEEK_KEYS = [
 ] as const;
 
 export function DailyCalendar({
-  year, month0, focusByDay, goalMin,
+  year, month0, focusByDay, goalMin, range,
 }: {
   year: number;
   month0: number;
   focusByDay: Map<string, number>;
   goalMin: number;
+  range?: { from: string; to: string };
 }) {
   const cells = useMemo(() => monthGrid(year, month0), [year, month0]);
   const today = todayKey();
@@ -34,18 +35,20 @@ export function DailyCalendar({
           const met = goalMin > 0 && minutes >= goalMin;
           const isToday = c.key === today;
           const isFuture = c.key > today;
+          const outsideRange = range && (c.key < range.from || c.key > range.to);
           const cls = [
             'cal-cell',
             !c.inMonth ? 'out' : '',
             isToday ? 'today' : '',
             isFuture && c.inMonth ? 'future' : '',
             met ? 'goal-met' : '',
+            outsideRange ? 'outside-range' : '',
           ].filter(Boolean).join(' ');
           return (
             <div
               key={c.key}
               className={cls}
-              title={minutes > 0 ? t('cal.cellTip', { date: c.key, min: minutes }) : c.key}
+              title={outsideRange ? t('report2.outsideRange', { date: c.key }) : minutes > 0 ? t('cal.cellTip', { date: c.key, min: minutes }) : c.key}
             >
               {c.date.getDate()}
             </div>

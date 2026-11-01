@@ -106,6 +106,28 @@ const MIN = 60_000;
     `剩余 ${remainingMs(st, t0 + 100 * MIN) / MIN}min`);
 }
 
+// ── 5c. 番茄钟「跳过」：记录已实际专注的时长（即使不满一个番茄钟） ──
+{
+  // 模拟：专注 5 分钟 → 暂停 30 分钟 → 恢复后又专注 10 分钟 → 点「跳过」
+  // 此时真实专注时长 = 5 + 10 = 15 分钟（暂停 30 分钟不计入）。
+  const t0 = 6_000_000;
+  let st = startState(idle('pomodoro'), 25 * MIN, t0);         // 25:00 起表
+  st = pauseState(st, t0 + 5 * MIN);                            // 专注 5 分钟后暂停
+  st = startState(st, 25 * MIN, t0 + 35 * MIN);                 // 暂停 30 分钟后恢复
+  const skipNow = t0 + 45 * MIN;                                // 又跑 10 分钟后点跳过
+  // recordSkippedFocus 运行分支：activeMs = now − start_at
+  const activeRunning = !st.running ? 0 : st.start_at !== null ? skipNow - st.start_at : 0;
+  // 暂停分支：activeMs = (end_at − start_at) − paused_remaining_ms
+  const activePaused = st.running || st.start_at === null || st.end_at === null
+    ? -1 : (st.end_at - st.start_at) - (st.paused_remaining_ms ?? 0);
+  const activeMs = st.running ? activeRunning : activePaused;
+  check('跳过：真实专注时长（不含暂停）= 15 分钟',
+    activeMs === 15 * MIN, `activeMs=${activeMs / MIN}min`);
+  check('跳过：不足 1 分钟不落库（durationMin≥1）', Math.round(activeMs / MIN) >= 1);
+  // 从未开始（idle 预置态，start_at=null）→ recordSkippedFocus 直接 return，不计
+  check('跳过：未开始的专注不计入记录', idle('pomodoro').start_at === null);
+}
+
 // ── 6. 休息阶段只属于番茄钟循环 ──────────────────────────────────
 {
   check('番茄钟休息 = 5 分钟',

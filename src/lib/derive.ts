@@ -369,6 +369,179 @@ export function computeTaskCards(
   };
 }
 
+// ── 报表洞察（ReportModal；纯函数，数据来自 store，不新增查询接口） ─────────
+
+/**
+ * 专注记录画像：次数、单次时长、连续天数、峰值时段、最佳单日。
+ * 「连续」按相邻自然日判定（用 addDays 比较，不用 ms 差——跨夏令时会差 1 小时）。
+ */
+export interface ReportInsights {
+  sessions: number;
+  todaySessions: number;
+  weekSessions: number;
+  totalMin: number;
+  avgSessionMin: number;
+  longestSessionMin: number;
+  activeDays: number;
+  avgActiveDayMin: number;
+  bestDay: { dateKey: string; minutes: number } | null;
+  currentStreak: number;
+  longestStreak: number;
+  peakHour: number | null;
+  peakHourMin: number;
+  firstDay: string | null;
+}
+
+export function reportInsights(ds: Dataset): ReportInsights {
+  const now = new Date();
+  const todayStart = startOfDay(now).getTime();
+  const tomorrowStart = startOfDay(addDays(now, 1)).getTime();
+  const weekStart = startOfWeek(now).getTime();
+
+  const byDay = new Map<string, number>();
+  const byHour = new Array<number>(24).fill(0);
+  let sessions = 0;
+  let todaySessions = 0;
+  let weekSessions = 0;
+  let totalMin = 0;
+  let longestSessionMin = 0;
+
+  for (const r of ds.records) {
+    sessions += 1;
+    totalMin += r.duration_min;
+    if (r.duration_min > longestSessionMin) longestSessionMin = r.duration_min;
+    if (r.start_at >= todayStart && r.start_at < tomorrowStart) todaySessions += 1;
+    if (r.start_at >= weekStart) weekSessions += 1;
+    const k = toDateKey(r.start_at);
+    byDay.set(k, (byDay.get(k) ?? 0) + r.duration_min);
+    byHour[new Date(r.start_at).getHours()] += r.duration_min;
+  }
+
+  const keys = [...byDay.keys()].sort();
+
+  let longestStreak = 0;
+  let run = 0;
+  let prevKey: string | null = null;
+  for (const k of keys) {
+    run = prevKey !== null && toDateKey(addDays(parseDateKey(prevKey), 1)) === k ? run + 1 : 1;
+    if (run > longestStreak) longestStreak = run;
+    prevKey = k;
+  }
+
+  // 今天还没开始专注时从昨天起算：今天尚未结束，不该把连续记录断掉
+  const daySet = new Set(keys);
+  let cursor = toDateKey(now);
+  if (!daySet.has(cursor)) cursor = toDateKey(addDays(now, -1));
+  let currentStreak = 0;
+  while (daySet.has(cursor)) {
+    currentStreak += 1;
+    cursor = toDateKey(addDays(parseDateKey(cursor), -1));
+  }
+
+  let bestDay: ReportInsights['bestDay'] = null;
+  for (const [dateKey, minutes] of byDay) {
+    if (bestDay === null || minutes > bestDay.minutes) bestDay = { dateKey, minutes };
+  }
+
+  let peakHour: number | null = null;
+  for (let h = 0; h < 24; h += 1) {
+    if (byHour[h] > 0 && (peakHour === null || byHour[h] > byHour[peakHour])) peakHour = h;
+  }
+
+  const activeDays = keys.length;
+  return {
+    sessions,
+    todaySessions,
+    weekSessions,
+    totalMin,
+    avgSessionMin: sessions > 0 ? Math.round(totalMin / sessions) : 0,
+    longestSessionMin,
+    activeDays,
+    avgActiveDayMin: activeDays > 0 ? Math.round(totalMin / activeDays) : 0,
+    bestDay,
+    currentStreak,
+    longestStreak,
+    peakHour,
+    peakHourMin: peakHour === null ? 0 : byHour[peakHour],
+    firstDay: keys[0] ?? null,
+  };
+}
+
+/** 任务总览（报表「任务概览」）：完成率、待办构成、预估番茄 vs 已投入 */
+export interface TaskOverview {
+  total: number;
+  pending: number;
+  done: number;
+  completionRate: number;
+  overdue: number;
+  dueToday: number;
+  highPriority: number;
+  urgent: number;
+  flagged: number;
+  estPomodoros: number;
+  investedMin: number;
+}
+
+export function taskOverview(ds: Dataset): TaskOverview {
+  const today = todayKey();
+  const pendingTasks = ds.tasks.filter((t) => t.completed === 0);
+  const pendingIds = new Set(pendingTasks.map((t) => t.id));
+  const done = ds.tasks.length - pendingTasks.length;
+  return {
+    total: ds.tasks.length,
+    pending: pendingTasks.length,
+    done,
+    completionRate: ds.tasks.length > 0 ? Math.round((done / ds.tasks.length) * 100) : 0,
+    overdue: pendingTasks.filter(isOverdue).length,
+    dueToday: pendingTasks.filter((t) => t.due_date === today).length,
+    highPriority: pendingTasks.filter((t) => t.priority === 'high').length,
+    urgent: pendingTasks.filter((t) => t.urgent === 1).length,
+    flagged: pendingTasks.filter((t) => t.flag === 1).length,
+    estPomodoros: Math.round(sum(pendingTasks.map((t) => t.est_pomodoros)) * 10) / 10,
+    investedMin: sum(ds.records.filter((r) => r.task_id && pendingIds.has(r.task_id)).map((r) => r.duration_min)),
+  };
+}
+
+/** 即将到期（报表「任务概览」）：未完成且有到期日，按到期时刻升序（逾期自然排最前） */
+export function upcomingTasks(ds: Dataset, limit = 4): Task[] {
+  const dueAt = (t: Task): number => {
+    if (!t.due_date) return Number.MAX_SAFE_INTEGER;
+    const d = parseDateKey(t.due_date).getTime();
+    if (!t.due_time) return d;
+    const [hh, mm] = t.due_time.split(':').map(Number);
+    return d + (hh || 0) * 3_600_000 + (mm || 0) * 60_000;
+  };
+  return ds.tasks
+    .filter((t) => t.completed === 0 && t.due_date !== null)
+    .sort((a, b) => dueAt(a) - dueAt(b))
+    .slice(0, limit);
+}
+
+/** 时段聚合桶：分钟 + 次数（报表柱图 hover 用） */
+export interface DistBucket { minutes: number; sessions: number }
+
+/** 一天中的专注分布（24 桶，按记录开始时刻） */
+export function focusByHour(ds: Dataset): DistBucket[] {
+  const out: DistBucket[] = Array.from({ length: 24 }, () => ({ minutes: 0, sessions: 0 }));
+  for (const r of ds.records) {
+    const b = out[new Date(r.start_at).getHours()];
+    b.minutes += r.duration_min;
+    b.sessions += 1;
+  }
+  return out;
+}
+
+/** 一周中的专注分布（7 桶，0=周一 … 6=周日） */
+export function focusByWeekday(ds: Dataset): DistBucket[] {
+  const out: DistBucket[] = Array.from({ length: 7 }, () => ({ minutes: 0, sessions: 0 }));
+  for (const r of ds.records) {
+    const b = out[(new Date(r.start_at).getDay() + 6) % 7];
+    b.minutes += r.duration_min;
+    b.sessions += 1;
+  }
+  return out;
+}
+
 // ── 今日面板（PRD FR-P2 右侧「今天」） ──────────────────────────────────
 
 export function todayPendingTasks(ds: Dataset): Task[] {

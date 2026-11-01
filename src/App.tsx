@@ -1,6 +1,6 @@
 // 应用外壳 —— 组装全局框架（PRD §4）与页面路由（PRD §2.3）
 
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { TitleBar } from '@/components/TitleBar';
 import { Sidebar } from '@/components/Sidebar';
 import { SidebarContextMenu } from '@/components/SidebarContextMenu';
@@ -20,23 +20,29 @@ import { NoisePicker } from '@/components/NoisePicker';
 import { AiDrawer } from '@/components/AiDrawer';
 import { TaskEditModal } from '@/modals/TaskEditModal';
 import { PlaceholderModal } from '@/modals/PlaceholderModal';
+import { GrowthModal } from '@/modals/GrowthModal';
+import { PaymentModal } from '@/modals/PaymentModal';
 import { CreateFolderModal } from '@/modals/CreateFolderModal';
 import { CreateListModal } from '@/modals/CreateListModal';
 import { ConfirmDialog, type ConfirmSpec } from '@/modals/ConfirmDialog';
 import { useDataStore } from '@/stores/dataStore';
 import { useCountdownStore } from '@/stores/countdownStore';
+import { useGrowthStore } from '@/stores/growthStore';
 import { useStatsStore } from '@/stores/statsStore';
 import { useTimerStore } from '@/stores/timerStore';
 import { useUiStore } from '@/stores/uiStore';
 import { useNoiseStore } from '@/stores/noiseStore';
 import { useAuthStore, scheduleSyncPush } from '@/stores/authStore';
 import type { NoiseKind } from '@/lib/noise';
-import { api, on, subscribe, isTauri } from '@/api';
+import { api, subscribe } from '@/api';
 import { useI18nStore, tStatic } from '@/i18n';
 import { scanTaskReminders, defaultRemindDeps } from '@/lib/remindScan';
 import { scanCountdownReminders, defaultCountdownRemindDeps } from '@/lib/countdownRemind';
 import { syncPBServer } from '@/lib/pb';
 import { syncAutoStart } from '@/lib/autostart';
+import { installTrayController } from '@/lib/trayController';
+import { installWidgetController } from '@/lib/widgetController';
+import { installTheme } from '@/lib/theme';
 
 export default function App() {
   const [booted, setBooted] = useState(false);
@@ -71,7 +77,10 @@ export default function App() {
       useNoiseStore.getState().hydrate(bootSettings.noise as NoiseKind, bootSettings.noise_volume);
       // 应用已存语言（settings.language）
       useI18nStore.getState().setLang(useTimerStore.getState().settings.language as 'zh' | 'en');
-      if (onTimer) useTimerStore.getState().openScreen(true);
+      if (onTimer) {
+        // 待确认付款优先恢复，避免启动专注层抢走支付面板的焦点。
+        if (!useGrowthStore.getState().data?.paymentOrders.some(o => o.status === 'pending')) useTimerStore.getState().openScreen(true);
+      }
       else if (startup === 'calendar') useUiStore.getState().navigate({ name: 'calendar' });
       else if (startup === 'countdown') useUiStore.getState().navigate({ name: 'countdown' });
       else if (startup === 'ai') useUiStore.getState().navigate({ name: 'ai' });
@@ -83,9 +92,10 @@ export default function App() {
   }, [bootstrap, refreshStats, initTimer]);
 
   // 主题应用（PRD FR-S3 通用设置）
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-  }, [theme]);
+  useLayoutEffect(() => {
+    if (!booted) return;
+    return installTheme(theme);
+  }, [theme, booted]);
 
   // 到时提醒巡检（提醒事项字段：时间 + 提前提醒）。每 30s 扫一遍 + 启动即扫。
   // 读 getState()，不依赖 tasks/settings 变化，避免任务刷新时重建计时器。
@@ -151,34 +161,13 @@ export default function App() {
     })();
   }, [authStatus, cloudUser, localUserName]);
 
-  // 菜单栏托盘菜单事件（PRD §5.4 FR-P3）
-  // 注：原生托盘事件经 subscribe（本地总线 + Tauri listen 桥接）才能收到，
-  //     直接用本地 on() 在 Tauri 下收不到。
+  // 原生托盘：后台计时控制、任务快捷启动与动态菜单状态。
   useEffect(() => {
-    if (!isTauri()) return;
-    const unsub = subscribe('tray://menu', (action) => {
-      const ui = useUiStore.getState();
-      switch (action) {
-        case 'tray-toggle': useTimerStore.getState().toggleRun(); break;
-        case 'tray-skip': useTimerStore.getState().skip(); break;
-        case 'tray-open-timer': useTimerStore.getState().openScreen(true); break;
-        case 'tray-report': ui.openReport(true); break;
-        case 'tray-settings': ui.openSettings(); break;
-        case 'tray-new-list': ui.openListCreate(true); break;
-        case 'tray-new-folder': ui.openFolderCreate(true); break;
-        case 'tray-new-task': {
-          ui.navigate({ name: 'tasks' });
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              document.querySelector<HTMLInputElement>('.add-task input')?.focus();
-            });
-          });
-          break;
-        }
-      }
-    });
-    return () => { unsub?.(); };
-  }, []);
+    if (!booted) return;
+    const offTray = installTrayController();
+    const offWidgets = installWidgetController();
+    return () => { offTray(); offWidgets(); };
+  }, [booted]);
 
   // 应用菜单栏命令（menu://command；含 macOS Cmd+, 打开设置）
   useEffect(() => {
@@ -202,23 +191,6 @@ export default function App() {
       }
     });
     return () => unsub?.();
-  }, []);
-
-  // 更新托盘「开始/暂停」菜单项文字
-  useEffect(() => {
-    if (!isTauri()) return;
-    const updateToggle = () => {
-      const s = useTimerStore.getState();
-      const text = s.state.phase === 'break'
-        ? (s.state.running ? tStatic('timer.cta.pause') : tStatic('timer.cta.startBreak'))
-        : s.state.phase === 'focus'
-          ? (s.state.running ? tStatic('timer.cta.pause') : tStatic('timer.cta.resume'))
-          : tStatic('timer.cta.start');
-      void api.update_tray_toggle(text);
-    };
-    updateToggle();
-    const unsub = on('timer://state-changed', updateToggle);
-    return () => { unsub?.(); };
   }, []);
 
   // 全局快捷键：空格开始/暂停（PRD §9 可访问性）
@@ -283,6 +255,7 @@ export default function App() {
       <SettingsModal onConfirm={setConfirm} />
       <TaskEditModal onConfirm={setConfirm} />
       <PlaceholderModal />
+      <GrowthModal />
       <CreateFolderModal />
       <CreateListModal />
       <SidebarContextMenu />
@@ -291,6 +264,7 @@ export default function App() {
 
       {confirm && <ConfirmDialog spec={confirm} onClose={() => setConfirm(null)} />}
       {globalConfirm && <ConfirmDialog spec={globalConfirm} onClose={clearConfirm} />}
+      <PaymentModal />
     </div>
   );
 }

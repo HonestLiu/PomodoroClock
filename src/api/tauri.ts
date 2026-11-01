@@ -63,8 +63,9 @@ export const tauriApi: Api = {
   // 计时状态高频落盘，不广播（避免每 250ms 触发全量刷新）
   set_timer_state: (state) => invoke('set_timer_state', { state }),
   update_tray_title: (text) => invoke('update_tray_title', { text }),
-  update_tray_toggle: (text) => invoke('update_tray_toggle', { text }),
+  update_tray_menu: (snapshot, force = false) => invoke('update_tray_menu', { snapshot, force }),
   set_tray_phase: (phase) => invoke('set_tray_phase', { phase }),
+  take_widget_launch: () => invoke('take_widget_launch'),
 
   get_settings: () => invoke('get_settings'),
   set_setting: (key, value) => mutate('settings', () => invoke('set_setting', { key, value })),

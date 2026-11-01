@@ -1,6 +1,18 @@
+import { aboutZh } from './about';
+import { trayZh } from './tray';
+import { reportZh } from './report';
+import { preferencesZh } from './preferences';
+import { paymentsZh } from './payments';
+import { growthZh } from './growth';
 // 简体中文词表（默认语言）。
 // 约定：所有 UI 文案统一走 t()，便于双语维护。格式 {key: 文案}，`{x}` 为插值。
 export const zh = {
+  ...aboutZh,
+  ...trayZh,
+  ...reportZh,
+  ...preferencesZh,
+  ...paymentsZh,
+  ...growthZh,
   // 框架
   'app.title': 'FocusPomodoro',
   'search.placeholder': '搜索',
@@ -117,7 +129,8 @@ export const zh = {
   'confirm.deleteFolderMsg': '文件夹内的清单不会被删除，会移回顶层。确定删除该文件夹吗？',
   'confirm.deleteListTitle': '删除清单',
   'confirm.deleteListMsg': '删除后该清单内的任务将变为未归档（仍保留在「任务」中）。确定删除吗？',
-  'title.premium': '高级版', 'title.friends': '好友 / 社区', 'title.achievements': '成就',
+  'title.premium': '会员', 'title.friends': '好友 / 社区', 'title.achievements': '成就',
+  'title.pomodoro': '打开番茄钟小窗', 'title.pomodoroHide': '隐藏番茄钟小窗',
 
   // 统计卡
   'stat.estTime': '预计时间', 'stat.pending': '待完成任务',
@@ -178,10 +191,36 @@ export const zh = {
   'report.goalRate': '目标完成率:{n}%',
   'report.sumNDays': '近 {n} 天合计 {m} 分钟', 'report.avg': '日均 {n} 分钟',
   'report.goalAchieve': '今日目标达成度', 'report.noneThisPeriod': '该周期暂无专注记录',
+  // 报表增强（2026-10-29）：洞察条 / 时段分布 / 任务概览 / 卡片次要口径
+  'report.overviewSub': '共 {s} 次专注 · {d} 天有记录',
+  'report.legendToday': '今天', 'report.legendHistory': '历史',
+  'report.peak': '高峰 {h} · {v}',
+  'report.sessionCount': '专注次数', 'report.sessions': '{n} 次',
+  'report.todaySessions': '今日 {n} 次',
+  'report.avgSession': '平均单次', 'report.dailyAvg': '日均 {v}',
+  'report.longestSession': '最长单次', 'report.activeDays': '专注 {n} 天',
+  'report.streak': '连续专注', 'report.streakDays': '{n}天', 'report.streakLongest': '最长 {n} 天',
+  'report.bestDay': '最佳单日', 'report.peakHour': '高峰时段',
+  'report.dist': '专注时段分布', 'report.distSub': '全部记录 · 一天 24 小时 / 一周 7 天',
+  'report.byHour': '一天中', 'report.byWeekday': '一周中',
+  'report.ariaHour': '专注小时分布', 'report.ariaWeekday': '专注星期分布',
+  'report.taskOverview': '任务概览', 'report.taskOverviewSub': '全部 {n} 个任务',
+  'report.completionLabel': '完成率 {n}%',
+  'report.pendingTasks': '待办', 'report.doneTasks': '已完成',
+  'report.overdueTasks': '逾期', 'report.dueTodayTasks': '今日到期',
+  'report.highPriority': '高优先级', 'report.estPomodoros': '预估番茄',
+  'report.invested': '待办已投入', 'report.urgentFlagged': '紧急 {u} · 旗标 {f}',
+  'report.upcoming': '即将到期',
+  'report.distributionSub': '周期合计 {v}',
+  'report.trendPeak': '峰值 {v}',
+  'report.sub.sessions': '共 {n} 次专注', 'report.sub.weekAvg': '日均 {v}',
+  'report.sub.goal': '目标 {n}%', 'report.sub.rate': '完成率 {n}%',
+  'report.sub.weekDoneAvg': '日均 {v}', 'report.sub.pendingLeft': '待办 {n}',
+  'bars.tip': '{label} · {v} · {n} 次',
 
   // 设置
   'settings.title': '设置',
-  'settings.tab.account': '账号', 'settings.tab.premium': '高级版', 'settings.tab.general': '通用',
+  'settings.tab.account': '账号', 'settings.tab.premium': '会员', 'settings.tab.general': '通用',
   'settings.tab.pomodoro': '番茄钟', 'settings.tab.lists': '清单管理', 'settings.tab.appearance': '外观',
   'settings.tab.about': '关于',
   'pomodoro.focusLen': '专注时长', 'pomodoro.breakLen': '休息时长',
@@ -272,19 +311,14 @@ export const zh = {
   'trend.avg': '日均 {n} 分钟', 'trend.goal': '目标 {n} 分钟', 'trend.hover': '{n} 分钟',
   'donut.total': '总时长', 'donut.zero': '0分钟', 'chart.taskN': '任务 {n}',
   'charts.noData': '该周期暂无专注记录',
-  'premium.upgrade': '升级高级版',
-  'premium.desc': '解锁无限清单、云端同步、高级报表与自定义背景。本期为占位页，订阅流程未实现。',
-  'premium.monthly': '月度', 'premium.yearly': '年度', 'premium.lifetime': '终身',
-  'premium.priceMonthly': '¥18/月', 'premium.priceYearly': '¥168/年',
-  'premium.priceLifetime': '¥398',
-  'placeholder.premiumBody': '订阅方案与支付流程未在本次复刻范围内实现。',
+
   'placeholder.friendsBody': '好友列表与社区动态为规格定义的空态占位。',
   'ach.first': '初次专注', 'ach.firstDesc': '完成第一个番茄',
   'ach.streak': '坚持不懈', 'ach.streakDesc': '累计专注 5 小时',
   'ach.goal': '目标达成', 'ach.goalDesc': '达成一次每日目标',
   'ach.master': '任务达人', 'ach.masterDesc': '完成 10 个任务',
   'ach.done': '已达成', 'ach.todo': '未达成', 'ach.total': '累计专注 {v}',
-  'general.theme': '主题', 'appearance.light': '浅色', 'appearance.dark': '深色',
+  'general.theme': '主题', 'appearance.system': '跟随系统', 'appearance.light': '浅色', 'appearance.dark': '深色',
   'general.autostart': '开机自启', 'general.autostartHint': '登录系统时自动启动应用（桌面端生效）',
   'general.float': '悬浮番茄小窗', 'general.floatHint': '右下角常驻计时小窗',
   'general.startupPage': '启动页',
@@ -308,23 +342,7 @@ export const zh = {
   'lists.deleteMsg': '确定删除清单「{name}」吗？清单内任务将变为未指定清单。',
   'lists.new': '新建清单', 'lists.namePlaceholder': '清单名称', 'lists.create': '创建',
   'confirm.deleteAll': '删除全部数据',
-  'appearance.custom': '自定义图片', 'appearance.upload': '上传',
-  'appearance.reset': '恢复默认', 'appearance.wallpaperHint': '支持 JPG / PNG / SVG',
-  'about.sectionOverview': '概览',
-  'about.sectionStack': '技术栈',
-  'about.sectionData': '本地数据',
-  'about.sectionBackend': '云同步',
-  'about.version': '版本',
-  'about.appName': 'FocusPomodoro',
-  'about.tagline': '版本 1.0.0 · 番茄钟 × 任务管理桌面应用',
-  'about.stack': '技术栈：Tauri 2.x + React 19 + TypeScript + Vite',
-  'about.storage': '数据存储：本地优先（SQLite / IndexedDB）',
-  'about.offline': '本构建在离线环境下完成，未接入云端与更新服务。',
-  'about.counts': '{tasks} 任务 · {lists} 清单 · {records} 条专注记录',
-  'about.backendReady': '已连接',
-  'about.backendDown': '未连接',
-  'about.backendNone': '未配置',
-  'about.backendHint': '登录后可把任务与设置同步到多台设备。',
+  'appearance.upload': '上传图片', 'appearance.waves': '海浪（内置）',
   // 云端错误与同步提示（pb / sync / authStore 用 tStatic 取词）
   'err.unknown': '未知错误',
   'err.network': '无法连接云端服务，请检查网络（本地功能不受影响）',

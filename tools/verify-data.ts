@@ -5,7 +5,11 @@ import {
   pomodoroGrid, taskDurations, listDistribution, dailyFocusMap, todayPendingTasks,
   tasksForCategory,
 } from '@/db/queries';
-import { completedTaskGroups, computeTaskCards, isOverdue } from '@/lib/derive';
+import {
+  completedTaskGroups, computeTaskCards, isOverdue,
+  focusByHour, focusByWeekday, reportInsights, taskOverview, upcomingTasks,
+} from '@/lib/derive';
+import type { FocusRecord, Task } from '@/types';
 import { nextOccurrence } from '@/lib/recurrence';
 import { leadMs, dueTimestamp, taskRemindAt, shouldRemind } from '@/lib/taskRemind';
 import { formatMinutes, setDateLocale, toDateKey } from '@/lib/date';
@@ -263,6 +267,98 @@ check('专注天数映射', dailyFocusMap().size, 3);
 
 console.log('\n--- S3 今日面板 ---');
 check('今日待完成列表', todayPendingTasks().map((t) => t.title), ['数学真题', '408真题', '单词']);
+
+// 报表增强（2026-10-29）：跟随真实「今天」，用相对日期构造，断言与运行日无关
+console.log('\n--- 报表洞察 / 时段分布 / 任务概览（纯函数） ---');
+const mkTask = (over: Partial<Task>): Task => ({
+  id: 't', list_id: null, title: 'x', notes: '', est_pomodoros: 0,
+  due_date: null, due_time: null, url: '', urgent: 0, repeat: 'none',
+  lead_remind: 'none', tags: [], flag: 0, priority: 'none', reminded_at: null,
+  completed: 0, completed_at: null, sort_order: 0, created_at: 0, updated_at: 0,
+  actual_minutes: null, parent_id: null, ...over,
+});
+const N_DAYS_AGO = (n: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  d.setHours(9, 0, 0, 0);
+  return d;
+};
+const mkRec = (start: Date, min: number, hourShift = 0, over: Partial<FocusRecord> = {}): FocusRecord => {
+  const s = new Date(start);
+  s.setHours(s.getHours() + hourShift);
+  return {
+    id: `r${s.getTime()}-${min}`, task_id: null, list_id: null,
+    start_at: s.getTime(), end_at: s.getTime() + min * 60_000,
+    duration_min: min, phase: 'focus', created_at: s.getTime(), ...over,
+  };
+};
+const insRecs = [
+  mkRec(N_DAYS_AGO(0), 25, 1),   // 今天 10:00
+  mkRec(N_DAYS_AGO(0), 35, 5),   // 今天 14:00
+  mkRec(N_DAYS_AGO(1), 20),      // 昨天 09:00
+  mkRec(N_DAYS_AGO(2), 10),      // 前天 09:00
+  mkRec(N_DAYS_AGO(4), 15),      // 4 天前 09:00（第 3 天断层）
+];
+const ins = reportInsights({ tasks: [], lists: [], records: insRecs });
+check('洞察 专注次数', ins.sessions, 5);
+check('洞察 今日次数', ins.todaySessions, 2);
+check('洞察 总时长', ins.totalMin, 105);
+check('洞察 平均单次', ins.avgSessionMin, 21);
+check('洞察 最长单次', ins.longestSessionMin, 35);
+check('洞察 活跃天数', ins.activeDays, 4);
+check('洞察 活跃日日均', ins.avgActiveDayMin, 26);
+check('洞察 当前连续(3)', ins.currentStreak, 3);
+check('洞察 最长连续(3)', ins.longestStreak, 3);
+check('洞察 最佳单日', ins.bestDay ? [ins.bestDay.dateKey, ins.bestDay.minutes] : null, [toDateKey(new Date()), 60]);
+check('洞察 高峰小时', ins.peakHour, 9);
+check('洞察 高峰时长', ins.peakHourMin, 45);
+
+const byHour = focusByHour({ tasks: [], lists: [], records: insRecs });
+check('小时分布 桶数', byHour.length, 24);
+check('小时分布 9 点', [byHour[9].minutes, byHour[9].sessions], [45, 3]);
+check('小时分布 其余合计', byHour.reduce((a, b) => a + b.minutes, 0) - byHour[9].minutes, 60);
+const byWeekday = focusByWeekday({ tasks: [], lists: [], records: insRecs });
+check('星期分布 桶数', byWeekday.length, 7);
+check('星期分布 合计', byWeekday.reduce((a, b) => a + b.minutes, 0), 105);
+check('星期分布 今天的桶≥60', byWeekday[(new Date().getDay() + 6) % 7].minutes >= 60, true);
+
+const yesterdayKey = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return toDateKey(d); })();
+const ovTasks = [
+  mkTask({ id: 'a', title: '今日', due_date: toDateKey(new Date()), est_pomodoros: 2, priority: 'high', urgent: 1, flag: 1 }),
+  mkTask({ id: 'b', title: '逾期', due_date: yesterdayKey, est_pomodoros: 1.5 }),
+  mkTask({ id: 'c', title: '完成', completed: 1, completed_at: Date.now(), est_pomodoros: 4 }),
+  mkTask({ id: 'd', title: '无日期' }),
+];
+const ovRecs = [
+  mkRec(N_DAYS_AGO(0), 30, 1, { task_id: 'a' }),
+  mkRec(N_DAYS_AGO(0), 10, 1, { task_id: 'b' }),
+  mkRec(N_DAYS_AGO(0), 40, 1, { task_id: 'c' }), // 已完成任务：不计入「待办已投入」
+];
+const ov = taskOverview({ tasks: ovTasks, lists: [], records: ovRecs });
+check('任务概览 待办/完成/总数', [ov.pending, ov.done, ov.total], [3, 1, 4]);
+check('任务概览 完成率', ov.completionRate, 25);
+check('任务概览 逾期', ov.overdue, 1);
+check('任务概览 今日到期', ov.dueToday, 1);
+check('任务概览 高优先级/紧急/旗标', [ov.highPriority, ov.urgent, ov.flagged], [1, 1, 1]);
+check('任务概览 预估番茄(待办 2+1.5)', ov.estPomodoros, 3.5);
+check('任务概览 已投入(仅待办任务 30+10)', ov.investedMin, 40);
+
+console.log('\n--- 报表 即将到期 ---');
+const tomorrowKey = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return toDateKey(d); })();
+const todayKeyStr = toDateKey(new Date());
+const upTasks = [
+  mkTask({ id: 'u1', title: '今天下午', due_date: todayKeyStr, due_time: '15:00' }),
+  mkTask({ id: 'u2', title: '今天上午', due_date: todayKeyStr, due_time: '09:00' }),
+  mkTask({ id: 'u3', title: '明天', due_date: tomorrowKey }),
+  mkTask({ id: 'u4', title: '逾期', due_date: yesterdayKey }),
+  mkTask({ id: 'u5', title: '无日期' }),
+  mkTask({ id: 'u6', title: '已完成', due_date: yesterdayKey, completed: 1 }),
+];
+const upDs = { tasks: upTasks, lists: [], records: [] };
+check('即将到期 排序(逾期→今天09→今天15→明天)', upcomingTasks(upDs).map((t) => t.id), ['u4', 'u2', 'u1', 'u3']);
+check('即将到期 上限 2 条', upcomingTasks(upDs, 2).map((t) => t.id), ['u4', 'u2']);
+check('即将到期 无到期日的任务不入选', upcomingTasks({ tasks: [mkTask({ id: 'x' })], lists: [], records: [] }).length, 0);
+
 
 console.log(`\n${failures === 0 ? '✅ 全部通过' : `❌ ${failures} 项失败`}`);
 process.exit(failures === 0 ? 0 : 1);

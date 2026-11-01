@@ -4,8 +4,9 @@
 // PRD §8.1 指定 ECharts 5；当前离线构建中该依赖不可得，改以 SVG 网格实现同一视觉与数据映射。
 
 import { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { GridCell } from '@/types';
-import { relativeDayLabel } from '@/lib/date';
+import { relativeDayLabel, todayKey } from '@/lib/date';
 import { useI18n } from '@/i18n';
 
 const CELL_W = 26;
@@ -18,7 +19,7 @@ const HOURS = 24;
 export function PomodoroHeatmap({ dates, cells }: { dates: string[]; cells: GridCell[] }) {
   const { t } = useI18n();
   const [tip, setTip] = useState<{ x: number; y: number; text: string } | null>(null);
-  const todayKey = dates[0];
+  const currentDate = todayKey();
 
   const byKey = useMemo(() => {
     const m = new Map<string, GridCell>();
@@ -45,7 +46,7 @@ export function PomodoroHeatmap({ dates, cells }: { dates: string[]; cells: Grid
         ))}
 
         {dates.map((d, row) => {
-          const isToday = d === todayKey;
+          const isToday = d === currentDate;
           const y = TOP + row * (CELL_H + GAP);
           return (
             <g key={d}>
@@ -93,10 +94,10 @@ export function PomodoroHeatmap({ dates, cells }: { dates: string[]; cells: Grid
         })}
       </svg>
 
-      {tip && (
+      {tip && createPortal(
         <div className="chart-tip" style={{ left: tip.x, top: tip.y, transform: 'translate(-50%, -100%)' }}>
           {tip.text}
-        </div>
+        </div>, document.body,
       )}
     </div>
   );

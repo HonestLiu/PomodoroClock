@@ -6,9 +6,9 @@
 // 已登录：同一张卡变账号卡（头像/首字母、用户名/邮箱、已登录徽标、同步区、退出登录）＋「本地数据」。
 // 头像来自 PocketBase 的 users.avatar 文件字段（点头像更换，可移除）；其余资料（昵称等）不在此编辑。
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
-  Camera, Crown, GripVertical, Info, ListChecks,
+  ArrowLeft, Camera, Check, ChevronDown, ChevronRight, Crown, GripVertical, Info, ListChecks,
   Palette, Settings as SettingsIcon, Sliders, Trash2, User as UserIcon, X,
 } from 'lucide-react';
 import { useUiStore, type SettingsTab } from '@/stores/uiStore';
@@ -26,8 +26,17 @@ import { aiConfig, testConnection } from '@/lib/ai/providers';
 import type { Settings, StartupPage } from '@/types';
 import type { ConfirmSpec } from './ConfirmDialog';
 import { useI18nStore, useI18n, type ZhKey } from '@/i18n';
+import { AboutPane } from '@/components/AboutPane';
 import { useModalA11y } from '@/components/useModalA11y';
 import { setAutoStart } from '@/lib/autostart';
+import {
+  CUSTOM_PREFIX, WAVES_KEY, parseWallpapers, resolveCustomWallpaper, serializeWallpapers,
+  wallpaperDisplayName,
+} from '@/lib/wallpaper';
+import wavesThumb from '@/assets/wallpapers/waves-thumb.svg';
+import { MembershipPanel, PaymentSettingsForm, paymentError } from '@/components/MembershipPanel';
+import { useGrowthStore } from '@/stores/growthStore';
+import '@/styles/settings.css';
 
 /** 设置写入串行链（见 patch）：保证多次编辑按序落库，避免并发快照回退 */
 let writeChain: Promise<unknown> = Promise.resolve();
@@ -49,13 +58,75 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
   const modalRef = useRef<HTMLDivElement>(null);
 
   const [settings, setSettings] = useState<Settings>(timer.settings);
+  const [paymentManagement, setPaymentManagement] = useState(false);
+  const growth = useGrowthStore(s => s.data);
+  const paneRef = useRef<HTMLDivElement>(null);
   const [testing, setTesting] = useState(false);
   const [testMsg, setTestMsg] = useState('');
   const bgInputRef = useRef<HTMLInputElement>(null);
+  // 专注背景自绘下拉（不用原生 select）：触发器 ref + 面板 ref + 面板固定定位坐标
+  const [bgOpen, setBgOpen] = useState(false);
+  const [bgPos, setBgPos] = useState({ left: 0, top: 0 });
+  const bgTriggerRef = useRef<HTMLButtonElement>(null);
+  const bgPanelRef = useRef<HTMLDivElement>(null);
 
   useModalA11y(ui.settingsOpen, () => ui.closeAllOverlays(), modalRef, '.settings-nav button.active');
 
   useEffect(() => { setSettings(timer.settings); }, [timer.settings]);
+  useLayoutEffect(() => {
+    setPaymentManagement(false);
+    setBgOpen(false);
+  }, [ui.settingsOpen, ui.settingsTab]);
+  useEffect(() => {
+    paneRef.current?.scrollTo({ top: 0 });
+    if (paymentManagement) paneRef.current?.focus();
+  }, [ui.settingsTab, paymentManagement]);
+  const wallpaperList = useMemo(() => parseWallpapers(settings.wallpapers), [settings.wallpapers]);
+
+  // 当前生效的背景：自定义项取列表里的图，内置/旧值兜底海浪
+  const currentCustom = wallpaperList.find((w) => settings.wallpaper === `${CUSTOM_PREFIX}${w.name}`);
+  const currentWpThumb = currentCustom?.data ?? resolveCustomWallpaper(settings.wallpaper, settings.wallpapers) ?? wavesThumb;
+  const currentWpName = currentCustom ? wallpaperDisplayName(currentCustom.name) : t('appearance.waves');
+
+  // 面板是 position:fixed（设置面板本身 overflow-y:auto 会裁剪绝对定位子元素），
+  // 打开后量一次实际尺寸并贴边翻转/收拢，避免溢出视口
+  useLayoutEffect(() => {
+    if (!bgOpen) return;
+    const trigger = bgTriggerRef.current;
+    const panel = bgPanelRef.current;
+    if (!trigger || !panel) return;
+    const tr = trigger.getBoundingClientRect();
+    const pr = panel.getBoundingClientRect();
+    let left = Math.min(tr.left, window.innerWidth - pr.width - 8);
+    let top = tr.bottom + 4;
+    if (top + pr.height > window.innerHeight - 8) top = tr.top - pr.height - 4;
+    setBgPos({ left: Math.max(8, left), top: Math.max(8, top) });
+  }, [bgOpen]);
+
+  useEffect(() => {
+    if (!bgOpen) return;
+    const onDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (!bgPanelRef.current?.contains(target) && !bgTriggerRef.current?.contains(target)) setBgOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setBgOpen(false); };
+    // 窗口缩放/设置面板滚动都会让 fixed 面板与触发器错位 → 直接收起；
+    // 但面板**自身**内部的滚动要忽略（否则长列表滚不动）
+    const onLose = (e: Event) => {
+      if (!bgPanelRef.current?.contains(e.target as Node)) setBgOpen(false);
+    };
+    window.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('resize', onLose);
+    window.addEventListener('scroll', onLose, true);
+    return () => {
+      window.removeEventListener('mousedown', onDown);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onLose);
+      window.removeEventListener('scroll', onLose, true);
+    };
+  }, [bgOpen]);
+
   if (!ui.settingsOpen) return null;
 
   // 设置写入串行化：输入框逐键会把多个 patch 并发砸进来，若各自 await 返回后
@@ -89,6 +160,14 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
 
   /** 方向键在 7 个 tab 之间移动（role=tablist 的键盘约定） */
   function onNavKey(e: React.KeyboardEvent) {
+    if ((e.target as HTMLElement).getAttribute('role') !== 'tab') return;
+    if (e.key === 'Home' || e.key === 'End') {
+      e.preventDefault();
+      const next = TABS[e.key === 'Home' ? 0 : TABS.length - 1];
+      ui.setSettingsTab(next.key);
+      document.getElementById(`settings-tab-${next.key}`)?.focus();
+      return;
+    }
     const delta = e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1
       : e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? -1 : 0;
     if (!delta) return;
@@ -109,15 +188,10 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
         aria-labelledby="settings-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="modal-head">
-          <h2 id="settings-title">{t('settings.title')}</h2>
-          <button className="icon-btn" onClick={() => ui.closeAllOverlays()} aria-label={t('common.close')}>
-            <X size={16} aria-hidden />
-          </button>
-        </div>
-
         <div className="settings-body">
-          <nav className="settings-nav" role="tablist" aria-label={t('settings.title')} onKeyDown={onNavKey}>
+          <aside className="settings-sidebar">
+            <div className="settings-brand"><span className="settings-brand-mark" aria-hidden><SettingsIcon size={21} /></span><div><h2 id="settings-title">{t('settings.title')}</h2><span>FocusPomodoro</span></div></div>
+            <nav className="settings-nav" role="tablist" aria-orientation="vertical" aria-label={t('settings.title')} onKeyDown={onNavKey}>
             {TABS.map((tab) => {
               const Icon = tab.icon;
               const selected = ui.settingsTab === tab.key;
@@ -127,53 +201,46 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
                   id={`settings-tab-${tab.key}`}
                   role="tab"
                   aria-selected={selected}
+                  aria-label={t(tab.labelKey)}
+                  title={t(tab.labelKey)}
                   aria-controls={`settings-pane-${tab.key}`}
                   tabIndex={selected ? 0 : -1}
                   className={selected ? 'active' : ''}
                   onClick={() => ui.setSettingsTab(tab.key)}
                 >
-                  <Icon size={15} aria-hidden /> {t(tab.labelKey)}
+                  <span className="settings-nav-icon"><Icon size={17} aria-hidden /></span><span>{t(tab.labelKey)}</span>
                 </button>
               );
             })}
-          </nav>
-
-          <div
-            className="settings-pane"
-            role="tabpanel"
-            id={`settings-pane-${activeTab.key}`}
-            aria-labelledby={`settings-tab-${activeTab.key}`}
-          >
+            </nav>
+            <div className="settings-nav-footer"><Check size={13} aria-hidden /><span>{t('prefs.autoSave')}</span></div>
+          </aside>
+          <div className="settings-content">
+            <div className="modal-head settings-pane-header">
+              <div className="settings-heading">
+                {paymentManagement && <button className="settings-back" aria-label={t('prefs.backAbout')} onClick={() => { setPaymentManagement(false); document.getElementById('settings-tab-about')?.focus(); }}><ArrowLeft size={16} aria-hidden />{t('settings.tab.about')}</button>}
+                <h2 id="settings-page-title">{paymentManagement ? t('prefs.rewardManagement') : t(activeTab.labelKey)}</h2>
+                <p>{t(paymentManagement ? 'prefs.rewardManagementDesc' : `prefs.desc.${activeTab.key}`)}</p>
+              </div>
+              <button className="icon-btn settings-close" onClick={() => ui.closeAllOverlays()} aria-label={t('common.close')}><X size={18} aria-hidden /></button>
+            </div>
+            <div
+              className={`settings-pane settings-pane-${activeTab.key}`}
+              ref={paneRef}
+              role="tabpanel"
+              id={`settings-pane-${activeTab.key}`}
+              aria-labelledby={paymentManagement ? 'settings-page-title' : `settings-tab-${activeTab.key}`}
+              tabIndex={0}
+            >
             {/* ── 账号（S5）：软件账号 = PocketBase 账号，一页两态 ── */}
             {ui.settingsTab === 'account' && <AccountPane onConfirm={onConfirm} onPatch={patch} />}
 
-            {/* ── 高级版（占位，规格定义） ── */}
-            {ui.settingsTab === 'premium' && (
-              <div style={{ textAlign: 'center', padding: '28px 0' }}>
-                <Crown size={34} style={{ color: 'var(--accent-focus)' }} aria-hidden />
-                <h3 style={{ margin: '14px 0 6px', fontSize: 17 }}>{t('premium.upgrade')}</h3>
-                <p className="field-hint" style={{ maxWidth: 380, margin: '0 auto 18px', lineHeight: 1.7 }}>
-                  {t('premium.desc')}
-                </p>
-                <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-                  {([
-                    [t('premium.monthly'), t('premium.priceMonthly')],
-                    [t('premium.yearly'), t('premium.priceYearly')],
-                    [t('premium.lifetime'), t('premium.priceLifetime')],
-                  ] as const).map(([name, price]) => (
-                    <div key={name} className="panel" style={{ width: 132 }}>
-                      <div className="panel-title">{name}</div>
-                      <div style={{ fontSize: 20, fontWeight: 600, marginTop: 6, color: 'var(--accent-focus)' }}>{price}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* ── 会员：周付 / 月付与收款码设置 ── */}
+            {ui.settingsTab === 'premium' && <MembershipPanel />}
 
             {/* ── 通用 ── */}
-            {ui.settingsTab === 'general' && (
-              <>
-                <div className="field">
+            {ui.settingsTab === 'general' && <>
+              <SettingsGroup title={t('prefs.common')}>                <div className="field">
                   <span className="field-label">{t('appearance.lang')}</span>
                   <div className="field-body">
                     <select
@@ -196,6 +263,7 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
                       className="text-input" value={settings.theme} aria-label={t('appearance.theme')}
                       onChange={(e) => void patch('theme', e.target.value as Settings['theme'])}
                     >
+                      <option value="system">{t('appearance.system')}</option>
                       <option value="light">{t('appearance.light')}</option>
                       <option value="dark">{t('appearance.dark')}</option>
                     </select>
@@ -256,8 +324,35 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
                   </div>
                 </div>
 
-                {/* AI 服务（docs/05-modules/ai.md）：Claude / OpenAI 两种格式可配，Key 仅本地存 */}
-                <div className="section-title">{t('ai.settingsTitle')}</div>
+</SettingsGroup>
+              <SettingsGroup title={t('prefs.notifications')}>                <div className="field">
+                  <span className="field-label">{t('notif.inApp')}</span>
+                  <div className="field-body">
+                    <label className="switch">
+                      <input
+                        type="checkbox" checked={settings.notify_enabled} aria-label={t('notif.inApp')}
+                        onChange={(e) => void patch('notify_enabled', e.target.checked)}
+                      />
+                      <span className="track" />
+                    </label>
+                    <span className="field-hint">{t('notif.inAppHint')}</span>
+                  </div>
+                </div>
+                <div className="field">
+                  <span className="field-label">{t('notif.system')}</span>
+                  <div className="field-body">
+                    <label className="switch">
+                      <input
+                        type="checkbox" checked={settings.system_notify} aria-label={t('notif.system')}
+                        onChange={(e) => void patch('system_notify', e.target.checked)}
+                      />
+                      <span className="track" />
+                    </label>
+                    <span className="field-hint">{t('notif.systemHint')}</span>
+                  </div>
+                </div>
+</SettingsGroup>
+              <SettingsGroup title={t('ai.settingsTitle')}>                {/* AI 服务（docs/05-modules/ai.md）：Claude / OpenAI 两种格式可配，Key 仅本地存 */}
                 <div className="field">
                   <span className="field-label">{t('ai.provider')}</span>
                   <div className="field-body">
@@ -316,42 +411,19 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
                     )}
                   </div>
                 </div>
-                <div className="field">
-                  <span className="field-label">{t('notif.inApp')}</span>
-                  <div className="field-body">
-                    <label className="switch">
-                      <input
-                        type="checkbox" checked={settings.notify_enabled} aria-label={t('notif.inApp')}
-                        onChange={(e) => void patch('notify_enabled', e.target.checked)}
-                      />
-                      <span className="track" />
-                    </label>
-                    <span className="field-hint">{t('notif.inAppHint')}</span>
-                  </div>
-                </div>
-                <div className="field">
-                  <span className="field-label">{t('notif.system')}</span>
-                  <div className="field-body">
-                    <label className="switch">
-                      <input
-                        type="checkbox" checked={settings.system_notify} aria-label={t('notif.system')}
-                        onChange={(e) => void patch('system_notify', e.target.checked)}
-                      />
-                      <span className="track" />
-                    </label>
-                    <span className="field-hint">{t('notif.systemHint')}</span>
-                  </div>
-                </div>
-              </>
-            )}
+</SettingsGroup>
+            </>}
 
             {/* ── 番茄钟 ── */}
             {ui.settingsTab === 'pomodoro' && (
               <>
+                <SettingsGroup title={t('prefs.focusRhythm')}>
                 <NumField label={t('pomodoro.focusLen')} value={settings.focus_len_min} suffix={t('pomodoro.minutes')} onChange={(v) => void patch('focus_len_min', v)} />
                 <NumField label={t('pomodoro.breakLen')} value={settings.break_len_min} suffix={t('pomodoro.minutes')} onChange={(v) => void patch('break_len_min', v)} />
                 <NumField label={t('pomodoro.longBreakLen')} value={settings.long_break_len_min} suffix={t('pomodoro.minutes')} onChange={(v) => void patch('long_break_len_min', v)} />
                 <NumField label={t('pomodoro.longBreakEvery')} value={settings.long_break_every} suffix={t('pomodoro.poms')} onChange={(v) => void patch('long_break_every', v)} />
+                </SettingsGroup>
+                <SettingsGroup title={t('prefs.focusGoal')}>
                 <NumField label={t('pomodoro.dailyGoal')} value={settings.daily_target_min} suffix={t('pomodoro.minutes')} onChange={(v) => void patch('daily_target_min', v)} />
                 <div className="field">
                   <span className="field-label">{t('pomodoro.autoNext')}</span>
@@ -365,6 +437,7 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
                     </label>
                   </div>
                 </div>
+                </SettingsGroup>
               </>
             )}
 
@@ -374,6 +447,7 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
             {/* ── 外观 ── */}
             {ui.settingsTab === 'appearance' && (
               <>
+                <SettingsGroup title={t('prefs.display')}>
                 <div className="field">
                   <span className="field-label">{t('appearance.theme')}</span>
                   <div className="field-body">
@@ -381,45 +455,121 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
                       className="text-input" value={settings.theme} aria-label={t('appearance.theme')}
                       onChange={(e) => void patch('theme', e.target.value as Settings['theme'])}
                     >
+                      <option value="system">{t('appearance.system')}</option>
                       <option value="light">{t('appearance.light')}</option>
                       <option value="dark">{t('appearance.dark')}</option>
                     </select>
                   </div>
                 </div>
+                </SettingsGroup>
+                <SettingsGroup title={t('prefs.focusEnvironment')}>
                 <div className="field">
                   <span className="field-label">{t('appearance.wallpaper')}</span>
                   <div className="field-body">
-                    <select
-                      className="text-input" value={settings.wallpaper} aria-label={t('appearance.wallpaper')}
-                      onChange={(e) => void patch('wallpaper', e.target.value)}
-                    >
-                      <option value="waves">{t('noise.waves')}</option>
-                      {settings.wallpaper.startsWith('custom:') && <option value={settings.wallpaper}>{t('appearance.custom')}</option>}
-                    </select>
-                    <input
-                      ref={bgInputRef}
-                      type="file"
-                      accept="image/*"
-                      aria-label={t('appearance.upload')}
-                      style={{ display: 'none' }}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        const reader = new FileReader();
-                        reader.onload = () => {
-                          if (typeof reader.result === 'string') {
-                            void patch('wallpaper', 'custom:' + reader.result);
-                          }
-                        };
-                        reader.readAsDataURL(file);
-                        e.target.value = '';
-                      }}
-                    />
+                    {/* 自绘下拉（不用原生 select）：触发器显示当前背景，展开的下拉面板逐项列出
+                        内置 + 全部自定义图；点某项即切换并收起，自定义项行尾垃圾桶直接删除
+                        （2026-10-29 用户需求）。面板 position:fixed，避开设置面板的滚动裁剪。 */}
+                    <div className="wallpaper-dd">
+                      <button
+                        ref={bgTriggerRef}
+                        type="button"
+                        className="wallpaper-trigger"
+                        aria-haspopup="listbox"
+                        aria-expanded={bgOpen}
+                        aria-label={t('appearance.wallpaper')}
+                        onClick={() => setBgOpen((v) => !v)}
+                      >
+                        <img className="wallpaper-thumb" src={currentWpThumb} alt="" />
+                        <span className="wallpaper-name">{currentWpName}</span>
+                        <ChevronDown className="wallpaper-caret" size={14} aria-hidden />
+                      </button>
+                      <input
+                        ref={bgInputRef}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        aria-label={t('appearance.upload')}
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files ?? []);
+                          // 逐个读取 dataURI 追加到列表；**存显示名（去扩展名）**，重名加 (2)(3) 后缀
+                          Promise.all(files.map((f) => new Promise<string>((res, rej) => {
+                            const reader = new FileReader();
+                            reader.onload = () => res(typeof reader.result === 'string' ? reader.result : '');
+                            reader.onerror = () => rej(reader.error);
+                            reader.readAsDataURL(f);
+                          }).then((data) => ({ name: wallpaperDisplayName(f.name), data })))).then((added) => {
+                            const fresh = [...wallpaperList];
+                            const used = new Set(fresh.map((w) => wallpaperDisplayName(w.name)));
+                            for (const w of added) {
+                              const base = w.name || '壁纸';
+                              let name = base;
+                              let n = 2;
+                              while (used.has(name)) name = `${base} (${n++})`;
+                              used.add(name);
+                              fresh.push({ name, data: w.data });
+                            }
+                            void patch('wallpapers', serializeWallpapers(fresh));
+                            if (added.length) void patch('wallpaper', `${CUSTOM_PREFIX}${fresh[fresh.length - 1].name}`);
+                          }).catch(() => {});
+                          e.target.value = '';
+                        }}
+                      />
+                    </div>
                     <button className="btn" onClick={() => bgInputRef.current?.click()}>{t('appearance.upload')}</button>
-                    {settings.wallpaper.startsWith('custom:') && (
-                      <button className="btn" onClick={() => void patch('wallpaper', 'waves')}>{t('appearance.reset')}</button>
+
+                    {bgOpen && (
+                      <div
+                        ref={bgPanelRef}
+                        className="wallpaper-picker"
+                        role="listbox"
+                        aria-label={t('appearance.wallpaper')}
+                        style={{ left: bgPos.left, top: bgPos.top }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                      >
+                        {[
+                          { key: WAVES_KEY, value: WAVES_KEY, label: t('appearance.waves'), thumb: wavesThumb, custom: false },
+                          ...wallpaperList.map((w) => ({
+                            key: `${CUSTOM_PREFIX}${w.name}`, value: `${CUSTOM_PREFIX}${w.name}`,
+                            label: wallpaperDisplayName(w.name), thumb: w.data, custom: true,
+                          })),
+                        ].map((row) => {
+                          const active = settings.wallpaper === row.value;
+                          return (
+                            <div key={row.key} role="group" className="wallpaper-row">
+                              <button
+                                type="button"
+                                role="option"
+                                aria-selected={active}
+                                className={`wallpaper-select${active ? ' active' : ''}`}
+                                onClick={() => { void patch('wallpaper', row.value); setBgOpen(false); }}
+                              >
+                                <img className="wallpaper-thumb" src={row.thumb} alt="" />
+                                <span className="wallpaper-name" title={row.label}>{row.label}</span>
+                                {active && <Check className="wallpaper-check" size={14} aria-hidden />}
+                              </button>
+                              {row.custom && (
+                                <button
+                                  type="button"
+                                  className="wallpaper-del"
+                                  title={t('common.delete')}
+                                  aria-label={`${t('common.delete')} ${row.label}`}
+                                  onClick={() => {
+                                    const stored = row.value.slice(CUSTOM_PREFIX.length);
+                                    const fresh = wallpaperList.filter((x) => x.name !== stored);
+                                    void patch('wallpapers', serializeWallpapers(fresh));
+                                    // 删掉当前选中项 → 回落到内置海浪
+                                    if (settings.wallpaper === row.value) void patch('wallpaper', WAVES_KEY);
+                                  }}
+                                >
+                                  <Trash2 size={14} aria-hidden />
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
-                    <span className="field-hint">{t('appearance.wallpaperHint')}</span>
                   </div>
                 </div>
                 <div className="field">
@@ -462,16 +612,63 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
                     </label>
                   </div>
                 </div>
+                </SettingsGroup>
               </>
             )}
 
             {/* ── 关于 ── */}
-            {ui.settingsTab === 'about' && <AboutPane />}
+            {ui.settingsTab === 'about' && (paymentManagement ? (
+              <div className="settings-payment-management">
+                {growth ? <RewardManagement /> : <p role="alert">{t('growth.err.load')}</p>}
+              </div>
+            ) : <>
+              <AboutPane />
+              <details className="settings-advanced">
+                <summary>{t('prefs.advanced')}</summary>
+                <button className="settings-detail-link" onClick={() => setPaymentManagement(true)}>
+                  <span><strong>{t('prefs.rewardManagement')}</strong><small>{t('prefs.rewardManagementDesc')}</small></span><ChevronRight size={17} aria-hidden />
+                </button>
+              </details>
+            </>)}
+            </div>
           </div>
         </div>
       </div>
     </div>
   );
+}
+
+function SettingsGroup({ title, children }: { title: string; children: ReactNode }) {
+  return <section className="settings-group" aria-label={title}><h3>{title}</h3><div className="settings-group-fields">{children}</div></section>;
+}
+
+function RewardManagement() {
+  const data = useGrowthStore(s => s.data);
+  const { t } = useI18n();
+  const busy = useRef(false);
+  const [pending, setPending] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  if (!data) return <p role="alert">{t('growth.err.load')}</p>;
+  return <>
+    <PaymentSettingsForm settings={data.paymentSettings} />
+    <form className="growth-form" onSubmit={async e => {
+      e.preventDefault();
+      if (busy.current) return;
+      busy.current = true; setPending(true); setError(''); setMessage('');
+      const rate = Number(new FormData(e.currentTarget).get('rate'));
+      try { await useGrowthStore.getState().setRate(rate); setMessage(t('growth.done')); }
+      catch (e) { setError(t(paymentError(e))); }
+      finally { busy.current = false; setPending(false); }
+    }}>
+      <fieldset disabled={pending}><legend>{t('growth.rateSave')}</legend><p id="reward-rate-hint" className="growth-muted">{t('growth.rateHint')}</p>
+        <label>{t('growth.rate')}<input name="rate" type="number" required min="1" max="10000" step="1" defaultValue={data.coinsPerYuan} aria-describedby="reward-rate-hint" /></label>
+        <button className="btn primary" type="submit">{t('growth.rateSave')}</button>
+      </fieldset>
+      {error && <p className="growth-error" role="alert">{error}</p>}
+      {message && <p className="growth-status" role="status">{message}</p>}
+    </form>
+  </>;
 }
 
 function NumField({
@@ -958,6 +1155,7 @@ function AccountPane({
       )}
 
       {/* ── 同步服务器（设备本地）：两态都显示 —— 未登录也必须能先定服务器再登录（docs/09-sync-server.md） ── */}
+      <details className="settings-subsection"><summary>{t('sync.server')}</summary>
       <div className="acct-section">
         <div className="section-title">{t('sync.section')}</div>
         <div className="field">
@@ -985,8 +1183,10 @@ function AccountPane({
           </div>
         </div>
       </div>
+      </details>
 
       {/* 本地数据：两态都有，删除的是本地库 */}
+      <details className="settings-subsection"><summary>{t('account.localData')}</summary>
       <div className="acct-section">
         <div className="section-title">{t('account.localData')}</div>
         <div className="field">
@@ -1011,6 +1211,7 @@ function AccountPane({
         <p className="acct-hint">{t('account.deleteDataHint')}</p>
         {signedIn && <p className="acct-hint warn">{t('account.deleteDataCloudWarn')}</p>}
       </div>
+      </details>
     </>
   );
 }
@@ -1245,68 +1446,6 @@ function ListsPane({ onConfirm }: { onConfirm(spec: ConfirmSpec): void }) {
           </button>
         </div>
       </div>
-    </>
-  );
-}
-
-/**
- * 关于页 —— 应用标识、本地数据规模、技术栈、云同步状态。
- * 版本号与 package.json 保持一致（当前 1.0.0）。
- */
-function AboutPane() {
-  const { t } = useI18n();
-  const { lists, tasks, records } = useDataStore();
-  const cloud = useAuthStore();
-  const signedIn = cloud.status === 'signedIn';
-  const pbUrl = pb.baseUrl;
-
-  return (
-    <>
-      <div className="section-title">{t('about.sectionOverview')}</div>
-      <div className="about-head">
-        <div className="about-mark" aria-hidden>🍅</div>
-        <div className="about-id">
-          <div className="about-name">{t('about.appName')}</div>
-          <div className="about-version">{t('about.version')} 1.0.0</div>
-        </div>
-      </div>
-      <p className="acct-hint" style={{ marginTop: 2 }}>{t('about.tagline')}</p>
-      <p className="acct-hint">{t('about.stack')}</p>
-
-      <div className="section-title">{t('about.sectionData')}</div>
-      <div className="field">
-        <span className="field-label">{t('about.sectionData')}</span>
-        <div className="field-body">
-          <span className="acct-readout">
-            {t('about.counts', {
-              tasks: tasks.filter((x) => x.completed === 0).length,
-              lists: lists.length,
-              records: records.length,
-            })}
-          </span>
-        </div>
-      </div>
-      <p className="acct-hint">{t('about.storage')}</p>
-      <p className="acct-hint">{t('about.offline')}</p>
-
-      <div className="section-title">{t('about.sectionBackend')}</div>
-      <div className="field">
-        <span className="field-label">{t('sync.section')}</span>
-        <div className="field-body">
-          <span className={`acct-badge${signedIn ? '' : ' muted'}`}>
-            <span
-              className="acct-dot"
-              style={signedIn ? undefined : { background: 'var(--text-3)' }}
-              aria-hidden
-            />
-            {signedIn
-              ? t('about.backendReady')
-              : pbUrl ? t('about.backendDown') : t('about.backendNone')}
-          </span>
-          {pbUrl && <span className="field-hint">{pbUrl}</span>}
-        </div>
-      </div>
-      {!signedIn && <p className="acct-hint">{t('about.backendHint')}</p>}
     </>
   );
 }

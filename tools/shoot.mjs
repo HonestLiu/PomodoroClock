@@ -20,8 +20,8 @@ const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 //   分隔线 → 归档区 已完成/记录（纯导航，无时长无角标）→ 分隔线 → 自定义清单
 // completed=已完成任务归档；records=专注（番茄）记录归档 —— 两个视图各自截图
 const NAV = { today: 0, tomorrow: 1, week: 2, scheduled: 3, tasks: 4, completed: 5, records: 6 };
-// 顶栏图标序号（TitleBar.tsx 渲染顺序：高级版/好友/通知/成就/报表/设置）
-const TB = { premium: 0, friends: 1, notify: 2, achievements: 3, report: 4, settings: 5 };
+// 顶栏图标序号（TitleBar.tsx 渲染顺序：番茄小窗 / 高级版 / 通知 / 成就 / 报表 / 设置 /（AI，非 AI 页才出现））
+const TB = { pomodoro: 0, premium: 1, notify: 2, achievements: 3, report: 4, settings: 5, ai: 6 };
 // 设置左侧导航序号（SettingsModal.tsx TABS 顺序）
 const TAB = { account: 0, premium: 1, general: 2, pomodoro: 3, lists: 4, appearance: 5, about: 6 };
 

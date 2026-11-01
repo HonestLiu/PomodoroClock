@@ -11,13 +11,12 @@ import { useUiStore } from '@/stores/uiStore';
 import { useI18n } from '@/i18n';
 import { todayPomodoroCount } from '@/lib/derive';
 import { formatClock } from '@/lib/date';
+import { resolveCustomWallpaper } from '@/lib/wallpaper';
 
 const POS_KEY = 'floatwin.pos';
-const CUSTOM_PREFIX = 'custom:';
 
-function resolveThumb(raw: string): string {
-  if (raw.startsWith(CUSTOM_PREFIX)) return raw.slice(CUSTOM_PREFIX.length);
-  return thumb;
+function resolveThumb(raw: string, wallpapersJson: string): string {
+  return resolveCustomWallpaper(raw, wallpapersJson) ?? thumb;
 }
 
 export function FloatWindow() {
@@ -75,7 +74,7 @@ export function FloatWindow() {
     <div
       ref={ref}
       className="float-win"
-      style={{ backgroundImage: `url("${resolveThumb(settings.wallpaper)}")`, right: pos.right, bottom: pos.bottom }}
+      style={{ backgroundImage: `url("${resolveThumb(settings.wallpaper, settings.wallpapers)}")`, right: pos.right, bottom: pos.bottom }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

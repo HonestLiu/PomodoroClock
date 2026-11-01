@@ -47,10 +47,15 @@ step_typecheck() { npx tsc --noEmit; }
 step_parity() { bash tools/check-runtime-parity.sh; }
 step_seed() { npx tsx tools/verify-data.ts > /tmp/check-all-seed.log 2>&1 && tail -1 /tmp/check-all-seed.log; }
 step_timer() { npx tsx tools/verify-timer.ts > /tmp/check-all-timer.log 2>&1 && tail -1 /tmp/check-all-timer.log; }
+step_tray() { node tools/verify-tray.mjs; }
+step_build_cli() { node --test tools/verify-tauri-cli.mjs; }
+step_theme() { node tools/verify-theme.mjs; }
 step_calendar() { npx tsx tools/verify-calendar.ts > /tmp/check-all-calendar.log 2>&1 && tail -1 /tmp/check-all-calendar.log; }
 step_countdown() { npx tsx tools/verify-countdown.ts > /tmp/check-all-countdown.log 2>&1 && tail -1 /tmp/check-all-countdown.log; }
+step_report() { npx tsx tools/verify-report.ts > /tmp/check-all-report.log 2>&1 && tail -1 /tmp/check-all-report.log; }
+step_growth() { npx tsx tools/verify-growth.ts > /tmp/check-all-growth.log 2>&1 && tail -1 /tmp/check-all-growth.log; }
 step_ai() { npx tsx tools/verify-ai.ts > /tmp/check-all-ai.log 2>&1 && tail -1 /tmp/check-all-ai.log; }
-step_rust() { (cd src-tauri && cargo test --test queries 2>&1 | tail -3); }
+step_rust() { (cd src-tauri && cargo test --test queries --test widgets 2>&1 | tail -3); }
 step_build() { npm run build > /tmp/check-all-build.log 2>&1 && grep -E 'dist/|built in' /tmp/check-all-build.log | tail -8; }
 step_shots() {
   # 复用已在跑的 preview；没有就自己起一个（退出时关掉）
@@ -81,10 +86,15 @@ step "类型检查 tsc --noEmit" step_typecheck
 step "运行时一致性红线（UI 禁直连 db）" step_parity
 step "种子数据口径（PRD §7.2 / verify-data.ts）" step_seed
 step "计时模式口径（番茄钟/倒计时/正计时 / verify-timer.ts）" step_timer
+step "菜单栏状态与操作（隔离运行时 / verify-tray.mjs）" step_tray
+step "构建入口与本机签名配置（verify-tauri-cli.mjs）" step_build_cli
+step "系统主题与手动覆盖（verify-theme.mjs）" step_theme
 step "日历 7 视图模型层（lib/calendar / verify-calendar.ts）" step_calendar
 step "倒数纪念日口径（自然日差/每年重复/每月/自定义/提醒 / verify-countdown.ts）" step_countdown
 step "AI 能力口径（时间注入/结构化解析/校验/降级/估时校准 / verify-ai.ts）" step_ai
-step "Rust 查询测试（cargo test --test queries）" step_rust
+step "报表口径（统一周期/月底/时区/合计 / verify-report.ts）" step_report
+step "奖励中心口径（收益/会员价/基金/等级/去重 / verify-growth.ts）" step_growth
+step "Rust 查询与小组件快照测试（queries / widgets）" step_rust
 if [ "$SKIP_BUILD" = 0 ]; then
   step "生产构建（tsc + vite build）" step_build
 else

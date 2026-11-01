@@ -1,6 +1,7 @@
 /* 设计语言与视觉规范 —— PRD §3 */
 
 :root {
+  color-scheme: light dark;
   --bg-app: #fafaf8;
   --bg-sidebar: #f2f1ed;
   --bg-card: #ffffff;
@@ -27,6 +28,7 @@
 
 /* 深色主题（PRD FR-S3 通用设置） */
 :root[data-theme='dark'] {
+  color-scheme: dark;
   --bg-app: #1c1c1e;
   --bg-sidebar: #232326;
   --bg-card: #2a2a2e;
@@ -41,6 +43,12 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.55);
   --shadow-lg: 0 12px 48px rgba(0, 0, 0, 0.62);
+}
+
+:root[data-theme='light'] { color-scheme: light; }
+/* Before the blocking boot script runs, keep the system-dark canvas dark too. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) { --bg-app: #1c1c1e; --text-1: #f2f2f4; }
 }
 
 * { box-sizing: border-box; }
@@ -601,10 +609,92 @@ input:focus:not(:focus-visible), textarea:focus:not(:focus-visible) {
 .modal-head h2 { font-size: 17px; font-weight: 600; margin: 0; }
 .modal-body { flex: 1; overflow-y: auto; padding: 0 20px 20px; min-height: 0; }
 
-/* 报表（FR-R1） */
-.report-modal { width: min(1080px, 94vw); height: min(760px, 90vh); }
+/* 报表（FR-R1）：6 卡 → 热力图 → 洞察条 →（趋势｜时段）→（明细｜分布）→（目标｜任务） */
+.report-modal { width: min(1120px, 95vw); height: min(780px, 90vh); }
+.report-modal .stat-row { margin-bottom: 0; }
+.report-flow { display: flex; flex-direction: column; gap: 16px; }
 
-.report-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+.modal-head-title { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.modal-head-sub { font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.stat-card .stat-sub { font-size: 11.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+
+.report-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.panel-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; flex-wrap: wrap; margin-bottom: 12px;
+}
+
+.panel-legend { display: flex; align-items: center; gap: 12px; font-size: 11.5px; color: var(--text-2); flex-wrap: wrap; }
+.panel-legend > span { display: inline-flex; align-items: center; gap: 5px; }
+.panel-legend .dot { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+.panel-legend .dot.today { background: var(--accent-blue); }
+.panel-legend .dot.history { background: var(--accent-task); }
+.panel-legend .legend-note { color: var(--accent-focus); }
+
+/* 专注洞察条：一行 6 项，每项「主指标 + 次要口径」 */
+.insight-strip {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 12px 4px;
+}
+.insight-item { display: flex; flex-direction: column; gap: 2px; padding: 0 14px; min-width: 0; }
+.insight-item + .insight-item { border-left: 1px solid var(--border); }
+.insight-label, .insight-sub { font-size: 11.5px; color: var(--text-2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.insight-sub { font-size: 11px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.insight-val { font-size: 16px; font-weight: 600; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.insight-val.focus { color: var(--accent-focus); }
+.insight-val.task { color: var(--accent-blue); }
+
+/* 时段分布柱图（charts/BarDistribution.tsx） */
+.dist-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.dist-caption { font-size: 11.5px; color: var(--text-2); }
+.dist-peak { font-size: 11px; color: var(--accent-focus); font-variant-numeric: tabular-nums; }
+.mini-bars { display: flex; align-items: flex-end; gap: 3px; height: 84px; margin: 4px 0 12px; }
+.bar-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 3px; }
+.bar-fill { display: block; width: 100%; max-width: 12px; border-radius: 2px 2px 0 0; background: var(--accent-blue); cursor: pointer; transition: opacity .12s; }
+.bar-fill.peak { background: var(--accent-focus); }
+.bar-x { height: 10px; font-size: 9.5px; line-height: 1; color: var(--text-2); white-space: nowrap; }
+
+/* 每日目标：日历 + 达成环并排 */
+.goal-body { display: flex; align-items: flex-start; gap: 24px; flex-wrap: wrap; }
+.goal-cal { max-width: 340px; flex: 1 1 280px; min-width: 0; }
+.goal-ring { display: flex; flex-direction: column; align-items: center; gap: 6px; padding-top: 6px; min-width: 0; }
+.goal-ring-ratio { font-size: 12px; color: var(--text-1); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.goal-ring-cap { font-size: 11.5px; color: var(--text-2); white-space: nowrap; }
+
+/* 任务概览（完成率进度 + 六宫格 + 页脚） */
+.completion-bar { margin-bottom: 14px; }
+.overview-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 10px; }
+.overview-item { display: flex; flex-direction: column; gap: 1px; }
+.overview-val { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.overview-val.focus { color: var(--accent-focus); }
+.overview-val.task { color: var(--accent-blue); }
+.overview-label { font-size: 11.5px; color: var(--text-2); }
+.overview-foot {
+  display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);
+  font-size: 11.5px; color: var(--text-2);
+}
+.overview-foot b { color: var(--text-1); font-weight: 600; font-variant-numeric: tabular-nums; }
+/* 即将到期（任务概览下半段：最近 4 条未完成任务，逾期自然排最前） */
+.upcoming {
+  display: flex; flex-direction: column; gap: 6px;
+  margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);
+}
+.upcoming-title { font-size: 11.5px; color: var(--text-2); }
+.upcoming-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 12px; }
+.upcoming-name {
+  flex: 1 1 auto; min-width: 0; color: var(--text-1);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.upcoming-name.overdue { color: var(--accent-focus); }
+.upcoming-due {
+  flex: 0 0 auto; font-size: 11.5px; color: var(--text-2);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
 .panel {
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -722,6 +812,53 @@ input:focus:not(:focus-visible), textarea:focus:not(:focus-visible) {
 .field-label { width: 132px; flex: 0 0 132px; font-size: 13px; color: var(--text-1); }
 .field-body { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0; }
 .field-hint { font-size: 11.5px; color: var(--text-2); }
+
+/* 专注背景下拉（自绘下拉框，不用原生 select，见 lib/wallpaper.ts）：
+   触发器 = 缩略图 + 名称 + 箭头；面板 position:fixed 逐项列出内置 + 自定义图，
+   每行缩略图/文件名/选中打勾，自定义行行尾垃圾桶直删。 */
+.wallpaper-dd { display: inline-flex; flex: 1 1 auto; min-width: 0; }
+.wallpaper-trigger {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0;
+  height: 32px; padding: 0 8px 0 6px;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  color: var(--text-1); cursor: pointer;
+}
+.wallpaper-trigger:hover { border-color: var(--accent-blue); }
+.wallpaper-trigger[aria-expanded='true'] { border-color: var(--accent-blue); }
+.wallpaper-caret { flex: 0 0 auto; color: var(--text-2); }
+.wallpaper-picker {
+  position: fixed; z-index: 420; min-width: 240px; max-width: 320px; max-height: 240px;
+  overflow-y: auto; padding: 4px;
+  display: flex; flex-direction: column; gap: 2px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow-md);
+}
+.wallpaper-row {
+  display: flex; align-items: center; border-radius: 8px;
+}
+.wallpaper-row:hover { background: var(--hover); }
+.wallpaper-select {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px;
+  padding: 4px 8px; border: 1px solid transparent; border-radius: 8px;
+  background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.wallpaper-select:focus-visible { border-color: var(--accent-blue); }
+.wallpaper-select.active { border-color: var(--accent-blue); }
+.wallpaper-thumb {
+  flex: 0 0 auto; display: block; width: 40px; height: 26px; object-fit: cover;
+  border-radius: 6px; background: var(--bg-sidebar);
+}
+.wallpaper-name {
+  flex: 1; min-width: 0; font-size: 12.5px; color: var(--text-1);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.wallpaper-check { flex: 0 0 auto; color: var(--accent-blue); }
+.wallpaper-del {
+  flex: 0 0 auto; display: grid; place-items: center; width: 24px; height: 24px;
+  padding: 0; border: 0; border-radius: 6px; background: transparent;
+  color: var(--text-2); cursor: pointer;
+}
+.wallpaper-del:hover { color: var(--accent-focus); background: rgba(232, 93, 63, 0.12); }
 
 .text-input {
   flex: 1; height: 30px; padding: 0 10px;

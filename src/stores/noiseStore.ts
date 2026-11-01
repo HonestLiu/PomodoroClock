@@ -39,7 +39,7 @@ export const useNoiseStore = create<NoiseState>((set, get) => ({
       return;
     }
     // 在用户手势内直接启停，规避 WebView 的自动播放限制
-    const ok = startNoise(pick, get().volume);
+    const ok = startNoise(pick, get().volume, () => set({ playing: false }));
     set({ kind: pick, playing: ok });
   },
 
@@ -54,14 +54,14 @@ export const useNoiseStore = create<NoiseState>((set, get) => ({
       set({ playing: false });
       return;
     }
-    const ok = startNoise(get().kind, get().volume);
+    const ok = startNoise(get().kind, get().volume, () => set({ playing: false }));
     set({ playing: ok });
   },
 
   hydrate: (kind, volume) => set({ kind, volume }),
 
   restore: (snap) => {
-    if (snap.playing) startNoise(snap.kind, snap.volume);
+    if (snap.playing) startNoise(snap.kind, snap.volume, () => set({ playing: false }));
     else stopNoise();
     set({ ...snap });
   },

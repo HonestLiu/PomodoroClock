@@ -1,0 +1,56 @@
+/* About uses the existing settings palette; the real app icon carries the color. */
+.about-page { min-inline-size: 0; }
+.about-identity { display: flex; align-items: center; flex-wrap: wrap; gap: 24px; padding-block: 12px 26px; border-block-end: 1px solid var(--border); }
+.about-app-icon { display: block; inline-size: 96px; block-size: auto; aspect-ratio: 1; flex: 0 0 auto; }
+.about-identity-copy { flex: 1 1 220px; min-inline-size: 0; }
+.about-identity-copy h3 { margin: 0; font-size: 27px; font-weight: 650; letter-spacing: -.8px; line-height: 1.25; overflow-wrap: anywhere; }
+.about-release { margin: 7px 0 16px; color: var(--text-2); font-size: 11px; line-height: 1.6; }
+.about-headline { margin: 0; font-size: 14px; font-weight: 550; line-height: 1.7; }
+.about-intro { margin: 4px 0 0; color: var(--text-2); font-size: 12px; line-height: 1.8; }
+.about-section { margin-block-start: 24px; }
+.about-section > h3, .about-sync-heading h3 { margin: 0; font-size: 12px; font-weight: 600; color: var(--text-2); line-height: 1.6; }
+.about-features { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: 22px 28px; margin-block-start: 17px; }
+.about-feature { display: flex; align-items: flex-start; gap: 11px; min-inline-size: 0; }
+.about-feature > svg { flex: 0 0 auto; color: var(--text-2); margin-block-start: 1px; }
+.about-feature > div { min-inline-size: 0; }
+.about-feature h4 { margin: 0 0 6px; font-size: 13px; font-weight: 600; line-height: 1.5; }
+.about-feature p { margin: 0; color: var(--text-2); font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
+.about-data-panel { margin-block-start: 12px; border: 1px solid var(--border); background: var(--bg-card); border-radius: 12px; }
+.about-counts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; padding-block: 18px; }
+.about-counts > div { display: flex; flex-direction: column; gap: 7px; min-inline-size: 0; padding-inline: 20px; }
+.about-counts > div + div { border-inline-start: 1px solid var(--border); }
+.about-counts dt { color: var(--text-2); font-size: 11px; line-height: 1.5; }
+.about-counts dd { margin: 0; font-size: 24px; line-height: 1.2; font-weight: 550; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.about-local-note { display: flex; gap: 10px; border-block-start: 1px solid var(--border); padding: 14px 20px; }
+.about-local-note > svg { flex: 0 0 auto; margin-block-start: 2px; color: var(--text-2); }
+.about-local-note strong { font-size: 11px; font-weight: 500; }
+.about-local-note p { margin: 4px 0 0; font-size: 11px; line-height: 1.8; color: var(--text-2); }
+.about-sync-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; }
+.about-sync-heading h3 { display: flex; align-items: center; gap: 8px; }
+.about-sync-status { margin-inline-start: auto; font-size: 11px; line-height: 1.6; color: var(--text-2); }
+.about-sync-status.active { color: #32774e; }
+.about-sync-status.error { color: var(--accent-focus); }
+:root[data-theme='dark'] .about-sync-status.active { color: #86c99c; }
+.about-sync > p { margin: 12px 0 0; color: var(--text-2); font-size: 12px; line-height: 1.8; }
+.about-sync .about-sync-time { margin-block-start: 5px; font-size: 11px; }
+.about-account-link { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; padding-block: 8px; margin-block-start: 5px; font-size: 12px; color: var(--accent-focus); text-align: start; }
+.about-account-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.about-sync .about-private-note { margin-block-start: 5px; font-size: 11px; }
+.about-build-info { margin-block-start: 22px; padding-block-start: 17px; border-block-start: 1px solid var(--border); color: var(--text-2); font-size: 11px; }
+.about-build-info summary { cursor: pointer; inline-size: fit-content; padding-block: 5px; }
+.about-build-info dl { margin: 12px 0 0; }
+.about-build-info dl > div { display: flex; flex-wrap: wrap; gap: 5px 20px; padding-block: 6px; }
+.about-build-info dt { flex: 0 0 90px; }
+.about-build-info dd { flex: 1 1 180px; margin: 0; color: var(--text-1); overflow-wrap: anywhere; }
+.settings-pane-about > .settings-advanced { margin-block-start: 14px; }
+@media (max-width: 540px) {
+  .about-identity { gap: 16px; padding-block-start: 6px; }
+  .about-app-icon { inline-size: 72px; }
+  .about-identity-copy { flex-basis: 160px; }
+  .about-identity-copy h3 { font-size: 23px; }
+  .about-release { margin-block-end: 12px; }
+  .about-features { gap: 19px; }
+  .about-counts > div { padding-inline: 11px; }
+  .about-counts dd { font-size: 20px; }
+  .about-local-note { padding-inline: 13px; }
+}

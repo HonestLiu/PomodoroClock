@@ -1,0 +1,12 @@
+{
+  "bundle": {
+    "macOS": {
+      "signingIdentity": "-",
+      "entitlements": "../macos/build/Host.entitlements",
+      "infoPlist": "../macos/build/HostInfo.plist",
+      "files": {
+        "PlugIns/FocusWidgets.appex": "../macos/build/FocusWidgets.appex"
+      }
+    }
+  }
+}

@@ -7,6 +7,7 @@ import type { FocusRecord, Folder, Notification, Task, TaskList, User } from '@/
 import type { CreateTaskArgs, UpdateTaskPatch } from '@/api/types';
 import type { ListIconSpec } from '@/lib/listIcon';
 import { nextOccurrence } from '@/lib/recurrence';
+import { useGrowthStore } from '@/stores/growthStore';
 
 interface DataState {
   ready: boolean;
@@ -82,6 +83,7 @@ export const useDataStore = create<DataState>((set, get) => ({
       api.list_focus_records(), api.list_notifications(),
     ]);
     set((s) => ({ user, folders, lists, tasks, records, notifications, revision: s.revision + 1 }));
+    await useGrowthStore.getState().reconcile(records);
   },
 
   async reloadTasks() {

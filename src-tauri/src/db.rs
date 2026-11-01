@@ -526,6 +526,7 @@ pub fn load_settings(conn: &Connection) -> AppResult<Settings> {
     for row in rows {
         let (k, v) = row?;
         match k.as_str() {
+            "growth_data" => s.growth_data = v,
             "focus_len_min" => s.focus_len_min = v.parse().unwrap_or(s.focus_len_min),
             "break_len_min" => s.break_len_min = v.parse().unwrap_or(s.break_len_min),
             "long_break_len_min" => {
@@ -549,6 +550,7 @@ pub fn load_settings(conn: &Connection) -> AppResult<Settings> {
             "pb_url" => s.pb_url = v,
             "noise" => s.noise = v,
             "wallpaper" => s.wallpaper = v,
+            "wallpapers" => s.wallpapers = v,
             "motto" => s.motto = v,
             "startup_page" => s.startup_page = v,
             _ => {}

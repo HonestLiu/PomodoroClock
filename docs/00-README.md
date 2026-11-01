@@ -27,6 +27,8 @@
 
 ## 产物
 
+- macOS 系统小组件：小/中/大三种尺寸，构建、签名、添加方法与验证范围见 [widgets.md](05-modules/widgets.md)。
+
 - 浏览器版：`npm run dev`（IndexedDB 适配器）
 - 桌面版：`npm run tauri dev` / `npm run tauri build`
 - 发布包：`src-tauri/target/release/bundle/macos/FocusPomodoro.app(.dmg)`（macOS）

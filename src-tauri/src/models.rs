@@ -164,6 +164,7 @@ impl Default for TimerState {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
+    pub growth_data: String,
     pub focus_len_min: i64,
     pub break_len_min: i64,
     pub long_break_len_min: i64,
@@ -180,6 +181,8 @@ pub struct Settings {
     pub noise_on_focus: bool,
     pub noise_on_break: bool,
     pub wallpaper: String,
+    /// 自定义专注背景列表（JSON 字符串 [{name, data}]）；不同步云端，见 lib/wallpaper.ts
+    pub wallpapers: String,
     /// 座右铭：浏览器侧 Settings 有该键，Rust 侧此前缺字段会把远端配置静默丢弃
     pub motto: String,
     /// 启动页：'timer' = 番茄钟展开视图（默认）；其余为侧边栏页面键
@@ -196,13 +199,14 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            growth_data: String::new(),
             focus_len_min: 25,
             break_len_min: 5,
             long_break_len_min: 15,
             long_break_every: 4,
             daily_target_min: 180,
             auto_start_next: false,
-            theme: "light".into(),
+            theme: "system".into(),
             language: "zh".into(),
             autostart: false,
             notify_enabled: true,
@@ -212,6 +216,7 @@ impl Default for Settings {
             noise_on_focus: false,
             noise_on_break: false,
             wallpaper: "waves".into(),
+            wallpapers: "[]".into(),
             motto: String::new(),
             startup_page: "timer".into(),
             ai_provider: "none".into(),

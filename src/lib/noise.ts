@@ -54,12 +54,18 @@ export const NOISE_COVERS: Record<NoiseKind, string> = {
 };
 
 let audio: HTMLAudioElement | null = null;
+let activeKind: NoiseKind | null = null;
 
 const clamp = (v: number) => Math.max(0, Math.min(1, v));
 
 /** 启动白噪音；播放失败（如浏览器阻止自动播放）时静默降级（返回 false） */
-export function startNoise(kind: NoiseKind, volume: number): boolean {
+export function startNoise(kind: NoiseKind, volume: number, onBlocked?: () => void): boolean {
   try {
+    // 同一音色复用正在播放（或等待 play() 完成）的元素。
+    if (audio && activeKind === kind) {
+      setNoiseVolume(volume);
+      return true;
+    }
     stopNoise();
     const url = NOISE_AUDIO[kind];
     if (!url) return false;
@@ -72,13 +78,15 @@ export function startNoise(kind: NoiseKind, volume: number): boolean {
         // 自动播放被阻止：清理资源
         el.pause();
         el.src = '';
-        if (audio === el) audio = null;
+        if (audio === el) { audio = null; activeKind = null; onBlocked?.(); }
       });
     }
     audio = el;
+    activeKind = kind;
     return true;
   } catch {
     audio = null;
+    activeKind = null;
     return false;
   }
 }
@@ -95,6 +103,7 @@ export function stopNoise(): void {
     audio.load();
   } catch { /* 已停止 */ }
   audio = null;
+  activeKind = null;
 }
 
 export const isNoisePlaying = () => audio !== null;

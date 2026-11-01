@@ -9,7 +9,8 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "node scripts/tauri.mjs",
+    "mac:install": "bash scripts/install-macos-widget-repair.sh src-tauri/target/release/bundle/macos/FocusPomodoro.app"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.0",

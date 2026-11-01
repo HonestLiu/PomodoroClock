@@ -1,0 +1,87 @@
+// 运行前启动 Vite dev：APP_URL=http://127.0.0.1:5174 node tools/verify-report-ui.mjs
+import { strict as assert } from 'node:assert';
+import { chromium } from '/Users/lc/Develop/MyPageHome/node_modules/playwright/index.mjs';
+const browser = await chromium.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+const page = await browser.newPage({ viewport: { width: 1280, height: 930 }, locale: 'zh-CN' });
+const errors = [];
+page.on('pageerror', e => errors.push(e.message));
+const report = page.locator('.rpt-modal');
+const radio = name => page.getByRole('radio', { name, exact: true });
+const view = name => page.getByRole('tab', { name, exact: true }).click();
+async function shot(path) {
+  await page.locator('.rpt-overlay').evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(a => a.finished)));
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await page.screenshot({ path });
+}
+async function fits() {
+  assert.equal(await report.evaluate(el => el.scrollWidth <= el.clientWidth + 1), true, 'report overflow');
+  assert.equal(await page.locator('.rpt-body').evaluate(el => el.scrollWidth <= el.clientWidth + 1), true, 'report body overflow');
+}
+try {
+  await page.goto(process.env.APP_URL ?? 'http://127.0.0.1:5174/');
+  await page.locator('.titlebar').waitFor();
+  await page.waitForTimeout(500);
+  if (await page.locator('.timer-close').isVisible()) await page.locator('.timer-close').click();
+  await page.locator('.titlebar-actions .icon-btn').nth(4).click();
+  await report.waitFor();
+  await report.evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(a => a.finished)));
+  assert.equal(await radio('周').isChecked(), true);
+  assert.equal(await page.locator('.rpt-chart-column').count(), 7);
+  await fits();
+  await shot('/tmp/report-overview-redesign.png');
+  await radio('日').check();
+  assert.equal(await page.locator('.rpt-chart-column').count(), 24);
+  await radio('月').check();
+  await page.locator('.rpt-date input').fill('2026-01-31');
+  assert.equal(await page.locator('.rpt-chart-column').count(), 31);
+  await page.locator('.rpt-range button').last().click();
+  assert.equal(await page.locator('.rpt-date input').inputValue(), '2026-02-01');
+  assert.equal(await page.locator('.rpt-chart-column').count(), 28);
+  assert.equal(await page.locator('.rpt-empty-note').isVisible(), true);
+  await radio('年').check();
+  assert.equal(await page.locator('.rpt-chart-column').count(), 12);
+  await page.locator('.rpt-range button').first().click();
+  await page.locator('.rpt-reset').click();
+  const total = await page.locator('.rpt-focus-total > strong').textContent();
+  await view('时间分布');
+  assert.equal((await page.locator('.rpt-section-summary').textContent()).includes(total), true);
+  await page.locator('.rpt-heat-details > summary').click();
+  await page.locator('.rpt-heat-scroll svg').waitFor();
+  assert.equal(await page.locator('.rpt-heat-scroll .heat-label.today').textContent(), '今天');
+  await shot('/tmp/report-distribution-redesign.png');
+  await view('任务与目标');
+  await fits();
+  await shot('/tmp/report-goals-redesign.png');
+  await radio('周').check();
+  assert.equal(await page.locator('.rpt-calendar .outside-range').count() > 0, true);
+  await page.getByRole('tab', { name: '任务与目标', exact: true }).focus();
+  await page.keyboard.press('Home');
+  assert.equal(await page.getByRole('tab', { name: '概览', exact: true }).getAttribute('aria-selected'), 'true');
+  await page.locator('.rpt-chart-column').first().focus();
+  assert.equal(await page.locator('.rpt-chart-readout strong').count(), 1);
+  await page.locator('.rpt-close').click();
+  await page.locator('.titlebar-actions .icon-btn').nth(5).click();
+  await page.getByRole('tab', { name: '外观', exact: true }).click();
+  await page.locator('.settings-pane select:has(option[value=dark])').selectOption('dark');
+  await page.getByRole('tab', { name: '通用', exact: true }).click();
+  await page.locator('.settings-pane select:has(option[value=en])').selectOption('en');
+  await page.getByRole('tab', { name: 'General', exact: true }).waitFor();
+  await page.locator('.settings-close').click();
+  await page.locator('.titlebar-actions .icon-btn').nth(4).click();
+  await report.waitFor();
+  await shot('/tmp/report-dark-en.png');
+  await page.setViewportSize({ width: 650, height: 800 });
+  await fits();
+  await shot('/tmp/report-650.png');
+  await page.setViewportSize({ width: 390, height: 800 });
+  await fits();
+  await shot('/tmp/report-390.png');
+  await view('Time breakdown');
+  await fits();
+  await view('Tasks & goals');
+  await fits();
+  await page.keyboard.press('Escape');
+  assert.equal(await report.count(), 0);
+  assert.deepEqual(errors, []);
+  console.log('PASS report UI: overview, all periods, month-end navigation, empty data, shared totals, distribution, heatmap today, goals calendar, keyboard, dark/en, 650/390px, Escape');
+} finally { await browser.close(); }

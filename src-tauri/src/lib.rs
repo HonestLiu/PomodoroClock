@@ -6,6 +6,7 @@ pub mod db;
 pub mod error;
 pub mod models;
 pub mod timer_engine;
+pub mod widgets;
 
 use tauri::{Emitter, Manager};
 use tauri::menu::{AboutMetadata, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
@@ -89,6 +90,7 @@ fn setup_app_menu(app: &tauri::App) -> tauri::Result<()> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(widgets::WidgetLaunch::default())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
@@ -129,30 +131,7 @@ pub fn run() {
             }
 
             // macOS 菜单栏番茄钟：图标 + 倒计时文字 + 功能菜单（PRD §5.4 FR-P3）
-            let toggle_item = MenuItemBuilder::with_id("tray-toggle", "开始专注")
-                .build(app)?;
-
-            let tray_menu = MenuBuilder::new(app)
-                .text("tray-open", "打开主窗口")
-                .separator()
-                .item(&toggle_item)
-                .text("tray-skip", "跳过当前阶段")
-                .text("tray-open-timer", "专注界面")
-                .separator()
-                .text("tray-new-task", "新建任务")
-                .text("tray-new-list", "新建清单")
-                .text("tray-new-folder", "新建清单夹")
-                .separator()
-                .text("tray-report", "报表")
-                .text("tray-settings", "设置")
-                .separator()
-                .quit_with_text("退出")
-                .build()?;
-
-            app.manage(commands::tray::TrayState {
-                toggle: toggle_item,
-                last_phase: std::sync::Mutex::new(String::new()),
-            });
+            let tray_menu = commands::tray::build_menu(app)?;
 
             let _tray = TrayIconBuilder::with_id("main")
                 .icon(tauri::include_image!("icons/tray-focus.png"))
@@ -161,24 +140,24 @@ pub fn run() {
                 .menu(&tray_menu)
                 .show_menu_on_left_click(true) // 单击弹出菜单
                 .on_menu_event(|app, event| {
-                    match event.id().0.as_str() {
-                        "tray-open" => {
-                            if let Some(win) = app.get_webview_window("main") {
-                                let _ = win.show();
-                                let _ = win.set_focus();
-                            }
-                        }
-                        "tray-quit" => app.exit(0),
-                        // 其余动作转交前端处理（toggle / skip / report / settings）
-                        other => {
-                            let _ = app.emit("tray://menu", other.to_string());
+                    let action = event.id().as_ref();
+                    if action == "tray-quit" { app.exit(0); return; }
+                    // 只有导航唤起主窗口，后台计时与开关操作不抢焦点。
+                    if matches!(action, "tray-open-timer" | "tray-today" | "tray-tasks" | "tray-report" | "tray-settings") {
+                        if let Some(win) = app.get_webview_window("main") {
+                            let _ = win.unminimize();
+                            let _ = win.show();
+                            let _ = win.set_focus();
                         }
                     }
+                    let _ = app.emit("tray://menu", action.to_string());
                 })
                 .build(app)?;
 
             // 计时时钟源（PRD §8.5）
             timer_engine::spawn_ticker(app.handle().clone());
+            #[cfg(target_os = "macos")]
+            widgets::spawn_publisher(app.handle().clone());
             Ok(())
         })
         .on_menu_event(|app, event| {
@@ -255,9 +234,24 @@ pub fn run() {
             commands::notify::mark_all_notifs_read,
             // 菜单栏番茄钟
             commands::tray::update_tray_title,
-            commands::tray::update_tray_toggle,
+            commands::tray::update_tray_menu,
             commands::tray::set_tray_phase,
+            widgets::take_widget_launch,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running FocusPomodoro");
+        .build(tauri::generate_context!())
+        .expect("error while building FocusPomodoro")
+        .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Opened { urls } = event {
+                if urls.iter().any(|url| url.scheme() == "focuspomodoro" && url.host_str() == Some("timer")) {
+                    *app.state::<widgets::WidgetLaunch>().0.lock().unwrap() = true;
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.unminimize(); let _ = window.show(); let _ = window.set_focus();
+                    }
+                    let _ = app.emit("widget://open", ());
+                }
+            }
+            #[cfg(not(target_os = "macos"))]
+            let _ = (app, event);
+        });
 }

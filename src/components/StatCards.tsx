@@ -8,6 +8,8 @@ export interface StatCardDef {
   label: string;
   value: string;
   tone: 'focus' | 'task';
+  /** 次要指标（报表 6 卡用它补充「次数 / 日均 / 完成率」等派生口径） */
+  sub?: string;
 }
 
 export function StatCards({ cards, six = false }: { cards: StatCardDef[]; six?: boolean }) {
@@ -17,6 +19,7 @@ export function StatCards({ cards, six = false }: { cards: StatCardDef[]; six?: 
         <div className="stat-card" key={c.label}>
           <span className="stat-label">{c.label}</span>
           <span className={`stat-value ${c.tone}`}>{c.value}</span>
+          {c.sub && <span className="stat-sub">{c.sub}</span>}
         </div>
       ))}
     </div>

@@ -1,0 +1,24 @@
+// !$*UTF8*$!
+{
+ archiveVersion = 1;
+ classes = {};
+ objectVersion = 56;
+ objects = {
+  100000000000000000000001 = {isa = PBXProject; attributes = {LastUpgradeCheck = 2700;}; buildConfigurationList = 100000000000000000000010; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; knownRegions = (en, zh_CN); mainGroup = 100000000000000000000002; productRefGroup = 100000000000000000000003; projectDirPath = ""; projectRoot = ""; targets = (100000000000000000000004);};
+  100000000000000000000002 = {isa = PBXGroup; children = (100000000000000000000005, 100000000000000000000006, 100000000000000000000003); sourceTree = "<group>";};
+  100000000000000000000003 = {isa = PBXGroup; children = (100000000000000000000007); name = Products; sourceTree = "<group>";};
+  100000000000000000000004 = {isa = PBXNativeTarget; buildConfigurationList = 100000000000000000000011; buildPhases = (100000000000000000000008, 100000000000000000000009); buildRules = (); dependencies = (); name = FocusWidgets; productName = FocusWidgets; productReference = 100000000000000000000007; productType = "com.apple.product-type.app-extension";};
+  100000000000000000000005 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Widgets/WidgetData.swift; sourceTree = "<group>";};
+  100000000000000000000006 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Widgets/FocusWidget.swift; sourceTree = "<group>";};
+  100000000000000000000007 = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FocusWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR;};
+  100000000000000000000008 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (100000000000000000000012, 100000000000000000000013); runOnlyForDeploymentPostprocessing = 0;};
+  100000000000000000000009 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
+  100000000000000000000010 = {isa = XCConfigurationList; buildConfigurations = (100000000000000000000014); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
+  100000000000000000000011 = {isa = XCConfigurationList; buildConfigurations = (100000000000000000000015); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
+  100000000000000000000012 = {isa = PBXBuildFile; fileRef = 100000000000000000000005;};
+  100000000000000000000013 = {isa = PBXBuildFile; fileRef = 100000000000000000000006;};
+  100000000000000000000014 = {isa = XCBuildConfiguration; name = Release; buildSettings = {SDKROOT = macosx; MACOSX_DEPLOYMENT_TARGET = 14.0; SWIFT_VERSION = 5.0; CLANG_ENABLE_MODULES = YES; SWIFT_OPTIMIZATION_LEVEL = "-O";};};
+  100000000000000000000015 = {isa = XCBuildConfiguration; name = Release; buildSettings = {APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_ENTITLEMENTS = Widgets/Widgets.entitlements; CODE_SIGNING_ALLOWED = NO; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = Widgets/Info.plist; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks", "@executable_path/../../../../Frameworks"); PRODUCT_BUNDLE_IDENTIFIER = com.focuspomodoro.desktop.widgets; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SWIFT_EMIT_LOC_STRINGS = NO;};};
+ };
+ rootObject = 100000000000000000000001;
+}
