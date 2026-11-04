@@ -195,6 +195,7 @@ pub fn update_task_impl(
     id: &str,
     patch: UpdateTaskPatch,
 ) -> AppResult<Task> {
+    if id.starts_with("quest_archive_") { return Err(AppError::msg("quest.archiveLocked")); }
     if let Some(t) = &patch.title {
         super::require_non_empty("任务名称", t)?;
     }
@@ -258,6 +259,7 @@ pub fn toggle_task(db: State<'_, Db>, id: String) -> AppResult<Task> {
 }
 
 pub fn toggle_task_impl(conn: &rusqlite::Connection, id: &str) -> AppResult<Task> {
+    if id.starts_with("quest_archive_") { return Err(AppError::msg("quest.archiveLocked")); }
     let now = crate::db_now();
     let cur: i64 = conn
         .query_row("SELECT completed FROM tasks WHERE id = ?1", params![id], |r| r.get(0))
@@ -293,6 +295,7 @@ pub fn delete_task(db: State<'_, Db>, id: String) -> AppResult<()> {
 }
 
 pub fn delete_task_impl(conn: &rusqlite::Connection, id: &str) -> AppResult<()> {
+    if id.starts_with("quest_archive_") { return Err(AppError::msg("quest.archiveLocked")); }
     conn.execute("UPDATE focus_records SET task_id = NULL WHERE task_id = ?1", params![id])?;
     conn.execute("DELETE FROM tasks WHERE id = ?1", params![id])?;
     Ok(())

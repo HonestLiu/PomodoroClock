@@ -1,3 +1,5 @@
+import { DateTimeInput } from '@/components/controls/DateTimeInput';
+import { Select } from '@/components/controls/Select';
 // 网页式 AI 对话（docs/05-modules/ai.md）
 // 候选任务、拆解树、每日计划、日报/周报都画在助手气泡里，不使用模态/对话框。
 // 顶部 chips 切换 pendingMode：拆解/计划/周报会推一条提示并等输入；plan/report 空回车=默认参数。
@@ -100,23 +102,23 @@ export function AiChat({ compact = false, hidePending = false }: Props) {
             onChange={(e) => void chat.updateItem(msg.id, c.id, { title: e.target.value })}
           />
           <div className="ai-fields">
-            <select className="text-input" value={c.list_id ?? ''} aria-label={t('ai.fields.list')}
+            <Select className="text-input" value={c.list_id ?? ''} aria-label={t('ai.fields.list')}
               onChange={(e) => void chat.updateItem(msg.id, c.id, { list_id: e.target.value || null })}>
               <option value="">{t('common.none')}</option>
               {lists.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-            </select>
+            </Select>
             {c.raw_due && <span className="ai-rawdue" title={t('ai.fields.due')}>{c.raw_due}</span>}
-            <input className={`text-input${lo('due')}`} type="date" value={c.due_date ?? ''} aria-label={t('ai.fields.due')}
+            <DateTimeInput className={`text-input${lo('due')}`} type="date" value={c.due_date ?? ''} aria-label={t('ai.fields.due')}
               onChange={(e) => void chat.updateItem(msg.id, c.id, { due_date: e.target.value || null })} />
-            <input className={`text-input${lo('due')}`} type="time" value={c.due_time ?? ''} aria-label="time"
+            <DateTimeInput className={`text-input${lo('due')}`} type="time" value={c.due_time ?? ''} aria-label="time"
               onChange={(e) => void chat.updateItem(msg.id, c.id, { due_time: e.target.value || null })} />
             <input className={`num-input${lo('est')}`} type="number" min={0} value={c.est_min ?? ''}
               aria-label={t('ai.fields.est')} placeholder={t('ai.fields.est')}
               onChange={(e) => void chat.updateItem(msg.id, c.id, { est_min: e.target.value === '' ? null : Number(e.target.value) })} />
-            <select className={`text-input${lo('priority')}`} value={c.priority} aria-label={t('ai.fields.priority')}
+            <Select className={`text-input${lo('priority')}`} value={c.priority} aria-label={t('ai.fields.priority')}
               onChange={(e) => void chat.updateItem(msg.id, c.id, { priority: e.target.value as AiTaskCandidate['priority'] })}>
               {PRIORITIES.map((p) => <option key={p} value={p}>{t(`ai.priority.${p}`)}</option>)}
-            </select>
+            </Select>
             {lowConf && <span className="ai-lowconf">{t('ai.lowconf')}</span>}
           </div>
         </div>
@@ -144,24 +146,24 @@ export function AiChat({ compact = false, hidePending = false }: Props) {
         </div>
         {open && selCount > 0 && (
           <div className="ai-batch-panel">
-            <select className="text-input" defaultValue="" aria-label={t('ai.fields.list')}
+            <Select className="text-input" defaultValue="" aria-label={t('ai.fields.list')}
               onChange={(e) => { if (e.target.value) void chat.bulkPatch(msg.id, { list_id: e.target.value }); e.target.value = ''; }}>
               <option value="">{t('ai.fields.list')}…</option>
               {lists.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-            </select>
-            <select className="text-input" defaultValue="" aria-label={t('ai.fields.priority')}
+            </Select>
+            <Select className="text-input" defaultValue="" aria-label={t('ai.fields.priority')}
               onChange={(e) => { if (e.target.value) void chat.bulkPatch(msg.id, { priority: e.target.value as AiTaskCandidate['priority'] }); e.target.value = ''; }}>
               <option value="">{t('ai.fields.priority')}…</option>
               {PRIORITIES.map((p) => <option key={p} value={p}>{t(`ai.priority.${p}`)}</option>)}
-            </select>
-            <select className="text-input" defaultValue="" aria-label={t('ai.fields.repeat')}
+            </Select>
+            <Select className="text-input" defaultValue="" aria-label={t('ai.fields.repeat')}
               onChange={(e) => { if (e.target.value) void chat.bulkPatch(msg.id, { repeat: e.target.value as Recurrence }); e.target.value = ''; }}>
               <option value="">{t('ai.fields.repeat')}…</option>
               {REPEAT_VALUES.map((r) => <option key={r} value={r}>{t(`task.repeat.${r}`)}</option>)}
-            </select>
-            <input className="text-input" type="date" aria-label={t('ai.fields.due')}
+            </Select>
+            <DateTimeInput className="text-input" type="date" aria-label={t('ai.fields.due')}
               onChange={(e) => void chat.bulkPatch(msg.id, { due_date: e.target.value || null })} />
-            <input className="text-input" type="time" aria-label="time"
+            <DateTimeInput className="text-input" type="time" aria-label="time"
               onChange={(e) => void chat.bulkPatch(msg.id, { due_time: e.target.value || null })} />
             <input className="num-input" type="number" min={0} placeholder={t('ai.fields.est')} aria-label={t('ai.fields.est')}
               onChange={(e) => void chat.bulkPatch(msg.id, { est_min: e.target.value === '' ? null : Number(e.target.value) })} />

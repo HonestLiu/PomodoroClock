@@ -5,6 +5,7 @@ pub mod folders;
 pub mod lists;
 pub mod notify;
 pub mod records;
+pub mod quests;
 pub mod settings;
 pub mod stats;
 pub mod sync;

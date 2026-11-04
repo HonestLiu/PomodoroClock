@@ -1,3 +1,5 @@
+import { DateTimeInput } from '@/components/controls/DateTimeInput';
+import { Select } from '@/components/controls/Select';
 // 倒数纪念日 创建/编辑弹窗（docs/05-modules/countdown.md）
 
 import { useEffect, useRef, useState } from 'react';
@@ -109,7 +111,7 @@ export function CountdownEditModal({ open, editing, onClose }: Props) {
           <div className="field">
             <span className="field-label">{t('cd.field.date')} *</span>
             <div className="field-body">
-              <input className="text-input" type="date" value={date} max="9999-12-31"
+              <DateTimeInput className="text-input" type="date" value={date} max="9999-12-31"
                 aria-label={t('cd.field.date')} onChange={(e) => setDate(e.target.value)} />
             </div>
           </div>
@@ -117,20 +119,20 @@ export function CountdownEditModal({ open, editing, onClose }: Props) {
           <div className="field">
             <span className="field-label">{t('cd.field.kind')}</span>
             <div className="field-body">
-              <select className="text-input" value={kind} aria-label={t('cd.field.kind')}
+              <Select className="text-input" value={kind} aria-label={t('cd.field.kind')}
                 onChange={(e) => setKind(e.target.value as CountdownKind)}>
                 {KINDS.map((k) => <option key={k} value={k}>{t(`cd.kind.${k}`)}</option>)}
-              </select>
+              </Select>
             </div>
           </div>
 
           <div className="field">
             <span className="field-label">{t('cd.field.repeat')}</span>
             <div className="field-body">
-              <select className="text-input" value={repeat} aria-label={t('cd.field.repeat')}
+              <Select className="text-input" value={repeat} aria-label={t('cd.field.repeat')}
                 onChange={(e) => setRepeat(e.target.value as CountdownRepeat)}>
                 {REPEATS.map((r) => <option key={r} value={r}>{t(`cd.repeat.${r}`)}</option>)}
-              </select>
+              </Select>
               {repeat === 'custom_days' && (
                 <input className="text-input" type="number" min={1} max={3650} style={{ flex: '0 0 96px' }}
                   value={intervalDays} aria-label={t('cd.field.interval')}
@@ -179,14 +181,14 @@ export function CountdownEditModal({ open, editing, onClose }: Props) {
                   onChange={(e) => setRemindEnabled(e.target.checked)} />
                 <span className="track" />
               </label>
-              <select className="text-input" value={remindDays} disabled={!remindEnabled}
+              <Select className="text-input" value={remindDays} disabled={!remindEnabled}
                 aria-label={t('cd.field.remindDays')}
                 onChange={(e) => setRemindDays(Number(e.target.value))}>
                 <option value={0}>{t('cd.remind.0')}</option>
                 <option value={1}>{t('cd.remind.1')}</option>
                 <option value={3}>{t('cd.remind.3')}</option>
                 <option value={7}>{t('cd.remind.7')}</option>
-              </select>
+              </Select>
             </div>
           </div>
 

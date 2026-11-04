@@ -1,3 +1,4 @@
+import { questBonuses } from '@/lib/quests/model';
 import { create } from 'zustand';
 import { api } from '@/api';
 import type { FocusRecord } from '@/types';
@@ -28,6 +29,7 @@ async function load(): Promise<GrowthData | null> {
   const raw = (await api.get_settings()).growth_data;
   if (!raw) return null;
   const saved = JSON.parse(raw) as GrowthData;
+  const bonuses = questBonuses(await api.quest_load());
   // 旧版账本无支付字段，补默认值并保留余额与全部历史记录。
   const s: GrowthData = { ...saved,
     membershipUntil: saved.membershipUntil === undefined ? 0 : saved.membershipUntil,
@@ -36,7 +38,7 @@ async function load(): Promise<GrowthData | null> {
   if (s.version !== 1 || !Array.isArray(s.processedIds) || !Array.isArray(s.rewards) || !Array.isArray(s.entries)
     || !Number.isFinite(s.startedAt) || !s.processedIds.every(id => typeof id === 'string')
     || !Number.isSafeInteger(s.focusSeconds) || s.focusSeconds < 0 || !Number.isSafeInteger(s.fundCents) || s.fundCents < 0
-    || !Number.isSafeInteger(s.spentCoins) || s.spentCoins < 0 || s.spentCoins > Math.floor(s.focusSeconds / 60)
+    || !Number.isSafeInteger(s.spentCoins) || s.spentCoins < 0 || s.spentCoins > Math.floor(s.focusSeconds / 60) + bonuses.coins
     || !positiveInteger(s.coinsPerYuan, 10000)
     || !s.rewards.every(r => r && typeof r.id === 'string' && typeof r.name === 'string' && typeof r.note === 'string'
       && positiveInteger(r.memberCents) && (r.regularCents === null || (positiveInteger(r.regularCents) && r.regularCents >= r.memberCents))
@@ -55,7 +57,7 @@ async function load(): Promise<GrowthData | null> {
     || new Set(s.paymentOrders.map(o => o.id)).size !== s.paymentOrders.length
     || s.paymentOrders.filter(o => o.status === 'pending').length > 1
     || s.paymentOrders.some(o => o.status === 'confirmed' && !s.entries.some(e => e.orderId === o.id && e.cents === o.cents && e.kind === o.kind))) throw new Error('corrupt');
-  return s;
+  return { ...s, questCoins: bonuses.coins, questXp: bonuses.xp };
 }
 async function commit(data: GrowthData) {
   await api.set_setting('growth_data', JSON.stringify(data));

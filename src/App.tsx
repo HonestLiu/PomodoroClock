@@ -1,10 +1,12 @@
+import { QuestBoard } from '@/pages/QuestBoard';
+import { installQuestPublisher, useQuestStore } from '@/stores/questStore';
 // 应用外壳 —— 组装全局框架（PRD §4）与页面路由（PRD §2.3）
 
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { TitleBar } from '@/components/TitleBar';
 import { Sidebar } from '@/components/Sidebar';
 import { SidebarContextMenu } from '@/components/SidebarContextMenu';
-import { FloatWindow } from '@/components/FloatWindow';
+import { installOrbController } from '@/lib/orbController';
 import { NotificationPanel } from '@/components/NotificationPanel';
 import { SearchOverlay } from '@/components/SearchOverlay';
 import { TaskView } from '@/pages/TaskView';
@@ -63,6 +65,7 @@ export default function App() {
       await bootstrap();
       void useCountdownStore.getState().bootstrap(); // 倒数纪念日（独立域）
       await refreshStats();
+      await useQuestStore.getState().refresh().catch(() => {});
       // 先加载设置（含启动页），再决定是否展开专注界面
       await initTimer({ openScreen: false });
       // 数据库里的同步服务器地址（settings.pb_url）优先于编译期 env/默认，启动即校正 pb 客户端
@@ -164,9 +167,11 @@ export default function App() {
   // 原生托盘：后台计时控制、任务快捷启动与动态菜单状态。
   useEffect(() => {
     if (!booted) return;
+    const offQuests = installQuestPublisher();
+    const offOrb = installOrbController();
     const offTray = installTrayController();
     const offWidgets = installWidgetController();
-    return () => { offTray(); offWidgets(); };
+    return () => { offQuests(); offOrb(); offTray(); offWidgets(); };
   }, [booted]);
 
   // 应用菜单栏命令（menu://command；含 macOS Cmd+, 打开设置）
@@ -237,7 +242,8 @@ export default function App() {
         <Sidebar />
         <main className="main">
           {/* 日历组件（7 视图，侧边栏入口）；记录=专注归档；已完成=任务归档；其余（含清单视图）走任务视图 */}
-          {route.name === 'calendar' ? <CalendarPage />
+          {route.name === 'quests' ? <QuestBoard />
+            : route.name === 'calendar' ? <CalendarPage />
             : route.name === 'records' ? <RecordsView />
             : route.name === 'completed' ? <DoneView />
               : route.name === 'countdown' ? <CountdownPage />
@@ -246,7 +252,6 @@ export default function App() {
         </main>
       </div>
 
-      <FloatWindow />
       <AiDrawer />
       <NotificationPanel />
       <SearchOverlay />

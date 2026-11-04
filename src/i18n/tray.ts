@@ -8,7 +8,7 @@ export const trayZh = {
   'tray.resume.focus': '继续专注', 'tray.resume.break': '继续休息', 'tray.resume.countdown': '继续倒计时', 'tray.resume.stopwatch': '继续正计时',
   'tray.finishFocus': '结束本次专注并保存', 'tray.endBreak': '结束休息并开始专注', 'tray.endCountdown': '结束倒计时',
   'tray.chooseTask': '选择任务开始专注', 'tray.withoutTask': '不关联任务，直接专注', 'tray.allTasks': '查看全部任务…',
-  'tray.float': '悬浮计时窗', 'tray.noise': '白噪音', 'tray.openTimer': '打开专注面板',
+  'tray.float': '桌面悬浮球', 'tray.noise': '白噪音', 'tray.openTimer': '打开专注面板',
   'tray.todayTasks': '今日任务', 'tray.report': '专注报表', 'tray.settings': '设置…', 'tray.quit': '退出应用',
 };
 export const trayEn: Record<keyof typeof trayZh, string> = {
@@ -21,6 +21,6 @@ export const trayEn: Record<keyof typeof trayZh, string> = {
   'tray.resume.focus': 'Resume focus', 'tray.resume.break': 'Resume break', 'tray.resume.countdown': 'Resume countdown', 'tray.resume.stopwatch': 'Resume stopwatch',
   'tray.finishFocus': 'Finish and save focus session', 'tray.endBreak': 'End break and start focusing', 'tray.endCountdown': 'End countdown',
   'tray.chooseTask': 'Focus on a task', 'tray.withoutTask': 'Focus without a task', 'tray.allTasks': 'View all tasks…',
-  'tray.float': 'Floating timer', 'tray.noise': 'Background sound', 'tray.openTimer': 'Open focus panel',
+  'tray.float': 'Desktop timer', 'tray.noise': 'Background sound', 'tray.openTimer': 'Open focus panel',
   'tray.todayTasks': 'Today’s tasks', 'tray.report': 'Focus report', 'tray.settings': 'Settings…', 'tray.quit': 'Quit app',
 };

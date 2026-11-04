@@ -13,6 +13,7 @@ pub struct Db(pub Mutex<Connection>);
 
 /// 表结构 —— 与 PRD §6.2 逐字对应
 const SCHEMA: &str = r#"
+CREATE TABLE IF NOT EXISTS quest_state (id INTEGER PRIMARY KEY CHECK(id=1), data TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS users (
   id          TEXT PRIMARY KEY,
   username    TEXT NOT NULL DEFAULT '',
@@ -549,6 +550,7 @@ pub fn load_settings(conn: &Connection) -> AppResult<Settings> {
             "ai_model" => s.ai_model = v,
             "pb_url" => s.pb_url = v,
             "noise" => s.noise = v,
+            "float_style" => s.float_style = if ["card", "orb", "bar"].contains(&v.as_str()) { v } else { "card".into() },
             "wallpaper" => s.wallpaper = v,
             "wallpapers" => s.wallpapers = v,
             "motto" => s.motto = v,
@@ -586,6 +588,7 @@ pub fn clear_all(conn: &mut Connection) -> AppResult<()> {
     // 清空属于「仅本地」操作：云端数据保留。用 guard 抑制触发器，
     // 避免把本次批量删除当成墓碑上传（那会删掉云端数据）。
     tx.execute("UPDATE sync_guard SET active = 1 WHERE id = 1", [])?;
+    tx.execute("DELETE FROM quest_state", [])?;
     tx.execute("DELETE FROM focus_records", [])?;
     tx.execute("DELETE FROM tasks", [])?;
     tx.execute("DELETE FROM lists", [])?;

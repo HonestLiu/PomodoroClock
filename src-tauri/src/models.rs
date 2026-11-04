@@ -180,6 +180,7 @@ pub struct Settings {
     pub noise_volume: f64,
     pub noise_on_focus: bool,
     pub noise_on_break: bool,
+    pub float_style: String,
     pub wallpaper: String,
     /// 自定义专注背景列表（JSON 字符串 [{name, data}]）；不同步云端，见 lib/wallpaper.ts
     pub wallpapers: String,
@@ -215,6 +216,7 @@ impl Default for Settings {
             noise_volume: 0.5,
             noise_on_focus: false,
             noise_on_break: false,
+            float_style: "card".into(),
             wallpaper: "waves".into(),
             wallpapers: "[]".into(),
             motto: String::new(),

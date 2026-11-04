@@ -1,9 +1,12 @@
+import { FocusTaskPicker } from '@/components/FocusTaskPicker';
+import { questTitle } from '@/stores/questStore';
+import { isQuestBinding } from '@/lib/quests/model';
 // 番茄钟专注界面 —— PRD §5.4 FR-P2（截图事实 S3）
 // 全屏实景背景 / 左上任务选择框 / 中央超大倒计时 / 右侧今日面板 / 底部操作区与工具条
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Maximize2, Minimize2, Pause, Play, SkipForward, Square, Timer as TimerIcon, Volume2, VolumeX, X,
+  Maximize2, Minimize2, Pause, Play, SkipForward, Square, Timer as TimerIcon, Volume2, VolumeX, X, PanelsTopLeft,
 } from 'lucide-react';
 import wallpaper from '@/assets/wallpapers/waves.svg';
 import { useTimerStore } from '@/stores/timerStore';
@@ -39,6 +42,7 @@ export function TimerScreen() {
   const [modeOpen, setModeOpen] = useState(false);
   // 白噪音状态来自全局 store（工具条 / 设置页 / 选择弹窗共用同一份）
   const noisePlaying = useNoiseStore((s) => s.playing);
+  const floatVisible = useUiStore((s) => s.floatVisible);
   const { t } = useI18n();
   const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform);
   const [newTask, setNewTask] = useState('');
@@ -91,7 +95,7 @@ export function TimerScreen() {
   const progress = fallback > 0 ? Math.min(1, Math.max(0, 1 - ms / fallback)) : 0;
 
   const currentTask = tasks.find((t) => t.id === state.task_id);
-  const taskName = currentTask?.title ?? t('timer.untitled');
+  const taskName = questTitle(state.task_id) ?? currentTask?.title ?? t('timer.untitled');
   const est = currentTask?.est_pomodoros ?? 0;
 
   const ctaLabel = state.phase === 'break'
@@ -133,22 +137,24 @@ export function TimerScreen() {
   const taskSelector = (
     <div className="timer-task">
       <TimerIcon size={15} style={{ opacity: 0.8 }} />
-      <select
-        value={state.task_id ?? ''}
-        onChange={(e) => setTask(e.target.value || null)}
-        style={{ display: candidates.length ? 'block' : 'none' }}
-      >
-        <option value="">{t('timer.untitled')}</option>
-        {candidates.map((t) => (
-          <option key={t.id} value={t.id}>{t.title}</option>
-        ))}
-      </select>
+      {(candidates.length > 0 || isQuestBinding(state.task_id)) && (
+        <FocusTaskPicker
+          value={state.task_id ?? ''} label={taskName}
+          disabled={isQuestBinding(state.task_id)}
+          options={[
+            { value: '', label: t('timer.untitled') },
+            ...candidates.map(task => ({ value: task.id, label: task.title })),
+          ]}
+          onChange={value => setTask(value || null)}
+        />
+      )}
       <input
+        readOnly={isQuestBinding(state.task_id)}
         value={newTask}
         placeholder={taskName}
         onChange={(e) => setNewTask(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter') commitNewTask(); }}
-        style={{ display: candidates.length ? 'none' : 'block' }}
+        style={{ display: candidates.length || isQuestBinding(state.task_id) ? 'none' : 'block' }}
       />
       {est > 0 && <span className="est">{est.toFixed(1).replace(/\.0$/, '')}</span>}
     </div>
@@ -169,7 +175,21 @@ export function TimerScreen() {
       )}
 
       <div className="timer-top">
-        {taskSelector}
+        <div className="timer-top-controls">
+          {taskSelector}
+          {isTauri() && (
+            <button
+              type="button"
+              className={`timer-float-toggle${floatVisible ? ' on' : ''}`}
+              title={floatVisible ? t('title.pomodoroHide') : t('title.pomodoro')}
+              aria-label={floatVisible ? t('title.pomodoroHide') : t('title.pomodoro')}
+              aria-pressed={floatVisible}
+              onClick={() => useUiStore.getState().setFloatVisible(!useUiStore.getState().floatVisible)}
+            >
+              <PanelsTopLeft size={16} aria-hidden />
+            </button>
+          )}
+        </div>
         <button className="timer-close" onClick={() => openScreen(false)} title={t('timer.collapse')}><X size={16} /></button>
       </div>
 

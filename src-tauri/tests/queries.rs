@@ -55,7 +55,7 @@ fn stats_match_screenshot_spec() {
         .unwrap();
     assert_eq!(
         s.week_focus_min == s.total_focus_min,
-        dow > 2,
+        dow == 0 || dow > 2,
         "种子三天应落在同一周（今天是周{}时跨周，本周<总）",
         dow,
     );
@@ -459,4 +459,17 @@ fn growth_ledger_settings_roundtrip_and_clear() {
     db::clear_all(&mut conn).unwrap();
     db::ensure_bootstrap(&conn).unwrap();
     assert_eq!(db::load_settings(&conn).unwrap().growth_data, "");
+}
+
+#[test]
+fn floating_timer_styles_default_to_classic_and_round_trip() {
+    let conn = db::open_in_memory().unwrap();
+    db::ensure_bootstrap(&conn).unwrap();
+    assert_eq!(db::load_settings(&conn).unwrap().float_style, "card");
+    for style in ["card", "orb", "bar"] {
+        conn.execute("INSERT INTO settings(key,value) VALUES('float_style',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value", [style]).unwrap();
+        assert_eq!(db::load_settings(&conn).unwrap().float_style, style);
+    }
+    conn.execute("UPDATE settings SET value='unknown' WHERE key='float_style'", []).unwrap();
+    assert_eq!(db::load_settings(&conn).unwrap().float_style, "card");
 }

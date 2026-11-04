@@ -42,6 +42,8 @@ export const defaultPaymentSettings = (): PaymentSettings => ({
   wechatQr: '', alipayQr: '', weeklyCents: 600, monthlyCents: 1800, accountNote: '',
 });
 export interface GrowthData {
+  questCoins?: number;
+  questXp?: number;
   version: 1;
   startedAt: number;
   processedIds: string[];
@@ -71,8 +73,8 @@ export function yuanToCents(value: string): number {
   if (!positiveInteger(cents)) return fail('invalid');
   return cents;
 }
-export const earnedCoins = (s: GrowthData) => Math.floor(s.focusSeconds / 60);
-export const experience = (s: GrowthData) => Math.floor(s.focusSeconds / 6);
+export const earnedCoins = (s: GrowthData) => Math.floor(s.focusSeconds / 60) + (s.questCoins ?? 0);
+export const experience = (s: GrowthData) => Math.floor(s.focusSeconds / 6) + (s.questXp ?? 0);
 export const coinBalance = (s: GrowthData) => earnedCoins(s) - s.spentCoins;
 // Lv.1=0 XP, Lv.2=600 XP, Lv.3=1800 XP；每级比上一级多需 600 XP。
 export const levelThreshold = (level: number) => 300 * level * (level - 1);

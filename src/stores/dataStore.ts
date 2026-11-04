@@ -57,6 +57,7 @@ interface DataState {
 }
 
 let subscribed = false;
+let reloadVersion = 0;
 
 export const useDataStore = create<DataState>((set, get) => ({
   ready: false,
@@ -78,10 +79,12 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 
   async reload() {
+    const version = ++reloadVersion;
     const [user, folders, lists, tasks, records, notifications] = await Promise.all([
       api.get_user(), api.list_folders(), api.list_lists(), api.list_tasks(),
       api.list_focus_records(), api.list_notifications(),
     ]);
+    if (version !== reloadVersion) return;
     set((s) => ({ user, folders, lists, tasks, records, notifications, revision: s.revision + 1 }));
     await useGrowthStore.getState().reconcile(records);
   },

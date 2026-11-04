@@ -17,6 +17,8 @@ async function mutate<T>(table: string, run: () => Promise<T>): Promise<T> {
 }
 
 export const tauriApi: Api = {
+  quest_load: () => invoke('quest_load'),
+  quest_commit: (expectedRevision, next) => mutate('quests', () => invoke('quest_commit', { expectedRevision, next })),
   get_user: () => invoke('get_user'),
   update_user: (patch) => mutate('users', () => invoke('update_user', { patch })),
   pick_avatar: () => invoke('pick_avatar'),

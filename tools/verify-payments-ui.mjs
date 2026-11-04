@@ -1,3 +1,4 @@
+import { pickSelect } from './ui-controls.mjs';
 // 用法：先启动新的 Vite dev 服务，再运行 APP_URL=http://127.0.0.1:5174 node tools/verify-payments-ui.mjs
 import { strict as assert } from 'node:assert';
 import { chromium } from '/Users/lc/Develop/MyPageHome/node_modules/playwright/index.mjs';
@@ -119,9 +120,9 @@ try {
   assert.deepEqual(await state(), persisted);
   await page.locator('.titlebar-actions button[title="设置"]').click();
   await page.getByRole('tab', { name: '外观', exact: true }).click();
-  await page.locator('.settings-pane select:has(option[value=dark])').selectOption('dark');
+  await pickSelect(page.locator('.settings-pane select:has(option[value=dark])'), 'dark');
   await page.getByRole('tab', { name: '通用', exact: true }).click();
-  await page.locator('.settings-pane select:has(option[value=en])').selectOption('en');
+  await pickSelect(page.locator('.settings-pane select:has(option[value=en])'), 'en');
   await page.getByRole('tab', { name: 'General', exact: true }).waitFor();
   await page.locator('.settings-close').click();
   await page.locator('.titlebar-actions button[title="Membership"]').click();

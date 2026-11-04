@@ -1,3 +1,4 @@
+import { Select } from '@/components/controls/Select';
 // 日历页 —— 7 种视图（年/月/周/日/日程/多日/多周）
 //
 // 状态全部本地：anchor（视图锚点日期）、mode（视图模式）。事件复用任务数据
@@ -159,7 +160,7 @@ export function CalendarPage() {
         <span className="cal-range">{rangeLabel(mode, anchor)}</span>
         <button className="cal-btn cal-btn-add" aria-label={t('calendar.add')} onClick={onAdd}>+</button>
         <label className="cal-dropdown">
-          <select
+          <Select
             aria-label={t('calendar.viewSwitch')}
             value={mode}
             onChange={(e) => setMode(e.target.value as CalendarViewMode)}
@@ -167,7 +168,7 @@ export function CalendarPage() {
             {VIEW_MODES.map((m) => (
               <option key={m} value={m}>{t(`calendar.mode.${m}`)}</option>
             ))}
-          </select>
+          </Select>
         </label>
         <button className="cal-btn icon-only" aria-label={t('calendar.prev')} onClick={() => go(-1)}>
           <ChevronLeft size={16} />

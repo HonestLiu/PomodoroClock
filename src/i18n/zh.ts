@@ -1,3 +1,4 @@
+import { questsZh } from './quests';
 import { aboutZh } from './about';
 import { trayZh } from './tray';
 import { reportZh } from './report';
@@ -7,6 +8,7 @@ import { growthZh } from './growth';
 // 简体中文词表（默认语言）。
 // 约定：所有 UI 文案统一走 t()，便于双语维护。格式 {key: 文案}，`{x}` 为插值。
 export const zh = {
+  ...questsZh,
   ...aboutZh,
   ...trayZh,
   ...reportZh,
@@ -130,7 +132,8 @@ export const zh = {
   'confirm.deleteListTitle': '删除清单',
   'confirm.deleteListMsg': '删除后该清单内的任务将变为未归档（仍保留在「任务」中）。确定删除吗？',
   'title.premium': '会员', 'title.friends': '好友 / 社区', 'title.achievements': '成就',
-  'title.pomodoro': '打开番茄钟小窗', 'title.pomodoroHide': '隐藏番茄钟小窗',
+  'title.focus': '专注',
+  'title.pomodoro': '显示桌面悬浮计时器', 'title.pomodoroHide': '隐藏桌面悬浮计时器',
 
   // 统计卡
   'stat.estTime': '预计时间', 'stat.pending': '待完成任务',
@@ -176,6 +179,11 @@ export const zh = {
   'timer.recover.continue': '继续下一阶段', 'timer.recover.ok': '知道了',
   'timer.untitled': '未指定任务', 'timer.collapse': '收起',
   'app.loading': '正在加载…',
+  'float.styleTitle': '悬浮计时器样式',
+  'float.style.card': '经典卡片', 'float.style.orb': '圆形悬浮球', 'float.style.bar': '极简长条',
+  'float.styleHint.card': '背景图、任务名与计时', 'float.styleHint.orb': '环形进度与计时', 'float.styleHint.bar': '仅时间和播放/暂停',
+  'float.styleSaveFailed': '样式保存失败，请重试。',
+  'float.desktopOnly': '桌面悬浮球仅在桌面版可用',
   'float.focusing': '专注中', 'float.breaking': '休息中', 'float.todayCount': '今日番茄',
   'float.expand': '展开专注界面', 'float.close': '关闭小窗（计时继续）',
 
@@ -320,7 +328,7 @@ export const zh = {
   'ach.done': '已达成', 'ach.todo': '未达成', 'ach.total': '累计专注 {v}',
   'general.theme': '主题', 'appearance.system': '跟随系统', 'appearance.light': '浅色', 'appearance.dark': '深色',
   'general.autostart': '开机自启', 'general.autostartHint': '登录系统时自动启动应用（桌面端生效）',
-  'general.float': '悬浮番茄小窗', 'general.floatHint': '右下角常驻计时小窗',
+  'general.float': '桌面悬浮球', 'general.floatHint': '独立置顶于桌面，可在其他应用上方计时',
   'general.startupPage': '启动页',
   'general.startupPageHint': '启动时打开的页面；选番茄钟则展开专注界面',
   'general.startup.timer': '番茄钟（展开视图）',
@@ -400,6 +408,8 @@ export const zh = {
   'noise.woods': '树林', 'noise.cozy': '温馨',
   // 白噪音选择弹窗
   'noise.title': '白噪音', 'noise.none': '无', 'noise.volume': '音量',
+  'noise.play': '播放白噪音', 'noise.stop': '停止白噪音',
+  'noise.playing': '正在播放', 'noise.stopped': '未播放',
   'noise.pick': '选择白噪音',
   'error.desc': '渲染时抛出了异常，本地数据仍保存在这台设备上。可以重新加载应用，或关闭提示继续操作。',
   'error.reload': '重新加载',

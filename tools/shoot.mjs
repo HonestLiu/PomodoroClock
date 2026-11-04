@@ -1,3 +1,4 @@
+import { pickSelect } from './ui-controls.mjs';
 // 截图验收：S1–S5 + 深色主题 + 英文界面，并做若干自动检查。
 //
 // 为什么要重写（旧版的问题）：
@@ -302,7 +303,10 @@ try {
   await closeModal();
 
   // S3 专注界面 + 壁纸自检
-  await page.locator('.float-play').click();
+  // The browser has no desktop orb. Exercise the public timer shortcut instead.
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.keyboard.press('Space');
+  if (!await page.locator('.timer-screen').count()) await page.keyboard.press('Space');
   await page.waitForTimeout(900);
   await shot('S3-timer');
   const bg = await page.evaluate(() => {
@@ -313,14 +317,11 @@ try {
       return { image: s.backgroundImage, inline: el.getAttribute('style') };
     };
     return {
-      floatWin: pick('.float-win'),
       timerBg: pick('.timer-bg'),
       timerScreen: pick('.timer-screen'),
     };
   });
-  if (bg.floatWin && bg.floatWin.image === 'none') {
-    fail(`悬浮窗壁纸未生效：.float-win background-image = none（inline style: ${bg.floatWin.inline}）`);
-  } else if (bg.floatWin) ok('悬浮窗壁纸已生效');
+  if (await page.locator('.float-win').count()) fail('浏览器不应再显示旧的应用内悬浮窗');
   // 壁纸挂在 .timer-bg 上（TimerScreen 里 .timer-screen 是容器，背景在子层）
   const timerBgImage = bg.timerBg?.image ?? bg.timerScreen?.image;
   if (timerBgImage === 'none' || timerBgImage == null) {
@@ -378,7 +379,7 @@ try {
   if (!(await themeSelect.count())) {
     fail('外观页找不到主题下拉框，无法验证深色主题');
   } else {
-    await themeSelect.selectOption('dark');
+    await pickSelect(themeSelect, 'dark');
     await page.waitForTimeout(500);
     await shot('S5-dark-settings');
     await closeModal();
@@ -434,7 +435,7 @@ try {
     await openSettings();
     await settingsTab(TAB.appearance).click();
     await page.waitForTimeout(250);
-    await page.locator('.settings-pane select:has(option[value="light"])').selectOption('light');
+    await pickSelect(page.locator('.settings-pane select:has(option[value="light"])'), 'light');
     await closeModal();
   }
 
@@ -462,7 +463,7 @@ try {
   if (!(await langSelect.count())) {
     fail('通用页找不到语言下拉框');
   } else {
-    await langSelect.selectOption('en');
+    await pickSelect(langSelect, 'en');
     await page.waitForTimeout(500);
     await closeModal();
     await page.waitForTimeout(400);
@@ -482,7 +483,10 @@ try {
     else ok('英文界面无中文残留（首屏+设置，已排除演示数据与语言名）');
 
     // 专注界面（全屏层，之前的扫描范围不包含它）
-    await page.locator('.float-expand').click();
+    await closeModal();
+    await page.evaluate(() => document.activeElement?.blur());
+    await page.keyboard.press('Space');
+    if (!await page.locator('.timer-screen').count()) await page.keyboard.press('Space');
     await page.waitForSelector('.timer-screen', { timeout: 5000 });
     await page.waitForTimeout(600);
     await shot('S3-en-timer');
@@ -495,7 +499,7 @@ try {
     // 恢复中文
     await settingsTab(TAB.general).click();
     await page.waitForTimeout(250);
-    await page.locator('.settings-pane select:has(option[value="zh"])').first().selectOption('zh');
+    await pickSelect(page.locator('.settings-pane select:has(option[value="zh"])').first(), 'zh');
     await closeModal();
   }
 } catch (e) {

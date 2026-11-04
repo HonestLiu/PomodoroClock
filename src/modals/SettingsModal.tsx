@@ -1,3 +1,5 @@
+import { Select } from '@/components/controls/Select';
+import { FLOAT_STYLES, normalizeFloatStyle } from '@/lib/orb';
 // 设置弹窗 —— PRD §5.6 FR-S1/S2/S3（截图事实 S5）
 // 左侧 7 项导航：账号 / 高级版 / 通用 / 番茄钟 / 清单管理 / 外观 / 关于
 //
@@ -6,22 +8,22 @@
 // 已登录：同一张卡变账号卡（头像/首字母、用户名/邮箱、已登录徽标、同步区、退出登录）＋「本地数据」。
 // 头像来自 PocketBase 的 users.avatar 文件字段（点头像更换，可移除）；其余资料（昵称等）不在此编辑。
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ArrowLeft, Camera, Check, ChevronDown, ChevronRight, Crown, GripVertical, Info, ListChecks,
-  Palette, Settings as SettingsIcon, Sliders, Trash2, User as UserIcon, X,
+  Palette, Play, Square, Settings as SettingsIcon, Sliders, Trash2, User as UserIcon, X,
 } from 'lucide-react';
 import { useUiStore, type SettingsTab } from '@/stores/uiStore';
 import { useDataStore } from '@/stores/dataStore';
 import { useTimerStore } from '@/stores/timerStore';
 import { useAuthStore } from '@/stores/authStore';
 import { pendingCounts, dataSyncError, forceFullSync } from '@/lib/syncData';
-import { api } from '@/api';
+import { api, isTauri } from '@/api';
 import { pb, pbAvatarFileUrl } from '@/lib/pb';
 import { listAggregate } from '@/lib/derive';
 import { resolveListIconColor } from '@/lib/listIcon';
 import { formatMinutesShort } from '@/lib/date';
-import { NOISE_LABELS, type NoiseKind } from '@/lib/noise';
+import { NOISE_COVERS, NOISE_LABELS } from '@/lib/noise';
 import { aiConfig, testConnection } from '@/lib/ai/providers';
 import type { Settings, StartupPage } from '@/types';
 import type { ConfirmSpec } from './ConfirmDialog';
@@ -35,6 +37,7 @@ import {
 } from '@/lib/wallpaper';
 import wavesThumb from '@/assets/wallpapers/waves-thumb.svg';
 import { MembershipPanel, PaymentSettingsForm, paymentError } from '@/components/MembershipPanel';
+import { useNoiseStore } from '@/stores/noiseStore';
 import { useGrowthStore } from '@/stores/growthStore';
 import '@/styles/settings.css';
 
@@ -54,6 +57,7 @@ const TABS: Array<{ key: SettingsTab; labelKey: ZhKey; icon: typeof UserIcon }> 
 export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): void }) {
   const ui = useUiStore();
   const timer = useTimerStore();
+  const noise = useNoiseStore();
   const { t } = useI18n();
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -61,11 +65,13 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
   const [paymentManagement, setPaymentManagement] = useState(false);
   const growth = useGrowthStore(s => s.data);
   const paneRef = useRef<HTMLDivElement>(null);
+  const [floatStyleError, setFloatStyleError] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testMsg, setTestMsg] = useState('');
   const bgInputRef = useRef<HTMLInputElement>(null);
   // 专注背景自绘下拉（不用原生 select）：触发器 ref + 面板 ref + 面板固定定位坐标
   const [bgOpen, setBgOpen] = useState(false);
+  const bgPickerId = useId();
   const [bgPos, setBgPos] = useState({ left: 0, top: 0 });
   const bgTriggerRef = useRef<HTMLButtonElement>(null);
   const bgPanelRef = useRef<HTMLDivElement>(null);
@@ -109,7 +115,9 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
       const target = e.target as Node;
       if (!bgPanelRef.current?.contains(target) && !bgTriggerRef.current?.contains(target)) setBgOpen(false);
     };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setBgOpen(false); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.preventDefault(); setBgOpen(false); bgTriggerRef.current?.focus(); }
+    };
     // 窗口缩放/设置面板滚动都会让 fixed 面板与触发器错位 → 直接收起；
     // 但面板**自身**内部的滚动要忽略（否则长列表滚不动）
     const onLose = (e: Event) => {
@@ -141,7 +149,7 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
       // 每日目标同时写入 goals 表（报表日历口径）
       if (key === 'daily_target_min') await api.set_goal(saved.daily_target_min);
     });
-    writeChain = queued;
+    writeChain = queued.catch(() => {});
     return queued;
   }
 
@@ -243,7 +251,7 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
               <SettingsGroup title={t('prefs.common')}>                <div className="field">
                   <span className="field-label">{t('appearance.lang')}</span>
                   <div className="field-body">
-                    <select
+                    <Select
                       className="text-input" value={settings.language} aria-label={t('appearance.lang')}
                       onChange={(e) => {
                         const lang = e.target.value as Settings['language'];
@@ -253,20 +261,20 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
                     >
                       <option value="zh">简体中文</option>
                       <option value="en">English</option>
-                    </select>
+                    </Select>
                   </div>
                 </div>
                 <div className="field">
                   <span className="field-label">{t('appearance.theme')}</span>
                   <div className="field-body">
-                    <select
+                    <Select
                       className="text-input" value={settings.theme} aria-label={t('appearance.theme')}
                       onChange={(e) => void patch('theme', e.target.value as Settings['theme'])}
                     >
                       <option value="system">{t('appearance.system')}</option>
                       <option value="light">{t('appearance.light')}</option>
                       <option value="dark">{t('appearance.dark')}</option>
-                    </select>
+                    </Select>
                   </div>
                 </div>
                 <div className="field">
@@ -291,18 +299,35 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
                   <div className="field-body">
                     <label className="switch">
                       <input
-                        type="checkbox" checked={ui.floatVisible} aria-label={t('general.float')}
+                        type="checkbox" checked={isTauri() && ui.floatVisible} disabled={!isTauri()} aria-label={t('general.float')}
                         onChange={(e) => ui.setFloatVisible(e.target.checked)}
                       />
                       <span className="track" />
                     </label>
-                    <span className="field-hint">{t('general.floatHint')}</span>
+                    <span className="field-hint">{t(isTauri() ? 'general.floatHint' : 'float.desktopOnly')}</span>
                   </div>
                 </div>
+                <fieldset className="float-style-field">
+                  <legend>{t('float.styleTitle')}</legend>
+                  <div className="float-style-options">
+                    {FLOAT_STYLES.map(style => <label className="float-style-option" key={style}>
+                      <input type="radio" name="float-style" value={style} checked={normalizeFloatStyle(settings.float_style) === style}
+                        onChange={() => {
+                          setFloatStyleError(false);
+                          void patch('float_style', style).catch(() => { setSettings(useTimerStore.getState().settings); setFloatStyleError(true); });
+                        }} />
+                      <span className="float-radio-mark" aria-hidden="true" />
+                      <span className={`float-style-preview ${style}`} aria-hidden="true"><span>25:00</span><span>▶</span></span>
+                      <span className="float-style-name">{t(`float.style.${style}`)}</span>
+                      <span className="float-style-hint">{t(`float.styleHint.${style}`)}</span>
+                    </label>)}
+                  </div>
+                  {floatStyleError && <p role="alert">{t('float.styleSaveFailed')}</p>}
+                </fieldset>
                 <div className="field">
                   <span className="field-label">{t('general.startupPage')}</span>
                   <div className="field-body">
-                    <select
+                    <Select
                       className="text-input"
                       value={settings.startup_page}
                       aria-label={t('general.startupPage')}
@@ -319,7 +344,8 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
                       <option value="calendar">{t('nav.calendar')}</option>
                       <option value="countdown">{t('nav.countdown')}</option>
                       <option value="ai">{t('nav.ai')}</option>
-                    </select>
+                      <option value="quests">{t('quest.board')}</option>
+                    </Select>
                     <span className="field-hint">{t('general.startupPageHint')}</span>
                   </div>
                 </div>
@@ -356,7 +382,7 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
                 <div className="field">
                   <span className="field-label">{t('ai.provider')}</span>
                   <div className="field-body">
-                    <select
+                    <Select
                       className="text-input"
                       value={settings.ai_provider}
                       aria-label={t('ai.provider')}
@@ -365,7 +391,7 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
                       <option value="none">{t('ai.provider.none')}</option>
                       <option value="claude">{t('ai.provider.claude')}</option>
                       <option value="openai">{t('ai.provider.openai')}</option>
-                    </select>
+                    </Select>
                   </div>
                 </div>
                 <div className="field">
@@ -451,21 +477,21 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
                 <div className="field">
                   <span className="field-label">{t('appearance.theme')}</span>
                   <div className="field-body">
-                    <select
+                    <Select
                       className="text-input" value={settings.theme} aria-label={t('appearance.theme')}
                       onChange={(e) => void patch('theme', e.target.value as Settings['theme'])}
                     >
                       <option value="system">{t('appearance.system')}</option>
                       <option value="light">{t('appearance.light')}</option>
                       <option value="dark">{t('appearance.dark')}</option>
-                    </select>
+                    </Select>
                   </div>
                 </div>
                 </SettingsGroup>
                 <SettingsGroup title={t('prefs.focusEnvironment')}>
                 <div className="field">
                   <span className="field-label">{t('appearance.wallpaper')}</span>
-                  <div className="field-body">
+                  <div className="field-body appearance-media-controls">
                     {/* 自绘下拉（不用原生 select）：触发器显示当前背景，展开的下拉面板逐项列出
                         内置 + 全部自定义图；点某项即切换并收起，自定义项行尾垃圾桶直接删除
                         （2026-10-29 用户需求）。面板 position:fixed，避开设置面板的滚动裁剪。 */}
@@ -476,6 +502,7 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
                         className="wallpaper-trigger"
                         aria-haspopup="listbox"
                         aria-expanded={bgOpen}
+                        aria-controls={bgOpen ? bgPickerId : undefined}
                         aria-label={t('appearance.wallpaper')}
                         onClick={() => setBgOpen((v) => !v)}
                       >
@@ -521,11 +548,22 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
                     {bgOpen && (
                       <div
                         ref={bgPanelRef}
+                        id={bgPickerId}
                         className="wallpaper-picker"
                         role="listbox"
                         aria-label={t('appearance.wallpaper')}
-                        style={{ left: bgPos.left, top: bgPos.top }}
+                        style={{ left: bgPos.left, top: bgPos.top, width: bgTriggerRef.current?.getBoundingClientRect().width }}
                         onMouseDown={(e) => e.stopPropagation()}
+                        onKeyDown={e => {
+                          if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return;
+                          e.preventDefault();
+                          const items = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('.wallpaper-select'));
+                          const index = items.indexOf(document.activeElement as HTMLButtonElement);
+                          const next = e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1
+                            : Math.max(0, Math.min(items.length - 1, index + (e.key === 'ArrowDown' ? 1 : -1)));
+                          items[next]?.focus();
+                          items[next]?.scrollIntoView({ block: 'nearest' });
+                        }}
                       >
                         {[
                           { key: WAVES_KEY, value: WAVES_KEY, label: t('appearance.waves'), thumb: wavesThumb, custom: false },
@@ -574,18 +612,24 @@ export function SettingsModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
                 </div>
                 <div className="field">
                   <span className="field-label">{t('appearance.noise')}</span>
-                  <div className="field-body">
-                    {/* 点一下直接弹选择窗（含音量滑杆与封面列表），不再用下拉框 */}
-                    <button
-                      className="btn" aria-haspopup="dialog"
-                      onClick={() => ui.openNoise(true)}
-                    >
-                      {t('noise.pick')}
-                    </button>
-                    <span className="field-hint">
-                      {NOISE_LABELS[settings.noise as NoiseKind] ?? NOISE_LABELS.waves}
-                      {' · '}{Math.round(settings.noise_volume * 100)}%
-                    </span>
+                  <div className="field-body appearance-media-controls">
+                    <div className="settings-noise-control">
+                      <button type="button" className="settings-noise-pick" aria-haspopup="dialog"
+                        aria-label={t('noise.pick')} onClick={() => ui.openNoise(true)}>
+                        <img src={NOISE_COVERS[noise.kind]} alt="" />
+                        <span className="settings-noise-summary">
+                          <strong>{NOISE_LABELS[noise.kind]}</strong>
+                          <small>{noise.playing ? t('noise.playing') : t('noise.stopped')} · {Math.round(noise.volume * 100)}%</small>
+                        </span>
+                        <ChevronRight size={14} aria-hidden />
+                      </button>
+                      <button type="button" className={`settings-noise-play${noise.playing ? ' on' : ''}`}
+                        title={noise.playing ? t('noise.stop') : t('noise.play')}
+                        aria-label={noise.playing ? t('noise.stop') : t('noise.play')}
+                        onClick={() => noise.setPlaying(!useNoiseStore.getState().playing)}>
+                        {noise.playing ? <Square size={14} aria-hidden /> : <Play size={14} aria-hidden />}
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <div className="field">
@@ -1301,7 +1345,7 @@ function ListsPane({ onConfirm }: { onConfirm(spec: ConfirmSpec): void }) {
       <div className="field">
         <span className="field-label">{t('lists.section')}</span>
         <div className="field-body">
-          <select
+          <Select
             className="text-input" value={defaultListId ?? ''} aria-label={t('lists.defaultSection')}
             onChange={(e) => {
               const v = e.target.value || null;
@@ -1311,7 +1355,7 @@ function ListsPane({ onConfirm }: { onConfirm(spec: ConfirmSpec): void }) {
           >
             <option value="">{t('common.none')}</option>
             {lists.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-          </select>
+          </Select>
           <span className="field-hint">{t('lists.defaultRow')}</span>
         </div>
       </div>
@@ -1357,14 +1401,14 @@ function ListsPane({ onConfirm }: { onConfirm(spec: ConfirmSpec): void }) {
                 <span className="field-hint" style={{ whiteSpace: 'nowrap' }}>
                   {t('lists.stats', { count: agg.count, min: formatMinutesShort(agg.minutes) })}
                 </span>
-                <select
+                <Select
                   className="text-input" value={l.folder_id ?? ''} aria-label={t('lists.folder')}
                   style={{ flex: '0 0 auto', width: 'auto', minWidth: 96 }}
                   onChange={(e) => void setListFolder(l.id, e.target.value || null)}
                 >
                   <option value="">{t('lists.noFolder')}</option>
                   {folders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
-                </select>
+                </Select>
                 <button
                   className="btn" onClick={() => ui.openListEdit(l.id)}
                   title={t('lists.detail')}

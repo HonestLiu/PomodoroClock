@@ -165,6 +165,8 @@ export interface TimerState {
   paused_remaining_ms: number | null;
 }
 
+export type FloatStyle = 'card' | 'orb' | 'bar';
+
 export interface Settings {
   /** 本机奖励账本 JSON；不参与云端配置覆盖。 */
   growth_data: string;
@@ -183,6 +185,7 @@ export interface Settings {
   noise_volume: number;
   noise_on_focus: boolean;
   noise_on_break: boolean;
+  float_style: FloatStyle;
   wallpaper: string;
   /** 自定义专注背景列表（JSON 字符串，[{name,data}]，见 lib/wallpaper.ts）；大体积 dataURI，不同步云端 */
   wallpapers: string;
@@ -217,6 +220,7 @@ export const DEFAULT_SETTINGS: Settings = {
   noise_volume: 0.5,
   noise_on_focus: false,
   noise_on_break: false,
+  float_style: 'card',
   wallpaper: 'waves',
   wallpapers: '[]',
   motto: '',
@@ -229,7 +233,7 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 /** 启动页配置值：'timer' = 番茄钟展开视图，其余为侧边栏页面 */
-export type StartupPage = 'timer' | SmartKey | 'calendar' | 'countdown' | 'ai';
+export type StartupPage = 'timer' | SmartKey | 'calendar' | 'countdown' | 'ai' | 'quests';
 
 /** 侧边栏 / 路由使用的分类键
  *  - `completed` = 已完成任务归档（所有 completed=1 的任务）

@@ -1,3 +1,5 @@
+import { DateTimeInput } from '@/components/controls/DateTimeInput';
+import { Select } from '@/components/controls/Select';
 // 任务多选批量操作条（docs/05-modules/tasks.md）—— 跨任务/清单/已完成视图复用。
 // 触发：TaskItem 上 Cmd/Ctrl 点选任务，selectedTaskIds 非空时本条出现。
 // 动作：完成切换 / 移到清单 / 批量设置（优先级·重复·紧急·旗标·日期·预估）/ 删除（二次确认）/ 清除选择。
@@ -99,17 +101,17 @@ export function TaskBatchBar() {
         <div className="batch-panel">
           <label className="batch-field">
             <span>{t('batch.priority')}</span>
-            <select className="text-input" defaultValue="" onChange={(e) => { if (e.target.value) setAll({ priority: e.target.value as TaskPriority }); e.target.value = ''; }}>
+            <Select className="text-input" defaultValue="" onChange={(e) => { if (e.target.value) setAll({ priority: e.target.value as TaskPriority }); e.target.value = ''; }}>
               <option value="">…</option>
               {PRIORITIES.map((p) => <option key={p} value={p}>{t(`ai.priority.${p}`)}</option>)}
-            </select>
+            </Select>
           </label>
           <label className="batch-field">
             <span>{t('batch.repeat')}</span>
-            <select className="text-input" defaultValue="" onChange={(e) => { if (e.target.value) setAll({ repeat: e.target.value as Recurrence }); e.target.value = ''; }}>
+            <Select className="text-input" defaultValue="" onChange={(e) => { if (e.target.value) setAll({ repeat: e.target.value as Recurrence }); e.target.value = ''; }}>
               <option value="">…</option>
               {REPEATS.map((r) => <option key={r} value={r}>{t(`task.repeat.${r}`)}</option>)}
-            </select>
+            </Select>
           </label>
           <div className="batch-field">
             <span>{t('batch.urgent')}</span>
@@ -127,7 +129,7 @@ export function TaskBatchBar() {
           </div>
           <label className="batch-field">
             <span>{t('batch.due')}</span>
-            <input className="text-input" type="date" onChange={(e) => setAll({ due_date: e.target.value || null })} />
+            <DateTimeInput className="text-input" type="date" onChange={(e) => setAll({ due_date: e.target.value || null })} />
           </label>
           <label className="batch-field">
             <span>{t('batch.est')}</span>

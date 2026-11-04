@@ -1,3 +1,4 @@
+import type { QuestData } from '@/lib/quests/model';
 // invoke 接口签名 —— PRD §8.4
 
 import type {
@@ -108,6 +109,8 @@ export interface TrayMenuSnapshot {
 
 /** 全部命令的前端调用面 */
 export interface Api {
+  quest_load(): Promise<QuestData>;
+  quest_commit(expectedRevision: number, next: QuestData): Promise<QuestData>;
   get_user(): Promise<User>;
   update_user(patch: Partial<Pick<User, 'username' | 'email' | 'avatar_path'>>): Promise<User>;
   pick_avatar(): Promise<string | null>;

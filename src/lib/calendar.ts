@@ -26,7 +26,7 @@ export interface CalEvent {
   start: Date | null;      // 有 due_time 才有实时刻
   end: Date | null;
   allDay: boolean;         // 无 due_time → 全天条
-  color: string;           // 马卡龙主色
+  color: string;           // 主题事件颜色变量，含浅色 fallback
   urgent: boolean;
 }
 
@@ -41,15 +41,16 @@ export interface PlacedEvent {
 
 // 低饱和 / 高明度马卡龙色系（PRD 规格：浅蓝、浅紫、浅绿、浅粉 …）
 const PALETTE = ['#BBDEFB', '#D7C6F5', '#C8E6C9', '#F8C8D8', '#FCE4B8', '#B2E5E5', '#C5E1E0'];
-// 事件块内文字统一深色，保证可读性
+// 浅色事件的默认文字；深色前景由 calendar.css 的主题变量控制
 export const EVENT_TEXT = '#3A3A3A';
 
-/** 按清单 id 稳定取色（无清单用第一个） */
+/** 按清单 id 稳定取色；交给 CSS 随主题切换，已渲染的事件无需重新派生。 */
 export function listColor(listId: string | null | undefined): string {
-  if (!listId) return PALETTE[0];
+  if (!listId) return `var(--cal-event-0, ${PALETTE[0]})`;
   let h = 0;
   for (let i = 0; i < listId.length; i++) h = (h * 31 + listId.charCodeAt(i)) >>> 0;
-  return PALETTE[h % PALETTE.length];
+  const index = h % PALETTE.length;
+  return `var(--cal-event-${index}, ${PALETTE[index]})`;
 }
 
 /** 任务 → 事件。有 due_time 的配 60 分钟名义时长，无时间的为全天条 */

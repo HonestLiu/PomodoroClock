@@ -1,3 +1,5 @@
+import { DateTimeInput } from '@/components/controls/DateTimeInput';
+import { Select } from '@/components/controls/Select';
 // 任务编辑弹层 —— 提醒事项字段体系（PRD FR-T3）
 // 字段：标题 / 备注 / URL / 日期 / 时间 / 紧急 / 重复 / 提前提醒 / 列表 / 标签 / 旗标 / 优先级 / 预估番茄数
 // 「发信息时」「添加附件」本期不做（用户拍板，不进数据模型）。
@@ -133,7 +135,7 @@ export function TaskEditModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
           <div className="field">
             <span className="field-label">{t('task.due')}</span>
             <div className="field-body">
-              <input
+              <DateTimeInput
                 className="text-input" type="date" value={due} aria-label={t('task.due')}
                 onChange={(e) => setDue(e.target.value)}
               />
@@ -142,7 +144,7 @@ export function TaskEditModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
           <div className="field">
             <span className="field-label">{t('task.time')}</span>
             <div className="field-body">
-              <input
+              <DateTimeInput
                 className="text-input" type="time" value={time} aria-label={t('task.time')}
                 onChange={(e) => setTime(e.target.value)}
               />
@@ -160,40 +162,40 @@ export function TaskEditModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
           <div className="field">
             <span className="field-label">{t('task.repeat')}</span>
             <div className="field-body">
-              <select
+              <Select
                 className="text-input" aria-label={t('task.repeat')}
                 value={repeat}
                 onChange={(e) => setRepeat(e.target.value as Recurrence)}
               >
                 {REPEATS.map((r) => <option key={r} value={r}>{t(`task.repeat.${r}`)}</option>)}
-              </select>
+              </Select>
             </div>
           </div>
           <div className="field">
             <span className="field-label">{t('task.lead')}</span>
             <div className="field-body">
-              <select
+              <Select
                 className="text-input" aria-label={t('task.lead')}
                 disabled={!time}
                 value={lead}
                 onChange={(e) => setLead(e.target.value as LeadRemind)}
               >
                 {LEADS.map((l) => <option key={l} value={l}>{t(`task.lead.${l}`)}</option>)}
-              </select>
+              </Select>
               {!time && <span className="field-hint">{t('task.leadHint')}</span>}
             </div>
           </div>
           <div className="field">
             <span className="field-label">{t('task.list')}</span>
             <div className="field-body">
-              <select
+              <Select
                 className="text-input" aria-label={t('task.list')}
                 value={listId ?? ''}
                 onChange={(e) => setListId(e.target.value || null)}
               >
                 <option value="">{t('common.none')}</option>
                 {lists.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-              </select>
+              </Select>
             </div>
           </div>
           <div className="field">
@@ -233,13 +235,13 @@ export function TaskEditModal({ onConfirm }: { onConfirm(spec: ConfirmSpec): voi
           <div className="field">
             <span className="field-label">{t('task.priority')}</span>
             <div className="field-body">
-              <select
+              <Select
                 className="text-input" aria-label={t('task.priority')}
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as TaskPriority)}
               >
                 {PRIORITIES.map((p) => <option key={p} value={p}>{t(`task.priority.${p}`)}</option>)}
-              </select>
+              </Select>
             </div>
           </div>
           <div className="field">

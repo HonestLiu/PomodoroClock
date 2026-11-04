@@ -1,0 +1,54 @@
+/* A dedicated transparent webview: no main-app surfaces or global stylesheet. */
+:root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; --orb-face: #fafbfc; --orb-text: #242934; --orb-muted: #646c79; --orb-track: #e5e8ee; --orb-accent: #476aaf; --orb-outline: #d7dce4; --orb-shadow: 0 5px 16px #1a223328; }
+:root[data-theme=dark] { color-scheme: dark; --orb-face: #272b33; --orb-text: #f1f3f7; --orb-muted: #b4bbc7; --orb-track: #3c4350; --orb-accent: #a1baf0; --orb-outline: #4a5260; --orb-shadow: 0 5px 16px #0006; }
+* { box-sizing: border-box; }
+html, body, #root { width: 100%; height: 100%; margin: 0; background: transparent !important; overflow: hidden; }
+body { user-select: none; -webkit-user-select: none; }
+button { font: inherit; color: inherit; cursor: pointer; border: 0; padding: 0; }
+.orb-shell { width: 148px; height: 168px; padding: 10px 14px; color: var(--orb-text); }
+.orb-shell.break { --orb-accent: #52796b; }
+:root[data-theme=dark] .orb-shell.break { --orb-accent: #a0c9b7; }
+.orb-ball { width: 120px; height: 120px; border-radius: 50%; background: var(--orb-face); border: 1px solid var(--orb-outline); box-shadow: var(--orb-shadow); position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; cursor: grab; touch-action: none; }
+.orb-ball:active { cursor: grabbing; }
+.orb-ring { position: absolute; inset: 5px; border-radius: 50%; background: conic-gradient(from -90deg, var(--orb-accent) var(--orb-progress), var(--orb-track) 0); mask-image: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px)); -webkit-mask-image: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px)); pointer-events: none; }
+.orb-label { display: flex; align-items: center; gap: 4px; max-width: 88px; font-size: 10px; line-height: 14px; color: var(--orb-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+.orb-label i { width: 4px; height: 4px; flex-shrink: 0; border-radius: 50%; background: var(--orb-accent); }
+.orb-clock { font-size: 26px; line-height: 30px; font-weight: 500; letter-spacing: -1px; font-variant-numeric: tabular-nums; pointer-events: none; }
+.orb-clock.long { font-size: 20px; letter-spacing: -.7px; }
+.orb-toggle { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 50%; color: var(--orb-text); background: var(--orb-track); transition: background .12s ease; }
+.orb-toggle:hover { background: var(--orb-outline); }
+.orb-toggle:disabled { cursor: default; opacity: .45; }
+.orb-tools { margin-top: 7px; display: flex; justify-content: center; gap: 4px; opacity: 0; pointer-events: none; transition: opacity .15s ease; }
+.orb-shell:hover .orb-tools, .orb-shell:focus-within .orb-tools { opacity: 1; pointer-events: auto; }
+.orb-tools button { display: grid; place-items: center; width: 26px; height: 24px; border-radius: 12px; background: var(--orb-face); border: 1px solid var(--orb-outline); color: var(--orb-muted); }
+.orb-tools button:hover { color: var(--orb-text); }
+.orb-shell button:focus-visible { outline: 2px solid var(--orb-accent); outline-offset: 3px; }
+.orb-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.disconnected .orb-label i { background: #a88041; }
+@media (prefers-reduced-motion: reduce) { .orb-shell * { transition: none !important; } }
+@media (forced-colors: active) { .orb-ball, .orb-tools button { border: 1px solid ButtonText; } .orb-ring { outline: 2px solid Highlight; } }
+
+/* Classic: the original in-app card, now hosted by the independent desktop window. */
+.orb-shell.card { position: relative; padding: 8px; }
+.card .orb-ball { width: 200px; height: 118px; border-radius: 12px; overflow: hidden; align-items: flex-start; justify-content: flex-end; gap: 0; border: 1px solid #ffffff3d; background-position: center; background-size: cover; color: #fff; padding: 10px 12px; box-shadow: 0 4px 12px #0004; }
+.card .orb-ball::before { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, #00000029, #0000006b); pointer-events: none; }
+.card .orb-card-task { position: absolute; top: 10px; left: 12px; right: 55px; font-size: 12.5px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+.card .orb-ring, .card .orb-label { display: none; }
+.card .orb-clock { position: relative; font-weight: 300; letter-spacing: -.4px; font-size: 26px; line-height: 30px; }
+.card .orb-clock.long { font-size: 22px; }
+.card .orb-card-caption { position: relative; color: #fff; font-size: 11px; line-height: 14px; opacity: .9; pointer-events: none; }
+.card .orb-toggle { position: absolute; bottom: 10px; right: 12px; width: 32px; height: 32px; color: #242934; background: #fffffff0; }
+.card .orb-toggle:hover { background: #fff; }
+.card .orb-tools { position: absolute; top: 14px; right: 14px; margin: 0; }
+.card .orb-tools button { width: 20px; height: 20px; background: #0006; border: 0; color: #fff; }
+.card .orb-tools button:hover { background: #0009; }
+
+/* Compact strip: one small rectangle; no title, ring, caption, or extra toolbar. */
+.orb-shell.bar { padding: 6px; }
+.bar .orb-ball { width: 112px; height: 32px; border-radius: 7px; padding: 0 8px; flex-direction: row; justify-content: space-between; gap: 6px; box-shadow: 0 2px 6px #0003; }
+.bar .orb-clock { font-size: 18px; line-height: 22px; letter-spacing: -.5px; }
+.bar .orb-clock.long { font-size: 13px; letter-spacing: -.4px; }
+.bar .orb-toggle { flex: 0 0 22px; width: 22px; height: 22px; border-radius: 5px; background: transparent; }
+.bar .orb-toggle:hover { background: var(--orb-track); }
+.bar .orb-ring, .bar .orb-label, .bar .orb-tools { display: none; }
+.bar .orb-ball:focus-visible { outline: 2px solid var(--orb-accent); outline-offset: -2px; }

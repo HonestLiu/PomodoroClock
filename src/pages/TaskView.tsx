@@ -1,3 +1,6 @@
+import { useQuestStore } from '@/stores/questStore';
+import { localDay } from '@/lib/quests/model';
+import { QuestToday } from '@/components/QuestToday';
 // 任务视图 / 分类视图 / 清单视图 —— PRD §5.1 FR-T1、§5.2
 // 页面标题 + 4 统计卡片 + 添加任务 + 任务列表 + 「显示已完成任务」
 
@@ -30,12 +33,15 @@ export function TaskView() {
   const draggingTaskId = useUiStore((s) => s.draggingTaskId);
   const setDraggingTask = useUiStore((s) => s.setDraggingTask);
   const statsRevision = useStatsStore((s) => s.revision);
+  const questData = useQuestStore(s => s.data);
+  const todayQuestIds = new Set(questData.attempts.filter(a => a.status === 'accepted' && a.day === localDay(Date.now()) && Date.now() < a.expiresAt).map(a => a.questId));
+  const todayQuests = questData.quests.filter(q => todayQuestIds.has(q.id));
   const focusLenMin = useTimerStore((s) => s.settings.focus_len_min);
   const { t, dict } = useI18n();
   const [moveMsg, setMoveMsg] = useState('');
 
   // 日历页 / 倒数纪念日页 / AI 页不复用任务视图；此处 route 只可能是智能分类或清单
-  const key: SmartKey = route.name === 'list' || route.name === 'calendar' || route.name === 'countdown' || route.name === 'ai' ? 'tasks' : route.name;
+  const key: SmartKey = route.name === 'list' || route.name === 'calendar' || route.name === 'countdown' || route.name === 'ai' || route.name === 'quests' ? 'tasks' : route.name;
   const listId = route.name === 'list' ? route.id : null;
   // 侧边栏「任务」类目：只统计/展示未完成任务，不考虑已完成（清单视图复用 key='tasks'，需与「任务」区分）
   const isTasksSmart = !listId && key === 'tasks';
@@ -61,14 +67,16 @@ export function TaskView() {
     // 「任务」智能分类：已专注时间排除已完成任务的记录；已完成任务不统计（置 0）
     const focusedMin = isTasksSmart ? focusMinExcludingCompleted(ds) : c.focus_min;
     const doneCount = isTasksSmart ? 0 : c.done;
+    const questPending = key === 'today' && !listId ? todayQuests.length : 0;
+    const questMinutes = key === 'today' && !listId ? todayQuests.reduce((n, q) => n + q.minutes, 0) : 0;
     return [
-      minutesCard(t('stat.estTime'), c.est_min),
-      countCard(t('stat.pending'), listId ? view.pending.length : c.pending),
+      minutesCard(t('stat.estTime'), c.est_min + questMinutes),
+      countCard(t('stat.pending'), (listId ? view.pending.length : c.pending) + questPending),
       minutesCard(t('stat.focused'), focusedMin),
       countCard(t('stat.completed'), doneCount),
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dict, ds, key, focusLenMin, stats, statsRevision, view.pending.length, listId, isTasksSmart]);
+  }, [dict, ds, key, focusLenMin, stats, statsRevision, view.pending.length, listId, isTasksSmart, questData]);
 
   const title = listId ? (lists.find((l) => l.id === listId)?.name ?? t('nav.tasks')) : t(TITLE_KEYS[key]);
   const expanded = !!showCompleted[key];
@@ -130,6 +138,7 @@ export function TaskView() {
         {view.pending.length === 0 && <div className="empty">{t('task.empty')}</div>}
         {view.pending.map((t) => <TaskItem key={t.id} task={t} onReorder={onReorder} showListSource={showListSource} />)}
       </div>
+      {key === 'today' && !listId && <QuestToday />}
       <TaskBatchBar />
       {/* 键盘重排的读屏播报（视觉隐藏） */}
       <div className="sr-only" role="status" aria-live="polite">{moveMsg}</div>

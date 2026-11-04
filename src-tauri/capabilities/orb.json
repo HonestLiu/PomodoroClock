@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "desktop-orb",
+  "description": "Desktop timer: receive state and drag its own window",
+  "windows": ["desktop-orb"],
+  "permissions": ["core:event:allow-listen", "core:event:allow-unlisten", "core:window:allow-start-dragging"]
+}

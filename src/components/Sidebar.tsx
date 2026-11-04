@@ -1,10 +1,12 @@
+import { useQuestStore } from '@/stores/questStore';
+import { localDay } from '@/lib/quests/model';
 // 侧边栏 —— PRD FR-G2（截图事实 S1/S2）
 // 账号区 / 搜索框 / 6 分类导航 / 清单夹（可收纳多个清单，嵌套导引线）+ 顶层自定义清单 / 底部创建清单·清单夹
 
 import { useMemo, useState, type CSSProperties } from 'react';
 import {
   CalendarDays, CalendarClock, CalendarRange, CheckCircle2, ChevronDown, ChevronRight, Folder, FolderPlus,
-  GripVertical, Heart, History, ListTodo, Plus, Search, Sparkles, Sun, Sunrise, User as UserIcon,
+  ScrollText, GripVertical, Heart, History, ListTodo, Plus, Search, Sparkles, Sun, Sunrise, User as UserIcon,
 } from 'lucide-react';
 import { useUiStore } from '@/stores/uiStore';
 import { useDataStore } from '@/stores/dataStore';
@@ -51,6 +53,8 @@ export function Sidebar() {
   const draggingTaskId = useUiStore((s) => s.draggingTaskId);
   const setDraggingTask = useUiStore((s) => s.setDraggingTask);
   const statsRevision = useStatsStore((s) => s.revision);
+  const questData = useQuestStore(s => s.data);
+  const acceptedToday = questData.attempts.filter(a => a.status === 'accepted' && a.day === localDay(Date.now()) && Date.now() < a.expiresAt).length;
   // 身份跟随云端账号：登录后侧边栏显示的就是云端那个账号，避免「设置里 foo@bar.com、侧边栏 honestliu」的割裂
   const cloudUser = useAuthStore((s) => s.user);
   const authStatus = useAuthStore((s) => s.status);
@@ -77,10 +81,10 @@ export function Sidebar() {
     () => NAV_MAIN.map((n) => ({
       ...n,
       minutes: categoryFocusMinutes(ds, n.key, todayFocusMin),
-      count: categoryTaskCount(ds, n.key),
+      count: categoryTaskCount(ds, n.key) + (n.key === 'today' ? acceptedToday : 0),
     })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [ds, statsRevision, todayFocusMin],
+    [ds, statsRevision, todayFocusMin, acceptedToday],
   );
 
   const listRows = useMemo(
@@ -278,6 +282,10 @@ export function Sidebar() {
         </button>
 
         {/* AI 助手（docs/05-modules/ai.md）：与日历/纪念同组，排在「纪念」之后 */}
+        <button className="nav-item nav-quests" aria-current={activeKey === 'quests' ? 'page' : undefined}
+          onClick={() => ui.navigate({ name: 'quests' })}>
+          <ScrollText size={15} style={{ color: '#a67b43', flex: '0 0 auto' }} aria-hidden /><span className="nav-label">{t('quest.board')}</span>
+        </button>
         <button
           className="nav-item nav-ai"
           aria-current={activeKey === 'ai' ? 'page' : undefined}

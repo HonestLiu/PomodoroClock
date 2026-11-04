@@ -1,3 +1,4 @@
+import { questsEn } from './quests';
 import { aboutEn } from './about';
 import { trayEn } from './tray';
 import { reportEn } from './report';
@@ -6,6 +7,7 @@ import { paymentsEn } from './payments';
 import { growthEn } from './growth';
 // 英文词表（english dictionary)。
 export const en = {
+  ...questsEn,
   ...aboutEn,
   ...trayEn,
   ...reportEn,
@@ -128,7 +130,8 @@ export const en = {
   'confirm.deleteListTitle': 'Delete list',
   'confirm.deleteListMsg': 'Tasks in this list become unassigned (still under Tasks). Delete it?',
   'title.premium': 'Membership', 'title.friends': 'Friends', 'title.achievements': 'Achievements',
-  'title.pomodoro': 'Open pomodoro widget', 'title.pomodoroHide': 'Hide pomodoro widget',
+  'title.focus': 'Focus',
+  'title.pomodoro': 'Show desktop timer', 'title.pomodoroHide': 'Hide desktop timer',
 
   'stat.estTime': 'Estimated Time', 'stat.pending': 'To-do',
   'stat.focused': 'Time Focused', 'stat.completed': 'Completed',
@@ -171,6 +174,11 @@ export const en = {
   'timer.recover.continue': 'Continue', 'timer.recover.ok': 'Got it',
   'timer.untitled': 'Untitled task', 'timer.collapse': 'Collapse',
   'app.loading': 'Loading…',
+  'float.styleTitle': 'Desktop timer style',
+  'float.style.card': 'Classic card', 'float.style.orb': 'Round orb', 'float.style.bar': 'Compact strip',
+  'float.styleHint.card': 'Background, task and timer', 'float.styleHint.orb': 'Progress ring and timer', 'float.styleHint.bar': 'Time and play/pause only',
+  'float.styleSaveFailed': 'Could not save the style. Please retry.',
+  'float.desktopOnly': 'The desktop timer is available in the desktop app',
   'float.focusing': 'Focusing', 'float.breaking': 'On break', 'float.todayCount': 'today',
   'float.expand': 'Open focus screen', 'float.close': 'Close widget (timer keeps running)',
 
@@ -313,7 +321,7 @@ export const en = {
   'general.theme': 'Theme', 'appearance.system': 'System', 'appearance.light': 'Light', 'appearance.dark': 'Dark',
   'general.autostart': 'Launch at login',
   'general.autostartHint': 'Automatically launch at login (desktop runtime)',
-  'general.float': 'Floating timer', 'general.floatHint': 'Always-on timer at the bottom right',
+  'general.float': 'Floating timer', 'general.floatHint': 'Independent desktop timer, always above other apps',
   'general.startupPage': 'Startup page',
   'general.startupPageHint': 'Page opened on launch; Pomodoro expands the focus screen',
   'general.startup.timer': 'Pomodoro (expanded)',
@@ -393,6 +401,8 @@ export const en = {
   'noise.waves': 'Waves', 'noise.rain': 'Rain', 'noise.wind': 'Breeze',
   'noise.woods': 'Forest', 'noise.cozy': 'Cosy',
   'noise.title': 'White noise', 'noise.none': 'None', 'noise.volume': 'Volume',
+  'noise.play': 'Play white noise', 'noise.stop': 'Stop white noise',
+  'noise.playing': 'Playing', 'noise.stopped': 'Not playing',
   'noise.pick': 'Choose white noise',
   'error.desc': 'A component threw while rendering. Your data is still stored on this device. Reload the app, or dismiss this message and keep going.',
   'error.reload': 'Reload',

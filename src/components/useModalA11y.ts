@@ -16,7 +16,7 @@ const stack: HTMLElement[] = [];
 
 function focusables(root: HTMLElement): HTMLElement[] {
   return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-    (el) => el.offsetParent !== null || el === document.activeElement,
+    (el) => !el.classList.contains('app-control-native') && (el.offsetParent !== null || el === document.activeElement),
   );
 }
 
@@ -40,6 +40,8 @@ export function useModalA11y(
     if (root) stack.push(root);
     const raf = requestAnimationFrame(() => {
       if (!root) return;
+      // A quickly opened child picker has already established its own focus.
+      if (root.contains(document.activeElement) && (document.activeElement as HTMLElement | null)?.closest('[data-app-picker]')) return;
       const sel = selectorRef.current;
       const target = (sel ? root.querySelector<HTMLElement>(sel) : null) ?? focusables(root)[0] ?? root;
       target.focus?.();
@@ -49,6 +51,8 @@ export function useModalA11y(
       if (!root) return;
       // 只有最上层模态处理键盘，避免嵌套弹层一次关闭多层
       if (stack[stack.length - 1] !== root) return;
+      // 内嵌自绘选择面板先消费 Esc；第二次 Esc 再关闭父弹窗。
+      if (e.key === 'Escape' && (e.target as HTMLElement | null)?.closest('[data-app-picker]')) return;
       if (e.key === 'Escape') {
         e.preventDefault();
         e.stopPropagation();

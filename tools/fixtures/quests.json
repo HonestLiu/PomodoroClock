@@ -1,0 +1,314 @@
+[
+  {
+    "now": 1793494800000,
+    "expected": 0,
+    "next": {
+      "version": 1,
+      "revision": 1,
+      "goals": [
+        {
+          "id": "test_goal",
+          "title": "ESP32 项目",
+          "description": "开发板已准备，每天 40 分钟",
+          "budget": 40,
+          "paused": false,
+          "createdAt": 1793494800000
+        }
+      ],
+      "quests": [
+        {
+          "id": "test_goal_a",
+          "goalId": "test_goal",
+          "title": "编译烧录",
+          "acceptance": "看到串口输出",
+          "minutes": 25,
+          "requires": [],
+          "coins": 3,
+          "xp": 50,
+          "completedAt": null,
+          "publishedDay": "2026-11-01",
+          "nextDay": "2026-11-01",
+          "order": 0
+        },
+        {
+          "id": "test_goal_b",
+          "goalId": "test_goal",
+          "title": "点亮 LED",
+          "acceptance": "灯成功点亮",
+          "minutes": 25,
+          "requires": [
+            "test_goal_a"
+          ],
+          "coins": 3,
+          "xp": 50,
+          "completedAt": null,
+          "publishedDay": null,
+          "nextDay": "2026-11-01",
+          "order": 1
+        },
+        {
+          "id": "test_goal_c",
+          "goalId": "test_goal",
+          "title": "按键控制",
+          "acceptance": "按键改变灯状态",
+          "minutes": 20,
+          "requires": [
+            "test_goal_b"
+          ],
+          "coins": 2,
+          "xp": 40,
+          "completedAt": null,
+          "publishedDay": null,
+          "nextDay": "2026-11-01",
+          "order": 2
+        }
+      ],
+      "attempts": []
+    }
+  },
+  {
+    "now": 1793494800000,
+    "expected": 1,
+    "next": {
+      "version": 1,
+      "revision": 2,
+      "goals": [
+        {
+          "id": "test_goal",
+          "title": "ESP32 项目",
+          "description": "开发板已准备，每天 40 分钟",
+          "budget": 40,
+          "paused": false,
+          "createdAt": 1793494800000
+        }
+      ],
+      "quests": [
+        {
+          "id": "test_goal_a",
+          "goalId": "test_goal",
+          "title": "编译烧录",
+          "acceptance": "看到串口输出",
+          "minutes": 25,
+          "requires": [],
+          "coins": 3,
+          "xp": 50,
+          "completedAt": null,
+          "publishedDay": "2026-11-01",
+          "nextDay": "2026-11-01",
+          "order": 0
+        },
+        {
+          "id": "test_goal_b",
+          "goalId": "test_goal",
+          "title": "点亮 LED",
+          "acceptance": "灯成功点亮",
+          "minutes": 25,
+          "requires": [
+            "test_goal_a"
+          ],
+          "coins": 3,
+          "xp": 50,
+          "completedAt": null,
+          "publishedDay": null,
+          "nextDay": "2026-11-01",
+          "order": 1
+        },
+        {
+          "id": "test_goal_c",
+          "goalId": "test_goal",
+          "title": "按键控制",
+          "acceptance": "按键改变灯状态",
+          "minutes": 20,
+          "requires": [
+            "test_goal_b"
+          ],
+          "coins": 2,
+          "xp": 40,
+          "completedAt": null,
+          "publishedDay": null,
+          "nextDay": "2026-11-01",
+          "order": 2
+        }
+      ],
+      "attempts": [
+        {
+          "id": "fixture_attempt",
+          "questId": "test_goal_a",
+          "day": "2026-11-01",
+          "acceptedAt": 1793494800000,
+          "expiresAt": 1793548800000,
+          "status": "accepted",
+          "sessions": []
+        }
+      ]
+    }
+  },
+  {
+    "now": 1793496000000,
+    "expected": 2,
+    "next": {
+      "version": 1,
+      "revision": 3,
+      "goals": [
+        {
+          "id": "test_goal",
+          "title": "ESP32 项目",
+          "description": "开发板已准备，每天 40 分钟",
+          "budget": 40,
+          "paused": false,
+          "createdAt": 1793494800000
+        }
+      ],
+      "quests": [
+        {
+          "id": "test_goal_a",
+          "goalId": "test_goal",
+          "title": "编译烧录",
+          "acceptance": "看到串口输出",
+          "minutes": 25,
+          "requires": [],
+          "coins": 3,
+          "xp": 50,
+          "completedAt": null,
+          "publishedDay": "2026-11-01",
+          "nextDay": "2026-11-01",
+          "order": 0
+        },
+        {
+          "id": "test_goal_b",
+          "goalId": "test_goal",
+          "title": "点亮 LED",
+          "acceptance": "灯成功点亮",
+          "minutes": 25,
+          "requires": [
+            "test_goal_a"
+          ],
+          "coins": 3,
+          "xp": 50,
+          "completedAt": null,
+          "publishedDay": null,
+          "nextDay": "2026-11-01",
+          "order": 1
+        },
+        {
+          "id": "test_goal_c",
+          "goalId": "test_goal",
+          "title": "按键控制",
+          "acceptance": "按键改变灯状态",
+          "minutes": 20,
+          "requires": [
+            "test_goal_b"
+          ],
+          "coins": 2,
+          "xp": 40,
+          "completedAt": null,
+          "publishedDay": null,
+          "nextDay": "2026-11-01",
+          "order": 2
+        }
+      ],
+      "attempts": [
+        {
+          "id": "fixture_attempt",
+          "questId": "test_goal_a",
+          "day": "2026-11-01",
+          "acceptedAt": 1793494800000,
+          "expiresAt": 1793548800000,
+          "status": "accepted",
+          "sessions": [
+            {
+              "id": "session1",
+              "startAt": 1793494800000,
+              "endAt": 1793496000000,
+              "durationMin": 20
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "now": 1793496000000,
+    "expected": 3,
+    "next": {
+      "version": 1,
+      "revision": 4,
+      "goals": [
+        {
+          "id": "test_goal",
+          "title": "ESP32 项目",
+          "description": "开发板已准备，每天 40 分钟",
+          "budget": 40,
+          "paused": false,
+          "createdAt": 1793494800000
+        }
+      ],
+      "quests": [
+        {
+          "id": "test_goal_a",
+          "goalId": "test_goal",
+          "title": "编译烧录",
+          "acceptance": "看到串口输出",
+          "minutes": 25,
+          "requires": [],
+          "coins": 3,
+          "xp": 50,
+          "completedAt": 1793496000000,
+          "publishedDay": "2026-11-01",
+          "nextDay": "2026-11-01",
+          "order": 0
+        },
+        {
+          "id": "test_goal_b",
+          "goalId": "test_goal",
+          "title": "点亮 LED",
+          "acceptance": "灯成功点亮",
+          "minutes": 25,
+          "requires": [
+            "test_goal_a"
+          ],
+          "coins": 3,
+          "xp": 50,
+          "completedAt": null,
+          "publishedDay": null,
+          "nextDay": "2026-11-01",
+          "order": 1
+        },
+        {
+          "id": "test_goal_c",
+          "goalId": "test_goal",
+          "title": "按键控制",
+          "acceptance": "按键改变灯状态",
+          "minutes": 20,
+          "requires": [
+            "test_goal_b"
+          ],
+          "coins": 2,
+          "xp": 40,
+          "completedAt": null,
+          "publishedDay": null,
+          "nextDay": "2026-11-01",
+          "order": 2
+        }
+      ],
+      "attempts": [
+        {
+          "id": "fixture_attempt",
+          "questId": "test_goal_a",
+          "day": "2026-11-01",
+          "acceptedAt": 1793494800000,
+          "expiresAt": 1793548800000,
+          "status": "completed",
+          "sessions": [
+            {
+              "id": "session1",
+              "startAt": 1793494800000,
+              "endAt": 1793496000000,
+              "durationMin": 20
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

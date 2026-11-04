@@ -1,3 +1,4 @@
+import { FileInput } from '@/components/controls/FileInput';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Crown } from 'lucide-react';
 import { useGrowthStore } from '@/stores/growthStore';
@@ -79,7 +80,7 @@ export function PaymentSettingsForm({ settings }: { settings: PaymentSettings })
         <div className="payment-upload-grid">{(['wechat', 'alipay'] as const).map(channel => {
           const image = channel === 'wechat' ? wechatQr : alipayQr;
           return <div className="payment-upload" key={channel}>
-            <label>{t(`payment.${channel}`)}<input type="file" name={`${channel}Qr`} accept="image/png,image/jpeg,image/webp" aria-describedby="payment-image-help" onChange={e => { void upload(e.target.files?.[0], channel); e.target.value = ''; }} /></label>
+            <label>{t(`payment.${channel}`)}<FileInput type="file" name={`${channel}Qr`} accept="image/png,image/jpeg,image/webp" aria-describedby="payment-image-help" onChange={e => { void upload(e.target.files?.[0], channel); e.target.value = ''; }} /></label>
             {image && <><img src={image} alt={t(`payment.${channel}`)} /><button className="growth-link" type="button" onClick={() => { versions.current[channel]++; (channel === 'wechat' ? setWechatQr : setAlipayQr)(''); setSaved(false); }}>{t('payment.removeQr')}</button></>}
           </div>;
         })}</div>

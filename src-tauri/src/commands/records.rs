@@ -36,6 +36,7 @@ pub fn create_focus_record(db: State<'_, Db>, args: CreateRecordArgs) -> AppResu
 }
 
 pub fn create_focus_record_impl(conn: &rusqlite::Connection, args: CreateRecordArgs) -> AppResult<FocusRecord> {
+    if args.task_id.as_deref().is_some_and(|id| id.starts_with("quest-attempt:") || id.starts_with("quest_archive_")) { return Err(AppError::msg("quest.archiveLocked")); }
     if args.end_at < args.start_at {
         return Err(AppError::msg("结束时间早于开始时间"));
     }

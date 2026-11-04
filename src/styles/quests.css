@@ -1,0 +1,51 @@
+.quest-board { max-width: 1120px; margin-inline: auto; width: 100%; }
+.quest-header, .quest-section-head, .quest-goal, .quest-card-top, .quest-meta, .quest-actions, .quest-form-actions { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.quest-header .page-title { margin-bottom: 8px; }
+.quest-header p { margin: 0; color: var(--text-2); font-size: 14px; }
+.quest-board-note { display: flex; align-items: center; gap: 14px; padding: 18px 20px; margin-block: 24px; border: 1px solid var(--border); border-inline-start: 4px solid #a67b43; border-radius: var(--radius-sm); background: var(--bg-sidebar); line-height: 1.7; }
+.quest-board-note > svg { flex-shrink: 0; color: #a67b43; }
+.quest-board-note p { margin: 0; max-width: 65ch; }
+.quest-goal-form { display: grid; gap: 10px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; max-width: 680px; margin-block: 20px; }
+.quest-goal-form h2 { display: flex; gap: 8px; align-items: center; margin: 0 0 10px; font-size: 17px; }
+.quest-goal-form > label:not(:first-child) { margin-top: 8px; font-weight: 500; }
+.quest-goal-form input:not([type=checkbox]), .quest-goal-form textarea { width: 100%; color: var(--text-1); background: var(--bg-app); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; font: inherit; user-select: text; }
+.quest-goal-form textarea { resize: vertical; min-height: 80px; }
+.quest-goal-form input[type=number] { max-width: 160px; }
+.quest-goal-form p { color: var(--text-2); margin: 0; line-height: 1.6; }
+.quest-goal-form input:user-invalid, .quest-goal-form textarea:user-invalid { border-color: var(--accent-focus); }
+.quest-form-actions { justify-content: flex-start; margin-top: 12px; flex-wrap: wrap; }
+.quest-mode, .quest-complete { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.quest-mode input, .quest-complete input { accent-color: #648768; width: 18px; height: 18px; }
+.quest-goals { display: grid; gap: 10px; margin-block: 20px 30px; }
+.quest-goal { border-bottom: 1px solid var(--border); padding-block: 12px; }
+.quest-goal h2 { font-size: 14px; margin: 0 0 6px; overflow-wrap: anywhere; }
+.quest-goal small { margin-inline-start: 10px; font-weight: 400; color: var(--text-2); }
+.quest-goal p { margin: 0; color: var(--text-2); }
+.quest-section-head { margin-block: 20px 16px; }
+.quest-section-head h2, .quest-today h2 { font-size: 17px; margin: 0; }
+.quest-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr)); gap: 16px; }
+.quest-card { padding: 22px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); display: flex; flex-direction: column; min-width: 0; }
+.quest-card.accepted { border-top: 3px solid #648768; padding-top: 20px; }
+.quest-card.completed { background: var(--bg-sidebar); }
+.quest-source { display: flex; gap: 6px; align-items: center; color: var(--text-2); font-size: 12px; overflow-wrap: anywhere; }
+.quest-source svg { flex-shrink: 0; }
+.quest-state { color: #648768; font-size: 12px; flex-shrink: 0; }
+.quest-card h3 { font-size: 18px; line-height: 1.5; margin: 18px 0 12px; font-weight: 600; overflow-wrap: anywhere; }
+.quest-criteria { line-height: 1.8; margin: 0 0 22px; flex-grow: 1; overflow-wrap: anywhere; }
+.quest-criteria > span { display: block; color: var(--text-2); font-size: 12px; margin-bottom: 4px; }
+.quest-meta { font-size: 12px; color: var(--text-2); flex-wrap: wrap; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.quest-meta > span { display: flex; align-items: center; gap: 5px; }
+.quest-actions { padding-top: 16px; flex-wrap: wrap; }
+.quest-actions .btn, .quest-header .btn, .quest-form-actions .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 38px; }
+.quest-done { display: inline-flex; align-items: center; gap: 7px; color: #648768; }
+.quest-feedback { min-height: 1.4em; line-height: 1.6; color: var(--text-1); overflow-wrap: anywhere; }
+.quest-empty { padding: 40px 24px; text-align: center; border: 1px dashed var(--border); border-radius: var(--radius); }
+.quest-empty > svg { color: #a67b43; }
+.quest-empty h3 { font-size: 17px; font-weight: 500; }
+.quest-empty p { color: var(--text-2); max-width: 52ch; margin-inline: auto; line-height: 1.8; }
+.quest-expiry { text-align: center; font-size: 12px; color: var(--text-2); margin-top: 26px; }
+.quest-today { margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border); }
+.quest-today > p { line-height: 1.6; color: var(--text-2); }
+.quest-board :focus-visible, .quest-today :focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 3px; }
+@media (max-width: 650px) { .quest-header, .quest-goal { align-items: flex-start; flex-direction: column; } .quest-goal-form { padding: 18px; } }
+@media (pointer: coarse) { .quest-board .btn, .quest-complete { min-height: 48px; } }

@@ -27,6 +27,10 @@
 
 ## 产物
 
+- [桌面悬浮计时球](05-modules/desktop-orb.md)：独立透明置顶窗口，替换旧应用内悬浮卡片。
+
+- [生活成长游戏路线](09-life-game-proposal.md)与已实现的[任务看板、接取及完成结算](05-modules/quests.md)。
+
 - macOS 系统小组件：小/中/大三种尺寸，构建、签名、添加方法与验证范围见 [widgets.md](05-modules/widgets.md)。
 
 - 浏览器版：`npm run dev`（IndexedDB 适配器）

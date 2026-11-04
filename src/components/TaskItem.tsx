@@ -1,3 +1,4 @@
+import { isQuestArchive } from '@/lib/quests/model';
 // 任务条目 —— PRD FR-T3（截图事实 S1）
 // 布局：圆形完成勾选 → 任务名 → 预估番茄数 → 到期日
 // P1：行尾「⋯」更多菜单 + 右键菜单（标记完成/移到清单/复制/删除）
@@ -197,6 +198,14 @@ export function TaskItem({ task, onReorder, showListSource = false }: {
     timer.setTask(task.id);
     timer.openScreen(true);
   }
+
+  if (isQuestArchive(task.id)) return (
+    <div className="task-item done quest-archived" data-task-id={task.id}>
+      <span className="check checked" aria-label={t('quest.completed')}><Check size={11} aria-hidden /></span>
+      <span className="task-title">{task.title}</span>
+      <span style={{ color: 'var(--text-2)', marginInlineStart: 'auto', fontSize: 12 }}>{t('quest.archive')}</span>
+    </div>
+  );
 
   return (
     <div

@@ -1,3 +1,4 @@
+import { DateTimeInput } from '@/components/controls/DateTimeInput';
 // 专注报表：统一日期范围，概览 / 时间分布 / 任务与目标。
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BarChart3, CalendarDays, CheckCheck, ChevronLeft, ChevronRight, Clock3, Flame, Target, X } from 'lucide-react';
@@ -77,7 +78,7 @@ export function ReportModal() {
       <div className="rpt-toolbar">
         <fieldset className="rpt-periods"><legend className="sr-only">{t('report2.period')}</legend>{PERIODS.map(key => <label key={key}><input type="radio" name="report-period" value={key} checked={period === key} onChange={() => setPeriod(key)} /><span>{t(`report.${key}`)}</span></label>)}</fieldset>
         <div className="rpt-range"><button className="rpt-arrow" aria-label={t('report.prev')} onClick={() => setAnchor(moveReportPeriod(period, anchor, -1))}><ChevronLeft size={17} aria-hidden /></button><span aria-live="polite">{formatPeriodTitle(period, anchor)}</span><button className="rpt-arrow" disabled={!hasNext} aria-label={t('report.next')} onClick={() => setAnchor(moveReportPeriod(period, anchor, 1))}><ChevronRight size={17} aria-hidden /></button></div>
-        <div className="rpt-date-actions"><label className="rpt-date"><CalendarDays size={14} aria-hidden /><input type="date" value={toDateKey(anchor)} max={todayKey()} aria-label={t('report2.chooseDate')} onChange={e => { if (e.target.value) setAnchor(reportDate(e.target.value)); }} /></label><button className="rpt-reset" disabled={isCurrent} onClick={() => setAnchor(new Date())}>{t('report2.current')}</button></div>
+        <div className="rpt-date-actions"><label className="rpt-date"><CalendarDays size={14} aria-hidden /><DateTimeInput type="date" value={toDateKey(anchor)} max={todayKey()} aria-label={t('report2.chooseDate')} onChange={e => { if (e.target.value) setAnchor(reportDate(e.target.value)); }} /></label><button className="rpt-reset" disabled={isCurrent} onClick={() => setAnchor(new Date())}>{t('report2.current')}</button></div>
       </div>
       <nav className="rpt-tabs" role="tablist" aria-label={t('report2.views')}>{VIEWS.map(key => <button id={`report-tab-${key}`} key={key} role="tab" aria-selected={view === key} aria-controls="report-view" tabIndex={view === key ? 0 : -1} onClick={() => setView(key)} onKeyDown={e => viewKey(e, key)}>{t(`report2.${key}`)}</button>)}</nav>
       <div className="rpt-body" ref={bodyRef} id="report-view" role="tabpanel" aria-labelledby={`report-tab-${view}`} tabIndex={0}>

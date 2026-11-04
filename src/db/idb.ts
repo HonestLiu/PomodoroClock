@@ -1,3 +1,4 @@
+import { initialQuests, questArchives, validateQuestTransition, type QuestData } from '@/lib/quests/model';
 // 本地持久化层。
 //
 // PRD §8.6 规定生产形态为 SQLite（app_data_dir/focus.db）。当前构建在浏览器
@@ -12,6 +13,7 @@ import { DEFAULT_SETTINGS } from '@/types';
 import { buildSeed } from './seed';
 
 export interface DBShape {
+  quest_data?: QuestData;
   users: User[];
   folders: Folder[];
   lists: TaskList[];
@@ -87,6 +89,8 @@ function normalizeTask(t: Task): Task {
 let data: DBShape = emptyDB();
 let idb: IDBDatabase | null = null;
 let memoryOnly = false;
+let clearing = false;
+let mutationGeneration = 0;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let initPromise: Promise<void> | null = null;
 
@@ -118,7 +122,19 @@ function idbGet(db: IDBDatabase): Promise<DBShape | undefined> {
 function idbPut(db: IDBDatabase, value: DBShape): Promise<void> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, 'readwrite');
-    tx.objectStore(STORE).put(value, KEY);
+    const store = tx.objectStore(STORE);
+    const req = store.get(KEY);
+    req.onsuccess = () => {
+      const latest = req.result as DBShape | undefined;
+      // An ordinary save from another tab must not roll back quest state or its immutable archives.
+      if (!clearing && latest?.quest_data) {
+        if (latest.quest_data.revision > (value.quest_data?.revision ?? 0)) value.quest_data = latest.quest_data;
+        // Preserve settled rows even when an asynchronous reader carries the same ledger revision.
+        for (const task of latest.tasks.filter(t => t.id.startsWith('quest_archive_'))) if (!value.tasks.some(t => t.id === task.id)) value.tasks.push(task);
+        for (const record of latest.focus_records.filter(r => r.id.startsWith('quest_focus_'))) if (!value.focus_records.some(r => r.id === record.id)) value.focus_records.push(record);
+      }
+      store.put(value, KEY);
+    };
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
@@ -157,6 +173,7 @@ export function getDB(): DBShape {
 /** 修改数据并调度落盘 */
 export function mutate<T>(fn: (d: DBShape) => T): T {
   const out = fn(data);
+  mutationGeneration++;
   scheduleSave();
   return out;
 }
@@ -171,6 +188,7 @@ export async function flush(): Promise<void> {
   if (memoryOnly || !idb) return;
   try {
     await idbPut(idb, data);
+    clearing = false;
   } catch {
     memoryOnly = true;
   }
@@ -178,6 +196,7 @@ export async function flush(): Promise<void> {
 
 /** 清空业务数据：保留/重建默认用户，写入 demo_seeded 标记避免下次启动重新播种 */
 function clearToFactory(): void {
+  clearing = true;
   data = buildSeed({ empty: true });
   data.settings.push({ key: 'demo_seeded', value: '1' });
   scheduleSave();
@@ -218,4 +237,67 @@ export function setSetting(key: string, value: string): void {
     if (row) row.value = value;
     else d.settings.push({ key, value });
   });
+}
+
+
+/** CAS plus ordinary archives use a single durable IndexedDB transaction; no schema/version reset. */
+export async function loadQuestData(): Promise<QuestData> {
+  await initDB();
+  await flush();
+  if (idb && !memoryOnly) {
+    const latest = await idbGet(idb);
+    if (latest?.quest_data && latest.quest_data.revision >= (data.quest_data?.revision ?? 0)) {
+      data.quest_data = latest.quest_data;
+      for (const task of latest.tasks.filter(t => t.id.startsWith('quest_archive_'))) if (!data.tasks.some(t => t.id === task.id)) data.tasks.push(normalizeTask(task));
+      for (const record of latest.focus_records.filter(r => r.id.startsWith('quest_focus_'))) if (!data.focus_records.some(r => r.id === record.id)) data.focus_records.push(record);
+    }
+  }
+  return structuredClone(data.quest_data ?? initialQuests());
+}
+export async function commitQuestData(expectedRevision: number, next: QuestData): Promise<QuestData> {
+  await initDB();
+  await flush();
+  const apply = (snapshot: DBShape): DBShape => {
+    const before = snapshot.quest_data ?? initialQuests();
+    if (before.revision !== expectedRevision) throw new Error('quest.conflict');
+    validateQuestTransition(before, next, Date.now());
+    const archives = questArchives(before, next);
+    const out = structuredClone(snapshot);
+    out.quest_data = structuredClone(next);
+    out.tasks.push(...archives.tasks);
+    out.focus_records.push(...archives.records);
+    return out;
+  };
+  if (!idb || memoryOnly) throw new Error('quest.storageUnavailable');
+  const baseline = structuredClone(data);
+  const generation = mutationGeneration;
+  await new Promise<void>((resolve, reject) => {
+    const tx = idb!.transaction(STORE, 'readwrite');
+    const store = tx.objectStore(STORE);
+    let committed: DBShape;
+    const req = store.get(KEY);
+    req.onsuccess = () => {
+      try { committed = apply(req.result as DBShape); store.put(committed, KEY); }
+      catch (error) { tx.abort(); reject(error); }
+    };
+    tx.oncomplete = () => {
+      if (generation !== mutationGeneration) {
+        // Ordinary edits made while the transaction was pending must survive its completion.
+        for (const key of Object.keys(baseline) as (keyof DBShape)[]) {
+          if (key !== 'quest_data' && JSON.stringify(data[key]) !== JSON.stringify(baseline[key])) {
+            (committed as unknown as Record<string, unknown>)[key] = structuredClone(data[key]);
+          }
+        }
+        const archives = questArchives(baseline.quest_data ?? initialQuests(), next);
+        for (const task of archives.tasks) if (!committed.tasks.some(t => t.id === task.id)) committed.tasks.push(task);
+        for (const record of archives.records) if (!committed.focus_records.some(r => r.id === record.id)) committed.focus_records.push(record);
+        scheduleSave();
+      }
+      data = committed;
+      resolve();
+    };
+    tx.onerror = () => reject(tx.error ?? new Error('quest.saveFailed'));
+    tx.onabort = () => reject(tx.error ?? new Error('quest.saveFailed'));
+  });
+  return structuredClone(next);
 }

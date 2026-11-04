@@ -46,6 +46,7 @@ step() {
 step_typecheck() { npx tsc --noEmit; }
 step_parity() { bash tools/check-runtime-parity.sh; }
 step_seed() { npx tsx tools/verify-data.ts > /tmp/check-all-seed.log 2>&1 && tail -1 /tmp/check-all-seed.log; }
+step_quests() { node tools/verify-quests.mjs; }
 step_timer() { npx tsx tools/verify-timer.ts > /tmp/check-all-timer.log 2>&1 && tail -1 /tmp/check-all-timer.log; }
 step_tray() { node tools/verify-tray.mjs; }
 step_build_cli() { node --test tools/verify-tauri-cli.mjs; }
@@ -82,6 +83,7 @@ step_shots() {
   node tools/shoot.mjs
 }
 
+step "任务看板生命周期" step_quests
 step "类型检查 tsc --noEmit" step_typecheck
 step "运行时一致性红线（UI 禁直连 db）" step_parity
 step "种子数据口径（PRD §7.2 / verify-data.ts）" step_seed

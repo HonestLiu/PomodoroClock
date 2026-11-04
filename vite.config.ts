@@ -16,6 +16,7 @@ export default defineConfig({
   },
   build: {
     target: 'safari15',
+    rollupOptions: { input: { main: path.resolve(__dirname, 'index.html'), orb: path.resolve(__dirname, 'orb.html') } },
     outDir: 'dist',
     emptyOutDir: true,
   },

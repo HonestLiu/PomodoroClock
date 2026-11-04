@@ -1,3 +1,4 @@
+import { pickSelect, pickDate } from './ui-controls.mjs';
 // 运行前启动 Vite dev：APP_URL=http://127.0.0.1:5174 node tools/verify-report-ui.mjs
 import { strict as assert } from 'node:assert';
 import { chromium } from '/Users/lc/Develop/MyPageHome/node_modules/playwright/index.mjs';
@@ -32,7 +33,7 @@ try {
   await radio('日').check();
   assert.equal(await page.locator('.rpt-chart-column').count(), 24);
   await radio('月').check();
-  await page.locator('.rpt-date input').fill('2026-01-31');
+  await pickDate(page.locator('.rpt-date input'), '2026-01-31');
   assert.equal(await page.locator('.rpt-chart-column').count(), 31);
   await page.locator('.rpt-range button').last().click();
   assert.equal(await page.locator('.rpt-date input').inputValue(), '2026-02-01');
@@ -62,9 +63,9 @@ try {
   await page.locator('.rpt-close').click();
   await page.locator('.titlebar-actions .icon-btn').nth(5).click();
   await page.getByRole('tab', { name: '外观', exact: true }).click();
-  await page.locator('.settings-pane select:has(option[value=dark])').selectOption('dark');
+  await pickSelect(page.locator('.settings-pane select:has(option[value=dark])'), 'dark');
   await page.getByRole('tab', { name: '通用', exact: true }).click();
-  await page.locator('.settings-pane select:has(option[value=en])').selectOption('en');
+  await pickSelect(page.locator('.settings-pane select:has(option[value=en])'), 'en');
   await page.getByRole('tab', { name: 'General', exact: true }).waitFor();
   await page.locator('.settings-close').click();
   await page.locator('.titlebar-actions .icon-btn').nth(4).click();

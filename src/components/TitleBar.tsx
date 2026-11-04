@@ -3,6 +3,7 @@
 // Windows/Linux 使用 decorations:false + 本组自绘按钮。
 
 import { Crown, Bell, Trophy, BarChart3, Settings as SettingsIcon, Sparkles } from 'lucide-react';
+import { useTimerStore } from '@/stores/timerStore';
 import { useUiStore } from '@/stores/uiStore';
 import { useDataStore, unreadCount } from '@/stores/dataStore';
 import { isTauri } from '@/api';
@@ -40,6 +41,7 @@ export function TitleBar() {
   const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform);
   const { t } = useI18n();
   const growth = useGrowthStore((s) => s.data);
+  const openScreen = useTimerStore((s) => s.openScreen);
 
   return (
     <div className={`titlebar${isMac ? ' macos' : ''}`} data-tauri-drag-region>
@@ -55,13 +57,13 @@ export function TitleBar() {
       <div className="titlebar-drag" data-tauri-drag-region />
 
       <div className="titlebar-actions">
-        {/* 番茄钟小窗入口：关掉悬浮窗后可从右上角一键唤回（2026-10-29 用户需求） */}
+        {/* 专注面板始终可从应用内进入，不依赖桌面悬浮计时器。 */}
         <button
-          className={`icon-btn${ui.floatVisible ? ' active' : ''}`}
-          title={ui.floatVisible ? t('title.pomodoroHide') : t('title.pomodoro')}
-          aria-label={ui.floatVisible ? t('title.pomodoroHide') : t('title.pomodoro')}
-          aria-pressed={ui.floatVisible}
-          onClick={() => ui.setFloatVisible(!ui.floatVisible)}
+          type="button"
+          className="icon-btn"
+          title={t('tray.openTimer')}
+          aria-label={t('tray.openTimer')}
+          onClick={() => openScreen(true)}
         >
           <TomatoIcon />
         </button>

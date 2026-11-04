@@ -8,7 +8,7 @@ import type { Countdown } from '@/types';
 import { DEFAULT_SETTINGS } from '@/types';
 import { tStatic } from '@/i18n/store';
 import {
-  flush, getDB, getSettings, initDB, mutate, setSetting, settingsMap, wipeDB,
+  commitQuestData, loadQuestData, flush, getDB, getSettings, initDB, mutate, setSetting, settingsMap, wipeDB,
 } from '@/db/idb';
 import {
   categoryFocusMinutes, completedGroups, computeStats, dailyFocusMap, listDistribution,
@@ -45,6 +45,12 @@ function validateCountdown(args: CreateCountdownArgs): void {
 }
 
 export const localApi: Api = {
+  quest_load: loadQuestData,
+  async quest_commit(expectedRevision, next) {
+    const saved = await commitQuestData(expectedRevision, next);
+    broadcastDataChanged('quests');
+    return saved;
+  },
   async take_widget_launch() { return false; },
   async get_user() {
     await ready();
@@ -437,6 +443,7 @@ export const localApi: Api = {
   },
 
   async update_task(id, patch: UpdateTaskPatch) {
+    if (id.startsWith('quest_archive_')) throw new Error('quest.archiveLocked');
     await ready();
     const clean: UpdateTaskPatch = { ...patch };
     if (clean.title !== undefined) {
@@ -459,6 +466,7 @@ export const localApi: Api = {
   },
 
   async toggle_task(id) {
+    if (id.startsWith('quest_archive_')) throw new Error('quest.archiveLocked');
     await ready();
     const out = mutate((d) => {
       const t = d.tasks.find((x) => x.id === id);
@@ -486,6 +494,7 @@ export const localApi: Api = {
   },
 
   async delete_task(id) {
+    if (id.startsWith('quest_archive_')) throw new Error('quest.archiveLocked');
     await ready();
     mutate((d) => {
       d.tasks = d.tasks.filter((t) => t.id !== id);
@@ -496,6 +505,7 @@ export const localApi: Api = {
   },
 
   async create_focus_record(args: CreateRecordArgs) {
+    if (args.taskId?.startsWith('quest-attempt:') || args.taskId?.startsWith('quest_archive_')) throw new Error('quest.archiveLocked');
     await ready();
     if (args.endAt < args.startAt) throw new Error(tStatic('err.endBeforeStart'));
     const out = mutate((d) => {

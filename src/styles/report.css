@@ -167,7 +167,6 @@
 .rpt-empty-note p { font-size: 11px; color: var(--rpt-muted); margin: 6px 0 0; line-height: 1.7; }
 .rpt-modal :focus-visible { outline: 2px solid var(--accent-focus); outline-offset: 3px; }
 .rpt-modal .rpt-body:focus-visible { outline-offset: -3px; }
-.app:has(.rpt-modal) .float-win { visibility: hidden; pointer-events: none; }
 @container focus-report (max-width: 790px) {
   .rpt-overview-layout { grid-template-columns: minmax(0, 1fr); }
   .rpt-goal-aside .rpt-goal-panel { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 20px; }

@@ -466,7 +466,7 @@ input:focus:not(:focus-visible), textarea:focus:not(:focus-visible) {
 .batch-field { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); }
 .batch-field .text-input, .batch-field .num-input { height: 26px; width: auto; min-width: 92px; font-size: 12px; }
 .batch-field .text-input[type='date'] { min-width: 118px; }
-.batch-field select { max-width: 110px; }
+.batch-field .app-select { max-width: 110px; }
 .batch-toggle { display: inline-flex; gap: 4px; }
 .batch-toggle .chip { padding: 4px 9px; font-size: 11.5px; }
 
@@ -589,7 +589,7 @@ input:focus:not(:focus-visible), textarea:focus:not(:focus-visible) {
   animation: fade .14s ease-out;
 }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
-@keyframes pop { from { opacity: 0; transform: translateY(6px) scale(.99); } to { opacity: 1; transform: none; } }
+@keyframes pop { from { opacity: 0; } to { opacity: 1; } }
 
 .modal {
   background: var(--bg-card);
@@ -991,10 +991,21 @@ input::-ms-reveal, input::-ms-clear { display: none; }
 .timer-bg::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.22), rgba(0,0,0,.12) 40%, rgba(0,0,0,.34)); }
 
 .timer-top {
-  position: relative; z-index: 2;
+  position: relative; z-index: 4;
   display: flex; justify-content: center; align-items: flex-start;
   padding: 20px 22px 0;
 }
+.timer-top-controls { display: flex; align-items: center; gap: 10px; min-width: 0; max-width: calc(100% - 88px); }
+.timer-top-controls .timer-task { min-width: 0; width: 260px; }
+.timer-float-toggle {
+  flex: 0 0 36px; width: 36px; height: 36px; border-radius: 50%;
+  display: grid; place-items: center; color: #fff;
+  background: rgba(255,255,255,.16); backdrop-filter: blur(14px);
+  border: 1px solid rgba(255,255,255,.22);
+}
+.timer-float-toggle:hover { background: rgba(255,255,255,.28); }
+.timer-float-toggle.on { background: rgba(255,255,255,.9); color: #1a1a1a; }
+.timer-float-toggle:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .timer-top .timer-close { position: absolute; top: 18px; right: 22px; }
 .timer-task {
   display: flex; align-items: center; gap: 10px;
@@ -1096,53 +1107,6 @@ input::-ms-reveal, input::-ms-clear { display: none; }
 .timer-tool.on { background: rgba(255,255,255,.9); color: #1a1a1a; border-color: transparent; }
 
 .vol-slider { width: 90px; accent-color: #fff; }
-
-/* ── 悬浮番茄小窗（FR-G4） ───────────────────────────────── */
-
-.float-win {
-  position: fixed; right: 22px; bottom: 22px; z-index: 150;
-  width: 200px; height: 118px;
-  border-radius: 12px; overflow: hidden;
-  box-shadow: 0 10px 34px rgba(0,0,0,.26);
-  cursor: grab;
-  border: 1px solid rgba(255,255,255,.24);
-  background-size: cover; background-position: center;
-}
-.float-win:active { cursor: grabbing; }
-.float-inner {
-  position: absolute; inset: 0;
-  background: linear-gradient(180deg, rgba(0,0,0,.16), rgba(0,0,0,.42));
-  padding: 10px 12px;
-  display: flex; flex-direction: column; justify-content: space-between;
-  color: #fff;
-}
-.float-task { font-size: 12.5px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.float-bottom { display: flex; align-items: flex-end; justify-content: space-between; }
-.float-count { font-size: 26px; font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1; }
-.float-count small { font-size: 11px; opacity: .8; display: block; font-weight: 400; margin-top: 2px; }
-.float-play {
-  width: 32px; height: 32px; border-radius: 50%;
-  background: rgba(255,255,255,.92); color: #1a1a1a;
-  display: grid; place-items: center;
-  transition: transform .12s;
-}
-.float-play:hover { transform: scale(1.06); }
-.float-close {
-  position: absolute; top: 6px; right: 6px;
-  width: 20px; height: 20px; border-radius: 50%;
-  background: rgba(0,0,0,.34); color: #fff;
-  display: grid; place-items: center; opacity: 0;
-  transition: opacity .12s;
-}
-.float-expand {
-  position: absolute; top: 6px; right: 30px;
-  width: 20px; height: 20px; border-radius: 50%;
-  background: rgba(0,0,0,.34); color: #fff;
-  display: grid; place-items: center; opacity: 0;
-  transition: opacity .12s;
-}
-.float-win:hover .float-close,
-.float-win:hover .float-expand { opacity: 1; }
 
 /* ── 搜索覆盖层（FR-S） ──────────────────────────────────── */
 
@@ -1563,3 +1527,35 @@ input::-ms-reveal, input::-ms-clear { display: none; }
 
 /* 徽标弱化态（关于页：未连接/未配置） */
 .acct-badge.muted { color: var(--text-3); }
+
+/* 专注页任务菜单：固定宽度避免长标题撑开顶部，菜单跟随背景使用深色玻璃。 */
+.focus-task-picker { position: relative; flex: 1; min-width: 0; }
+.focus-task-trigger {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  color: inherit; font: inherit; text-align: left;
+}
+.focus-task-trigger > span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.focus-task-trigger > svg { flex-shrink: 0; opacity: .7; transition: transform .15s; }
+.focus-task-trigger > svg.expanded { transform: rotate(180deg); }
+.focus-task-trigger:disabled { cursor: default; opacity: .75; }
+.focus-task-trigger:focus-visible { outline: 2px solid #fff; outline-offset: 4px; border-radius: 3px; }
+.focus-task-options {
+  position: absolute; z-index: 5; top: calc(100% + 18px); left: -30px;
+  width: calc(100% + 44px); max-height: min(320px, 50vh); overflow-y: auto;
+  padding: 5px; border-radius: 12px; border: 1px solid rgba(255,255,255,.2);
+  background: rgba(27,35,43,.96); backdrop-filter: blur(24px);
+  box-shadow: 0 12px 36px rgba(0,0,0,.28); color: #fff;
+  scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.3) transparent;
+  overscroll-behavior: contain;
+}
+.focus-task-options > button {
+  width: 100%; display: flex; align-items: center; gap: 12px; padding: 10px;
+  border-radius: 7px; text-align: left; font-size: 13px; color: inherit;
+}
+.focus-task-options > button > span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.focus-task-options > button > svg { flex-shrink: 0; visibility: hidden; }
+.focus-task-options > button[aria-selected="true"] { background: rgba(255,255,255,.1); }
+.focus-task-options > button[aria-selected="true"] > svg { visibility: visible; }
+.focus-task-options > button:hover, .focus-task-options > button:focus-visible {
+  background: rgba(255,255,255,.18); outline: none;
+}

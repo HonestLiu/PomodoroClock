@@ -105,7 +105,7 @@ PRD §8.6/`01-vision.md` 把云同步列为非目标；当前实现作为**可�
 - Windows/Linux：`tauri.windows.conf.json` / `tauri.linux.conf.json` 覆盖为 `decorations:false`，自绘红黄绿按钮（`components/TitleBar.tsx`）。
 
 ## 工程化约定
-- **样式资源用 data URI 时必须写 `url("…")`（带引号）**：Vite 内联 SVG 会保留 `xmlns='http://…'` 的单引号，未加引号的 `url(...)` 会被 CSS 整条丢弃且**无报错**（曾致专注页/悬浮窗壁纸静默失效，见 `TimerScreen.tsx`、`FloatWindow.tsx` 的 `backgroundImage`）。
+- **样式资源用 data URI 时必须写 `url("…")`（带引号）**：Vite 内联 SVG 会保留 `xmlns='http://…'` 的单引号，未加引号的 `url(...)` 会被 CSS 整条丢弃且**无报错**（曾致专注页/悬浮窗壁纸静默失效，见 `TimerScreen.tsx` 的 `backgroundImage`；旧 FloatWindow 已被独立桌面悬浮球替代）。
 - **验收入口**：`bash tools/check-all.sh [--with-shots|--skip-build]`；注意 4173 预览服务的是 `dist/`，改源码后必须先 `vite build`（`--with-shots` 会自动复用/启动 preview）。
 - 新增命令：`types.ts` 加签名 → Rust 加 `#[tauri::command]` → `local.ts` + `tauri.ts` 双实现 → `lib.rs` 注册 → 变更命令包 `broadcastDataChanged`。
 - 新增表/字段：`db.rs::SCHEMA` 迁移 + `db/` TS 表定义 + 两端首启种子（`buildSeed`/`seed_demo` 同步）+ 双校验。

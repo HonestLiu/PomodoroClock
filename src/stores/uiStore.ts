@@ -10,7 +10,8 @@ export type Route =
   | { name: 'list'; id: string }
   | { name: 'calendar' }
   | { name: 'countdown' }
-  | { name: 'ai' };
+  | { name: 'ai' }
+  | { name: 'quests' };
 
 export type SettingsTab = 'account' | 'premium' | 'general' | 'pomodoro' | 'lists' | 'appearance' | 'about';
 

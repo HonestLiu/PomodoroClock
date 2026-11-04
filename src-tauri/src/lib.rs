@@ -7,6 +7,7 @@ pub mod error;
 pub mod models;
 pub mod timer_engine;
 pub mod widgets;
+pub mod orb;
 
 use tauri::{Emitter, Manager};
 use tauri::menu::{AboutMetadata, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
@@ -91,6 +92,7 @@ fn setup_app_menu(app: &tauri::App) -> tauri::Result<()> {
 pub fn run() {
     tauri::Builder::default()
         .manage(widgets::WidgetLaunch::default())
+        .manage(orb::OrbCache::default())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
@@ -167,7 +169,21 @@ pub fn run() {
                 let _ = app.emit("menu://command", id.to_string());
             }
         })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" {
+                    // Keep the sole timer owner alive while the desktop orb/tray is in use.
+                    api.prevent_close();
+                    let _ = window.hide();
+                } else if window.label() == "desktop-orb" {
+                    api.prevent_close();
+                    let _ = window.hide();
+                    let _ = window.app_handle().emit_to("main", "orb://action", "hide");
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
+            orb::orb_set_visible, orb::orb_publish, orb::orb_snapshot, orb::orb_action, orb::orb_save_position,
             // 用户
             commands::user::get_user,
             commands::user::update_user,
@@ -216,6 +232,8 @@ pub fn run() {
             commands::stats::get_task_durations,
             commands::stats::get_list_distribution,
             // 设置与计时
+            commands::quests::quest_load,
+            commands::quests::quest_commit,
             commands::settings::get_settings,
             commands::settings::set_setting,
             commands::settings::get_timer_state,
@@ -241,6 +259,12 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building FocusPomodoro")
         .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if matches!(&event, tauri::RunEvent::Reopen { .. }) {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.unminimize(); let _ = window.show(); let _ = window.set_focus();
+                }
+            }
             #[cfg(target_os = "macos")]
             if let tauri::RunEvent::Opened { urls } = event {
                 if urls.iter().any(|url| url.scheme() == "focuspomodoro" && url.host_str() == Some("timer")) {

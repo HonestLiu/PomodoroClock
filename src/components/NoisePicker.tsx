@@ -115,6 +115,7 @@ export function NoisePicker() {
             style={{ ['--noise-pct' as string]: `${Math.round(volume * 100)}%` } as React.CSSProperties}
             onChange={(e) => onVolume(Number(e.target.value))}
           />
+          <output className="noise-volume-value">{Math.round(volume * 100)}%</output>
         </div>
 
         <div

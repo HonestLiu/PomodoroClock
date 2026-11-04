@@ -1,3 +1,5 @@
+import { activeAttempt, isQuestBinding } from '@/lib/quests/model';
+import { useQuestStore } from '@/stores/questStore';
 // 番茄钟状态机 —— PRD §7.1 / §8.8。
 // 计时基于绝对时间戳（end_at），前端仅负责渲染 remaining = end_at - now。
 
@@ -47,6 +49,7 @@ interface TimerStoreState {
   reset(): void;
   stop(): void;
 
+  finishQuestSession(binding: string): Promise<void>;
   setTask(taskId: string | null): void;
   setMode(mode: TimerMode): void;
 
@@ -162,11 +165,13 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
   },
 
   setSettings(settings) {
+    const previous = get().settings;
     set({ settings });
     // 专注/休息时长被改动后，未开始的会话要按新时长重算剩余，否则 start() 会用
     // 旧 paused_remaining_ms（旧时长）启动，设置里的时长改动不生效（PRD FR-S4）。
     const { state } = get();
-    if (!expiryBusy && !state.running && state.phase === 'idle') {
+    if (!expiryBusy && !state.running && state.phase === 'idle'
+      && idleDurationFor(state.mode, previous) !== idleDurationFor(state.mode, settings)) {
       const next = idlePhase(state, 'focus', idleDurationFor(state.mode, settings));
       set({ state: next });
       void api.set_timer_state(next);
@@ -180,6 +185,7 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
   start() {
     if (expiryBusy) return;
     const { state } = get();
+    if (isQuestBinding(state.task_id) && !activeAttempt(useQuestStore.getState().data, state.task_id, Date.now())) return;
     const dur = get().durationFor(state.phase === 'idle' ? 'focus' : state.phase);
     const next: TimerState = {
       ...startState(state, dur, Date.now()),
@@ -204,6 +210,7 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
     if (expiryBusy) return;
     const { state } = get();
     if (state.running) return;
+    if (isQuestBinding(state.task_id) && !activeAttempt(useQuestStore.getState().data, state.task_id, Date.now())) return;
     const next = startState(state, get().durationFor(state.phase), Date.now());
     set({ state: next, now: Date.now() });
     void api.set_timer_state(next);
@@ -286,8 +293,25 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
     emit('timer://state-changed', next);
   },
 
+  async finishQuestSession(binding) {
+    if (get().state.task_id !== binding) return;
+    if (expiryBusy) throw new Error('quest.timerBusy');
+    expiryBusy = true;
+    set({ settling: true });
+    try {
+      const { state, settings } = get();
+      if (state.phase === 'focus' && state.start_at !== null) await recordSkippedFocus(state);
+      const next = idlePhase({ ...state, task_id: null }, 'idle', idleDurationFor(state.mode, settings));
+      set({ state: next });
+      await api.set_timer_state(next);
+      emit('timer://state-changed', next);
+    } finally { expiryBusy = false; set({ settling: false }); }
+  },
+
   setTask(taskId) {
     if (expiryBusy) return;
+    const current = get().state;
+    if (current.task_id !== taskId && isQuestBinding(current.task_id) && current.start_at !== null) return;
     const next = { ...get().state, task_id: taskId };
     set({ state: next });
     void api.set_timer_state(next);
@@ -307,6 +331,13 @@ export const useTimerStore = create<TimerStoreState>((set, get) => ({
     if (expiryBusy) return;
     const { state } = get();
     const now = Date.now();
+    if (isQuestBinding(state.task_id) && !activeAttempt(useQuestStore.getState().data, state.task_id, now)) {
+      const next = idlePhase({ ...state, task_id: null }, 'idle', idleDurationFor(state.mode, get().settings));
+      set({ state: next });
+      await api.set_timer_state(next);
+      emit('timer://state-changed', next);
+      return;
+    }
     if (!isExpired(state, now)) {
       // 运行中定期落盘，保证崩溃/强退后可恢复（PRD §8.8-1）
       if (state.running && ++persistCounter % 40 === 0) void api.set_timer_state(state);
@@ -415,7 +446,7 @@ async function finalizeFocus(state: TimerState, settings: Settings): Promise<boo
   const startAt = state.start_at ?? endAt - settings.focus_len_min * 60_000;
   const durationMin = Math.round((endAt - startAt) / 60_000);
   if (durationMin < 1) return false;
-  await api.create_focus_record({
+  await saveFocusRecord({
     taskId: state.task_id,
     startAt,
     endAt,
@@ -443,7 +474,7 @@ async function recordSkippedFocus(state: TimerState): Promise<boolean> {
   const durationMin = Math.round(activeMs / 60_000);
   if (durationMin < 1) return false;
   const endAt = state.running ? now : (state.start_at as number) + activeMs;
-  await api.create_focus_record({
+  await saveFocusRecord({
     taskId: state.task_id,
     startAt: state.start_at as number,
     endAt,
@@ -456,4 +487,17 @@ async function notify(type: string, title: string, body: string, settings: Setti
   await api.create_notification({ type, title, body });
   if (!settings.notify_enabled || !settings.system_notify) return;
   if (await ensureSystemPermission()) systemNotify(title, body);
+}
+
+
+async function saveFocusRecord(args: { taskId: string | null; startAt: number; endAt: number; durationMin: number }): Promise<void> {
+  if (isQuestBinding(args.taskId)) {
+    // Stable segment identity survives tick/restart retries. Never create a dangling ordinary record.
+    await useQuestStore.getState().stage(args.taskId!, {
+      id: `${args.taskId}:${args.startAt}:${args.endAt}`,
+      startAt: args.startAt, endAt: args.endAt, durationMin: args.durationMin,
+    });
+    return;
+  }
+  await api.create_focus_record(args);
 }
