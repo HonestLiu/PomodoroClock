@@ -1,5 +1,5 @@
 // 倒数纪念日命令 —— 独立于任务的数据域（docs/05-modules/countdown.md）
-// 本地优先，不参与 PocketBase 数据同步（与 settings/goals 同属轻量本地表）。
+// 保存在本地表，由账号配置快照负责跨设备同步。
 
 use rusqlite::{params, OptionalExtension};
 use tauri::State;
@@ -69,6 +69,21 @@ pub fn list_countdowns_impl(conn: &rusqlite::Connection) -> AppResult<Vec<Countd
     ))?;
     let rows = stmt.query_map([], row_to_cd)?;
     Ok(rows.collect::<Result<Vec<_>, _>>()?)
+}
+
+#[tauri::command]
+pub fn replace_countdowns(db: State<'_, Db>, items: Vec<Countdown>) -> AppResult<()> {
+    if items.len() > 5000 { return Err(AppError::msg("倒数纪念日数量超限")); }
+    let mut conn = db.0.lock();
+    let tx = conn.transaction()?;
+    tx.execute("DELETE FROM countdowns", [])?;
+    for c in items {
+        validate(&c.title, &c.date, &c.kind, &c.repeat, c.interval_days)?;
+        tx.execute("INSERT INTO countdowns (id,title,date,kind,repeat,interval_days,note,color,icon,pinned,remind_enabled,remind_days,reminded_at,sort_order,created_at,updated_at) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)",
+            params![c.id,c.title,c.date,c.kind,c.repeat,c.interval_days,c.note,c.color,c.icon,c.pinned,c.remind_enabled,c.remind_days,c.reminded_at,c.sort_order,c.created_at,c.updated_at])?;
+    }
+    tx.commit()?;
+    Ok(())
 }
 
 #[tauri::command]

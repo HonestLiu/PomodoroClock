@@ -4,6 +4,18 @@
 
 技术栈：**Tauri 2.x（Rust + SQLite） + React 19 + TypeScript + Vite**。
 
+<p align="center">
+  <img src="docs/images/app-icon.png" alt="FocusPomodoro 应用图标" width="120">
+</p>
+
+FocusPomodoro 是一款将番茄专注、任务管理与成长奖励结合起来的桌面应用。支持 macOS、Windows、Linux 桌面运行，也可在浏览器中使用。
+
+### 应用截图
+
+| 应用首页 | 专注报表 | 奖励中心 |
+| --- | --- | --- |
+| <img src="docs/images/home.png" alt="应用首页" width="100%"> | <img src="docs/images/focus-report.png" alt="专注报表" width="100%"> | <img src="docs/images/rewards-center.png" alt="奖励中心" width="100%"> |
+
 ---
 
 ## 快速开始
@@ -160,6 +172,8 @@ cd src-tauri && cargo test --test queries                           # Rust 统�
 ## 文档索引
 
 完整规格与开发文档见 `docs/`（入口 `docs/00-README.md`）：
+
+Flutter 移动端开发的独立文档集见 [`mobile-docs/`](mobile-docs/README.md)，包含 Codex 实现指令、桌面功能对照、同步契约、工程架构、阶段计划和验收矩阵。
 
 | 文档 | 内容 |
 | --- | --- |

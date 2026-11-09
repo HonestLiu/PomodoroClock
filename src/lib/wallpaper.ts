@@ -3,7 +3,7 @@
 // 数据布局：
 //   - settings.wallpaper  = 当前生效值：内置 `waves`，自定义选中为 `custom:<文件名>`
 //   - settings.wallpapers = JSON 字符串，数组 [{ name: 文件名, data: dataURI }]，供列表/删除/选中用
-// 云同步不携带这两块（大体积 dataURI 不应塞进 configs.data），跨设备仅同步内置背景。
+// 账号配置同步会携带这两块，便于不同设备共享自定义背景。
 //
 // 历史兼容：旧版本把 dataURI 直接内联进 wallpaper（`custom:data:image/…`），
 // resolve 在文件名查不到时会原样放回，保证升级不丢旧图。

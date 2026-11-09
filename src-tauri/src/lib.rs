@@ -202,6 +202,7 @@ pub fn run() {
             commands::lists::set_list_icon,
             // 倒数纪念日（独立数据域，本地优先）
             commands::countdown::list_countdowns,
+            commands::countdown::replace_countdowns,
             commands::countdown::create_countdown,
             commands::countdown::update_countdown,
             commands::countdown::delete_countdown,
@@ -234,6 +235,7 @@ pub fn run() {
             // 设置与计时
             commands::quests::quest_load,
             commands::quests::quest_commit,
+            commands::quests::quest_apply_remote,
             commands::settings::get_settings,
             commands::settings::set_setting,
             commands::settings::get_timer_state,
@@ -247,6 +249,7 @@ pub fn run() {
             commands::sync::sync_reset_rows,
             // 通知
             commands::notify::list_notifications,
+            commands::notify::replace_notifications,
             commands::notify::create_notification,
             commands::notify::mark_notif_read,
             commands::notify::mark_all_notifs_read,

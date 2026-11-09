@@ -82,6 +82,8 @@ const COLLECTIONS = (usersCollectionId) => [
       n('reminded_at'),
       n('completed'),
       n('completed_at'),
+      n('actual_minutes'),
+      t('parent_id'),
       n('sort_order'),
     ],
   },

@@ -111,6 +111,8 @@ export interface TrayMenuSnapshot {
 export interface Api {
   quest_load(): Promise<QuestData>;
   quest_commit(expectedRevision: number, next: QuestData): Promise<QuestData>;
+  quest_apply_remote(data: QuestData): Promise<void>;
+  replace_notifications(items: Notification[]): Promise<void>;
   get_user(): Promise<User>;
   update_user(patch: Partial<Pick<User, 'username' | 'email' | 'avatar_path'>>): Promise<User>;
   pick_avatar(): Promise<string | null>;
@@ -171,6 +173,7 @@ export interface Api {
   mark_all_notifs_read(): Promise<void>;
 
   list_countdowns(): Promise<Countdown[]>;
+  replace_countdowns(items: Countdown[]): Promise<void>;
   create_countdown(args: CreateCountdownArgs): Promise<Countdown>;
   update_countdown(id: string, args: CreateCountdownArgs): Promise<Countdown>;
   delete_countdown(id: string): Promise<void>;

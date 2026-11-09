@@ -10,7 +10,7 @@
   - 两态共用卡外「本地数据」区（删除数据；已登录时多一行「删除后本地配置恢复默认，并可能自动上传覆盖云端」）。
   - 已移除：**旧的本地**头像上传、旧的「编辑资料」整表单（昵称/邮箱/座右铭一起改）、本地改密码表单、云同步独立小区块（`SettingsModal.tsx::AccountPane`，账号 tab 直接渲染它）；现头像为云端账号头像、昵称可就地改、邮箱只读（见下）。
 - ✅ i18n 中/英切换即时生效（外观页语言下拉：`patch('language')` + `useI18nStore.setLang`）；深色主题写 `data-theme` 并全屏可用。
-- ✅ **外观页专注背景 = 自绘下拉框**（2026-10-29 用户需求，**不用原生 `<select>`**）：触发器撑满字段行（右侧留出「上传图片」按钮的位置），显示当前背景的缩略图 + 名称（**去扩展名**，过长才省略）+ 箭头；点开弹出的**下拉面板**逐项列出内置「海浪」与全部自定义图——每行左缩略图、中文件名（去扩展名）、选中行打勾；点某项即切换并收起。自定义行**行尾就是垃圾桶**，点一下直接删除（删的是当前选中项则自动回落内置海浪）。面板 `position:fixed` 相对触发器定位（设置面板自身 `overflow-y:auto` 会裁剪绝对定位子元素），打开后量尺寸贴边翻转、点外/Esc/窗口缩放或面板外滚动即收起。上传支持多选批量添加，存去扩展名后的名字、重名加 `(2)(3)` 后缀（`lib/wallpaper.ts::wallpaperDisplayName`）。数据仍走 `lib/wallpaper.ts`（`parseWallpapers/serializeWallpapers/resolveCustomWallpaper`），选中值写 `wallpaper = custom:<名字>`，列表存 `settings.wallpapers`(JSON)；历史内联 `custom:data:…` 兼容回放。大体积 dataURI **不同步云端**。
+- ✅ **外观页专注背景 = 自绘下拉框**（2026-10-29 用户需求，**不用原生 `<select>`**）：触发器撑满字段行（右侧留出「上传图片」按钮的位置），显示当前背景的缩略图 + 名称（**去扩展名**，过长才省略）+ 箭头；点开弹出的**下拉面板**逐项列出内置「海浪」与全部自定义图——每行左缩略图、中文件名（去扩展名）、选中行打勾；点某项即切换并收起。自定义行**行尾就是垃圾桶**，点一下直接删除（删的是当前选中项则自动回落内置海浪）。面板 `position:fixed` 相对触发器定位（设置面板自身 `overflow-y:auto` 会裁剪绝对定位子元素），打开后量尺寸贴边翻转、点外/Esc/窗口缩放或面板外滚动即收起。上传支持多选批量添加，存去扩展名后的名字、重名加 `(2)(3)` 后缀（`lib/wallpaper.ts::wallpaperDisplayName`）。数据仍走 `lib/wallpaper.ts`（`parseWallpapers/serializeWallpapers/resolveCustomWallpaper`），选中值写 `wallpaper = custom:<名字>`，列表存 `settings.wallpapers`(JSON)；历史内联 `custom:data:…` 兼容回放。自定义图现在随账号配置快照同步。
 - ✅ 外观页白噪音行＝「选择白噪音」按钮 + 当前值提示（`音色 · 音量%`）——点开的是全局选择弹窗（见 `03-architecture.md` §白噪音选择弹窗），不再是下拉框；「专注时播放/休息时播放」两个开关仍在。
 - ✅ 通知两开关（应用内 / 系统）、番茄钟时长与自动下一轮真实生效。
 - ✅ 通用页「启动页」下拉（`startup_page`）：默认 `timer`＝启动即展开专注界面；可选今天/明天/本周/已计划/任务/已完成/记录/日历，启动时 `App.tsx` 先 `initTimer({ openScreen: false })` 载入设置再分流导航，选页面时不再弹专注界面。TS `Settings.startup_page` 与 Rust `Settings.startup_page`/`load_settings` 双侧锁步（`04-data.md`）。
@@ -44,7 +44,7 @@
 - 账号资料（email/name/password）与头像（PB 文件字段 `users.avatar`）由 PocketBase `users` 承载，本地 `users` 表仅保留默认单用户、无 `avatar`/nickname 列（`username` 仅作本地默认身份与迁移兜底）；设置快照每用户一条 PB `configs`（见 `03-architecture.md` §账户与云同步）。
 - 「删除数据」清空业务表并重建默认用户；「退出登录」只清 PB 会话，`settings`/`tasks`/`focus_records` 一行不动（`api/local.ts::logout`、`commands/user.rs::logout`）。
 - `noise` / `noise_volume` 由白噪音弹窗写入：`noise_volume` 每次确定都写，`noise` 只在选了具体音色时写（选「无」保留原值）；试听只在内存里，取消即回滚（`components/NoisePicker.tsx`、`stores/noiseStore.ts`）。
-- `wallpaper` / `wallpapers`：选中背景写 `wallpaper`（`waves` 或 `custom:<文件名>`），自定义图列表写 `wallpapers`（JSON，含 dataURI）；多图上传并发批量写入（`SettingsModal.tsx::appearance`）。`wallpapers` 大体积且本地特有，**configs 云端同步已剔除**（`lib/sync.ts::pushConfig`），跨设备只同步内置背景。
+- `wallpaper` / `wallpapers`：选中背景写 `wallpaper`（`waves` 或 `custom:<文件名>`），自定义图列表写 `wallpapers`（JSON，含 dataURI）；多图上传并发批量写入（`SettingsModal.tsx::appearance`）。两者均随账号配置快照同步。
 - 昵称同样存云端 `users.name`：**删除本地数据不影响昵称**；换账号即换昵称；未登录无编辑入口。
 - 头像存云端：**删除本地数据不影响头像**；换账号即换头像（按 PB 记录），未登录无头像入口。
 

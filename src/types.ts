@@ -123,7 +123,7 @@ export type CountdownKind = 'days_left' | 'days_elapsed' | 'yearly';
 /** 重复规则：once=一次性 / yearly=每年 / monthly=每月 / custom_days=每 N 天 */
 export type CountdownRepeat = 'once' | 'yearly' | 'monthly' | 'custom_days';
 
-/** 倒数纪念日（独立数据域，不参与 tasks/focus_records 统计；本地优先，不同步云端） */
+/** 倒数纪念日（独立于 tasks/focus_records 统计；通过账号配置快照同步） */
 export interface Countdown {
   id: string;
   title: string;
@@ -168,7 +168,7 @@ export interface TimerState {
 export type FloatStyle = 'card' | 'orb' | 'bar';
 
 export interface Settings {
-  /** 本机奖励账本 JSON；不参与云端配置覆盖。 */
+  /** 奖励账本 JSON；通过账号配置快照在设备间同步。 */
   growth_data: string;
   focus_len_min: number;
   break_len_min: number;
@@ -187,7 +187,7 @@ export interface Settings {
   noise_on_break: boolean;
   float_style: FloatStyle;
   wallpaper: string;
-  /** 自定义专注背景列表（JSON 字符串，[{name,data}]，见 lib/wallpaper.ts）；大体积 dataURI，不同步云端 */
+  /** 自定义专注背景列表（JSON 字符串，[{name,data}]，见 lib/wallpaper.ts）；随账号配置同步 */
   wallpapers: string;
   /** 座右铭（个人资料，随配置同步到云端） */
   motto: string;

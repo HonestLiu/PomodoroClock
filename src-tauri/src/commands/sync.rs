@@ -50,6 +50,8 @@ const TASKS_COLS: &[&str] = &[
     "reminded_at",
     "completed",
     "completed_at",
+    "actual_minutes",
+    "parent_id",
     "sort_order",
     "created_at",
     "updated_at",

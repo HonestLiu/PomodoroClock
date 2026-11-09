@@ -7,14 +7,15 @@ import {
   pbUpdateProfile, pbRequestPasswordReset, pbUploadAvatar, pbDeleteAvatar, pbUpdateName, CONFIGS, type PbUser,
 } from '@/lib/pb';
 import {
-  applyRemote, pushConfig, pullConfig, readMeta, resolveDirection, subscribeConfig,
+  applyRemote, isApplyingRemoteConfig, pushConfig, pullConfig, readMeta, resolveDirection, subscribeConfig,
   type ConfigRecord, type SyncMeta,
 } from '@/lib/sync';
-import { api } from '@/api';
+import { api, on } from '@/api';
 import { SYNC_COLLECTIONS, startDataSync, stopDataSync, syncDataNow } from '@/lib/syncData';
 import { useTimerStore } from '@/stores/timerStore';
 import type { Settings } from '@/types';
 import { tStatic } from '@/i18n';
+import { useGrowthStore } from '@/stores/growthStore';
 
 export type AuthStatus = 'unknown' | 'signedOut' | 'signedIn';
 export type SyncState = 'idle' | 'busy' | 'ok' | 'error';
@@ -58,6 +59,13 @@ let unsubRealtime: (() => void) | null = null;
 // 该标记期间禁止云端 pull 覆盖本地：避免刚编辑的配置又被一条较旧的实时事件回退成旧值，
 // 随后 refreshSettings 再把旧值推回云端、永久固化（表现为“改完设置退出再进又变回旧的”）。
 let pushPending = false;
+const offAccountData = on('data://changed', payload => {
+  const table = (payload as { table?: string } | null)?.table;
+  if (['settings', 'quests', 'countdowns', 'notifications'].includes(table ?? '') && !isApplyingRemoteConfig()) {
+    scheduleSyncPush();
+  }
+});
+void offAccountData; // keep the account-data listener alive for the app session
 // 上次连接的同步服务器地址：pb_url 变化时据此判断是否真需要重连，避免无关设置改动打断登录态。
 let lastServer = PB_FALLBACK_URL;
 
@@ -379,6 +387,7 @@ async function refreshSettings(): Promise<void> {
     useTimerStore.getState().setSettings(settings);
     // goals 表与 settings.daily_target_min 保持一致（报表日历口径依赖 goals）
     await api.set_goal(settings.daily_target_min).catch(() => undefined);
+    await useGrowthStore.getState().reload();
   } catch { /* 刷新失败不影响已落地的数据 */ }
 }
 

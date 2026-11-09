@@ -58,9 +58,9 @@ const SPECS: readonly KindSpec[] = [
     fields: [
       'id', 'list_id', 'title', 'notes', 'est_pomodoros', 'due_date', 'due_time', 'url',
       'urgent', 'repeat', 'lead_remind', 'tags', 'flag', 'priority', 'reminded_at',
-      'completed', 'completed_at', 'sort_order', 'created_at', 'updated_at',
+      'completed', 'completed_at', 'actual_minutes', 'parent_id', 'sort_order', 'created_at', 'updated_at',
     ],
-    refs: ['list_id'],
+    refs: ['list_id', 'parent_id'],
   },
   {
     kind: 'records',

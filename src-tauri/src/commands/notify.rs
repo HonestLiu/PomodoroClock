@@ -29,6 +29,20 @@ pub fn list_notifications(db: State<'_, Db>) -> AppResult<Vec<Notification>> {
 }
 
 #[tauri::command]
+pub fn replace_notifications(db: State<'_, Db>, items: Vec<Notification>) -> AppResult<()> {
+    if items.len() > 20000 { return Err(AppError::msg("通知数量超限")); }
+    let mut conn = db.0.lock();
+    let tx = conn.transaction()?;
+    tx.execute("DELETE FROM notifications", [])?;
+    for n in items {
+        tx.execute("INSERT INTO notifications(id,type,title,body,read,created_at) VALUES(?1,?2,?3,?4,?5,?6)",
+            params![n.id,n.r#type,n.title,n.body,n.read,n.created_at])?;
+    }
+    tx.commit()?;
+    Ok(())
+}
+
+#[tauri::command]
 pub fn create_notification(
     db: State<'_, Db>,
     args: CreateNotificationArgs,

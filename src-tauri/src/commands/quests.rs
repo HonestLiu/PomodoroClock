@@ -117,3 +117,15 @@ pub fn quest_load(db: State<'_, Db>) -> AppResult<QuestData> { load_impl(&db.0.l
 pub fn quest_commit(db: State<'_, Db>, expected_revision: i64, next: QuestData) -> AppResult<QuestData> {
     commit_impl(&mut db.0.lock(), expected_revision, next, crate::db_now())
 }
+
+/// Replace this account's quest snapshot after config-sync conflict resolution.
+#[tauri::command]
+pub fn quest_apply_remote(db: State<'_, Db>, data: QuestData) -> AppResult<()> {
+    if data.version != 1 || data.goals.len() > 100 || data.quests.len() > 3000 || data.attempts.len() > 10000 {
+        return Err(invalid());
+    }
+    let conn = db.0.lock();
+    setup(&conn)?;
+    conn.execute("INSERT INTO quest_state(id,data) VALUES(1,?1) ON CONFLICT(id) DO UPDATE SET data=excluded.data", [serde_json::to_string(&data)?])?;
+    Ok(())
+}

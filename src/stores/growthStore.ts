@@ -7,6 +7,7 @@ import { adjustFund, cancelPaymentOrder, configurePayment, confirmPaymentOrder, 
 interface GrowthState {
   data: GrowthData | null;
   error: string;
+  reload(): Promise<void>;
   reconcile(records: FocusRecord[]): Promise<void>;
   saveReward(reward: Reward): Promise<void>;
   removeReward(id: string): Promise<void>;
@@ -74,6 +75,10 @@ function change(update: (s: GrowthData) => GrowthData): Promise<void> {
 export const useGrowthStore = create<GrowthState>(() => ({
   data: null,
   error: '',
+  reload: async () => {
+    try { useGrowthStore.setState({ data: await load(), error: '' }); }
+    catch { useGrowthStore.setState({ data: null, error: 'load' }); }
+  },
   reconcile: records => serial(async () => {
     try {
       const stored = await load();

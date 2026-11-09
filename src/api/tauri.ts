@@ -19,6 +19,7 @@ async function mutate<T>(table: string, run: () => Promise<T>): Promise<T> {
 export const tauriApi: Api = {
   quest_load: () => invoke('quest_load'),
   quest_commit: (expectedRevision, next) => mutate('quests', () => invoke('quest_commit', { expectedRevision, next })),
+  quest_apply_remote: data => mutate('quests', () => invoke('quest_apply_remote', { data })),
   get_user: () => invoke('get_user'),
   update_user: (patch) => mutate('users', () => invoke('update_user', { patch })),
   pick_avatar: () => invoke('pick_avatar'),
@@ -73,11 +74,13 @@ export const tauriApi: Api = {
   set_setting: (key, value) => mutate('settings', () => invoke('set_setting', { key, value })),
 
   list_notifications: () => invoke('list_notifications'),
+  replace_notifications: items => mutate('notifications', () => invoke('replace_notifications', { items })),
   create_notification: (args) => mutate('notifications', () => invoke('create_notification', { args })),
   mark_notif_read: (id) => mutate('notifications', () => invoke('mark_notif_read', { id })),
   mark_all_notifs_read: () => mutate('notifications', () => invoke('mark_all_notifs_read')),
 
   list_countdowns: () => invoke('list_countdowns'),
+  replace_countdowns: items => mutate('countdowns', () => invoke('replace_countdowns', { items })),
   create_countdown: (args) => mutate('countdowns', () => invoke('create_countdown', { args })),
   update_countdown: (id, args) => mutate('countdowns', () => invoke('update_countdown', { id, args })),
   delete_countdown: (id) => mutate('countdowns', () => invoke('delete_countdown', { id })),

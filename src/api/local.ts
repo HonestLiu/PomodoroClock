@@ -8,7 +8,7 @@ import type { Countdown } from '@/types';
 import { DEFAULT_SETTINGS } from '@/types';
 import { tStatic } from '@/i18n/store';
 import {
-  commitQuestData, loadQuestData, flush, getDB, getSettings, initDB, mutate, setSetting, settingsMap, wipeDB,
+  applyRemoteQuestData, commitQuestData, loadQuestData, flush, getDB, getSettings, initDB, mutate, setSetting, settingsMap, wipeDB,
 } from '@/db/idb';
 import {
   categoryFocusMinutes, completedGroups, computeStats, dailyFocusMap, listDistribution,
@@ -50,6 +50,10 @@ export const localApi: Api = {
     const saved = await commitQuestData(expectedRevision, next);
     broadcastDataChanged('quests');
     return saved;
+  },
+  async quest_apply_remote(data) {
+    await applyRemoteQuestData(data);
+    broadcastDataChanged('quests');
   },
   async take_widget_launch() { return false; },
   async get_user() {
@@ -288,12 +292,22 @@ export const localApi: Api = {
     broadcastDataChanged('lists');
   },
 
-  // ── 倒数纪念日（独立数据域，本地优先） ──────────────────────────────
+  // ── 倒数纪念日（独立数据域） ───────────────────────────────────────
   async list_countdowns() {
     await ready();
     return getDB().countdowns
       .map((c) => ({ ...c }))
       .sort((a, b) => a.sort_order - b.sort_order || a.created_at - b.created_at);
+  },
+
+  async replace_countdowns(items) {
+    await ready();
+    if (!Array.isArray(items) || items.length > 5000 || items.some(c => !c.id || !c.title || !/^\d{4}-\d{2}-\d{2}$/.test(c.date))) {
+      throw new Error('countdown.invalid');
+    }
+    mutate(d => { d.countdowns = structuredClone(items); });
+    await flush();
+    broadcastDataChanged('countdowns');
   },
 
   async create_countdown(args: CreateCountdownArgs) {
@@ -620,6 +634,16 @@ export const localApi: Api = {
   async list_notifications() {
     await ready();
     return getDB().notifications.map((n) => ({ ...n })).sort((a, b) => b.created_at - a.created_at);
+  },
+
+  async replace_notifications(items) {
+    await ready();
+    if (!Array.isArray(items) || items.length > 20000 || items.some(n => !n.id || typeof n.title !== 'string' || typeof n.body !== 'string')) {
+      throw new Error('notification.invalid');
+    }
+    mutate(d => { d.notifications = structuredClone(items); });
+    await flush();
+    broadcastDataChanged('notifications');
   },
 
   async create_notification(args) {

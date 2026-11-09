@@ -301,3 +301,11 @@ export async function commitQuestData(expectedRevision: number, next: QuestData)
   });
   return structuredClone(next);
 }
+
+export async function applyRemoteQuestData(next: QuestData): Promise<void> {
+  await initDB();
+  if (next.version !== 1 || !Array.isArray(next.goals) || !Array.isArray(next.quests) || !Array.isArray(next.attempts)
+    || next.goals.length > 100 || next.quests.length > 3000 || next.attempts.length > 10000) throw new Error('quest.invalidPlan');
+  mutate(d => { d.quest_data = structuredClone(next); });
+  await flush();
+}

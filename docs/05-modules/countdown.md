@@ -52,6 +52,7 @@ CREATE INDEX IF NOT EXISTS idx_countdowns_date ON countdowns(date);
 ```
 - **不参与** `focus_records` / `tasks` / 目录统计；`clear_all` 是否清空：与任务一致，砍掉（属业务数据，`clear_all_data` 应一并清）。
 - 提醒写入现有 `notifications` 表，`type='countdown_remind'`（避免与任务提醒 `task_remind` 冲突）。
+- 倒数日与应用内通知随每用户 `configs.data` 快照同步；配置冲突按账号快照的 `rev → updated → device` 规则处理。
 
 ## 日期边界规则（`lib/countdown.ts`，纯函数，可单测）
 

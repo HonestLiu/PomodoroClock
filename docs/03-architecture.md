@@ -50,14 +50,16 @@ Rust 核心    src-tauri/src       commands/* · db.rs · timer_engine.rs
 
 PRD §8.6/`01-vision.md` 把云同步列为非目标；当前实现作为**可选云端对齐层**提前落地，不改本地真相源地位。
 
-- **离线优先**：`local.ts`/SQLite 仍是唯一真相源；云端只做设置项的镜像与收敛。所有云端调用 try/catch，
+- **离线优先**：`local.ts`/SQLite 仍是唯一真相源；云端用于账号设置和持久化业务数据的跨设备镜像与收敛。所有云端调用 try/catch，
   失败静默降级为「云端不可用，已使用本地数据」，绝不清空/阻塞本地（`stores/authStore.ts`）。
-- **集合**：`users`（PocketBase 内建）+ `configs`（每用户一条设置快照，含 `rev`/`updated`/`device`）。
+- **集合**：`users`（PocketBase 内建）+ `configs`（每用户一条账号快照，含 `rev`/`updated`/`device`）+ 行级同步集合 `sync_folders/lists/tasks/records`。
+- **同步内容**：夹、清单、任务/子任务、专注记录走行级同步；`configs.data` 同步设置、奖励与基金账本（含收款码和订单）、任务线进度、倒数日、自定义背景、应用内通知。API Key 与同步服务器地址仅留设备本机；当前计时状态也留本机，避免多设备互相接管计时。
+- **冲突范围**：`configs` 内的数据作为一个账号快照，继续按 `rev → updated → device` 选胜者；离线多设备同时编辑不同配置域时，后写入的整份快照胜出。行级业务数据仍按行 `updated_at` 合并。
 - **地址**：`VITE_PB_URL` 优先，缺省回退 `http://62.234.82.11:28193`（`lib/pb.ts::PB_URL`，`.env.local` 预留）；
   `src/vite-env.d.ts` 声明该变量。
 - **冲突裁决**（`lib/sync.ts::resolveDirection`，纯函数保证双方收敛）：远端无 → push；本地无 → pull；
   `rev` 大者胜；`rev` 相同比 `updated`（字符串比较）；仍同比 `device` 字典序。
-- **写入范围**：`applyRemote` 只写 `DEFAULT_SETTINGS` 已有键（白名单），不引入未知设置项。
+- **写入范围**：`applyRemote` 只写 `DEFAULT_SETTINGS` 已有键（白名单），并单独应用已知的任务线、倒数日和通知快照，不引入未知设置项。
 - **订阅**：`subscribeConfig` 只处理当前用户自己的记录，失败不影响本地。
 - **本地元数据**：`localStorage` 的 `sync.meta.<userId>`（rev/updated/device）与 `sync.device`（设备 id）。
 - **账号页即账号中心**：设置 → 账号就是软件账号（PocketBase），不再有「本地假档案」与独立云同步区块。同一个 `.account-card` 两态：未登录为登录/注册卡（`AccountPane` 的登录态分支），已登录为账号卡 + 头像 + 同步区 + 改密码 + 退出。已移除的是**旧的本地头像上传/编辑资料/本地改密码**；现头像改为云端账号头像（见下条，`SettingsModal.tsx::AccountPane`）。

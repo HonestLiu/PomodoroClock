@@ -34,7 +34,7 @@ focus_records ──(task_id 可空)──> tasks     notifications 独立   tim
 | daily_target_min | int | 180 | ✅ 同步到 goals 表 |
 | auto_start_next | bool | false | ✅ 已接状态机 |
 | theme / language / wallpaper | str | light/zh/waves | ✅ 已读入行为：`theme`→`data-theme`、`language`→词表切换、`wallpaper`→专注界面（`waves` 内置，或 `custom:<文件名>` 引用自定义列表） |
-| wallpapers | str(JSON) | '[]' | ✅ 自定义专注背景列表（`[{name,data}]`, dataURI），见 `lib/wallpaper.ts`；外观页可多图上传/按文件名列示/右侧删除；大体积 dataURI **不同步云端**（`lib/sync.ts::pushConfig` 删 `wallpapers`）,历史内联 `custom:data:…` 兼容回放 |
+| wallpapers | str(JSON) | '[]' | ✅ 自定义专注背景列表（`[{name,data}]`, dataURI），见 `lib/wallpaper.ts`；随账号配置快照同步；历史内联 `custom:data:…` 兼容回放 |
 | noise | str | waves | ✅ 有 UI 写入（取值 `waves`/`rain`/`wind`/`woods`/`cozy`）：入口＝外观页「选择白噪音」与白噪音弹窗，弹窗**确定**才写；选「无」不覆盖已存值（`lib/noise.ts::NOISE_KINDS`、`components/NoisePicker.tsx::confirm`） |
 | noise_volume | float | 0.5 | ✅ 有 UI 写入（0–1 浮点，弹窗滑杆；确定时总是写） |
 | notify_enabled / system_notify | bool | true/true | ✅ 应用内 / 系统通知两个独立门控（`timerStore.ts::checkExpiry`） |
@@ -50,7 +50,7 @@ focus_records ──(task_id 可空)──> tasks     notifications 独立   tim
 > 不等于云端昵称：未登录时侧边栏/设置只显示本地 `username`，登录后以云端 `name` 为准（空则回退邮箱前缀）。
 > 离线/未登录时头像回退首字母或本地 `avatar_path`。
 > `users.name` 是 PB 上的普通文本字段（注册可带、登录后可改），服务端上限 255 字符、客户端限 32 码点，不落本地库。
-> 设置快照每用户一条 PB `configs` 记录，
+> 账号快照每用户一条 PB `configs` 记录，包含设置、奖励账本、任务线进度、倒数日、自定义背景与应用内通知；
 > 本地对齐元数据放 `localStorage` 的 `sync.meta.<userId>` 与 `sync.device`（见 `03-architecture.md` §账户与云同步）。
 
 ### 首启与清空

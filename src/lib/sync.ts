@@ -1,4 +1,4 @@
-// 云端配置同步 —— 每个用户一条 configs 记录（data = Settings JSON）
+// 账号数据同步 —— 每用户一条 configs 快照（设置、奖励、任务线、倒数日和通知）
 // 冲突裁决：rev（主）→ updated（PB 自动时间戳，次）→ device（确定性决胜）。
 // 三步都是**纯函数**，便于单测；两侧都收敛到同一结果。
 
@@ -6,12 +6,14 @@ import { pb, CONFIGS, currentUser, pbErrorMessage } from './pb';
 import { tStatic } from '@/i18n';
 import { api } from '@/api';
 import { DEFAULT_SETTINGS, type Settings } from '@/types';
+import type { Countdown, Notification } from '@/types';
+import type { QuestData } from '@/lib/quests/model';
 
 /** 云端记录的形状（对应 configs 集合字段） */
 export interface ConfigRecord {
   id: string;
   user: string;
-  data: Partial<Settings>;
+  data: Partial<Settings> & { default_list_id?: string; quest_data?: QuestData; countdowns?: Countdown[]; notifications?: Notification[] };
   rev: number;
   device?: string;
   created: string;
@@ -111,17 +113,17 @@ export async function fetchRemote(): Promise<ConfigRecord | null> {
 export async function pushConfig(): Promise<SyncMeta> {
   const me = currentUser();
   if (!me) throw new Error(tStatic('err.notSignedIn'));
-  const settings = await api.get_settings();
+  const [settings, defaultListId, questData, countdowns, notifications] = await Promise.all([
+    api.get_settings(), api.get_default_list(), api.quest_load(), api.list_countdowns(), api.list_notifications(),
+  ]);
   const remote = await fetchRemote();
   const device = deviceId();
-  const payload: Partial<Settings> = { ...settings };
+  const payload: ConfigRecord['data'] = { ...settings, default_list_id: defaultListId ?? '', quest_data: questData, countdowns, notifications };
   // API Key 只留本机：配置同步（configs.data）不上传它，避免泄露到云端
   delete payload.ai_api_key;
   // 同步服务器地址也是本机设置（不同设备可能连不同服务器），不当共享配置上传
   delete payload.pb_url;
-  // 自定义专注背景列表为本地大体积 dataURI，塞进 configs.data 会撑爆云端记录，不共享
-  delete payload.wallpapers;
-  delete payload.growth_data; // 奖励账本只保存在本机，不能由配置同步覆盖余额
+  // 用户明确要求完整同步个性化背景；API Key 与服务器地址仍只留本机。
 
   let saved: ConfigRecord;
   if (remote) {
@@ -153,18 +155,33 @@ export async function applyRemote(rec: ConfigRecord): Promise<void> {
   const data = rec.data ?? {};
   const known = DEFAULT_SETTINGS as unknown as Record<string, unknown>;
   const writes: Array<Promise<unknown>> = [];
-  for (const [k, v] of Object.entries(data)) {
-    if (k === 'growth_data') continue;
-    if (!(k in known)) continue;
-    // 跳过空值与非标量：String(undefined) 会写出 "undefined" 污染本地设置
-    if (v === null || v === undefined) continue;
-    if (typeof v === 'object' || typeof v === 'function') continue;
-    writes.push(api.set_setting(k, String(v)));
+  applyingRemote = true;
+  try {
+    for (const [k, v] of Object.entries(data)) {
+      if (k === 'quest_data' || k === 'countdowns' || k === 'notifications') continue;
+      if (k === 'default_list_id') {
+        if (typeof v === 'string') writes.push(api.set_setting(k, v));
+        continue;
+      }
+      if (!(k in known)) continue;
+      // Skip empty and non-scalar values here; structured data is handled explicitly below.
+      if (v === null || v === undefined) continue;
+      if (typeof v === 'object' || typeof v === 'function') continue;
+      writes.push(api.set_setting(k, String(v)));
+    }
+    await Promise.all(writes);
+    if (data.quest_data && typeof data.quest_data === 'object') await api.quest_apply_remote(data.quest_data);
+    if (Array.isArray(data.countdowns)) await api.replace_countdowns(data.countdowns);
+    if (Array.isArray(data.notifications)) await api.replace_notifications(data.notifications);
+  } finally {
+    applyingRemote = false;
   }
-  await Promise.all(writes);
   const me = currentUser();
   if (me) writeMeta(me.id, remoteMeta(rec));
 }
+
+let applyingRemote = false;
+export function isApplyingRemoteConfig(): boolean { return applyingRemote; }
 
 /** 拉取并按裁决结果决定是否应用；返回实际动作 */
 export async function pullConfig(): Promise<Direction> {
